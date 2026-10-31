@@ -1,3 +1,14 @@
+# V8.1E-G3E — Case privacy for inventory issues / TEST ONLY (1 November 2026)
+
+- Restored genuine G3D source, authenticated original ZIP/BUNDLE SHA-256, isolated local `feat/g3e-inventory-privacy` branch; no live deployment or clinical data.
+- Inventory overview now limits patient-case issues/returns using the warehouse user's CURRENT billing-point access. Owner and unlinked warehouse documents remain accessible.
+- Reviewer case-point access revalidated within transaction before approval/rejection and before disclosing decided document status; pending/rejected return submissions also check patient scope before status validation. Unauthorized approval posts no stock or GL.
+- G3E test-first regression covers two distinct billing points, active grant revocation, owner visibility, unrelated-case denials and no unauthorized journal. Release label updated across HTTP, UI and Mac; independent QA skip classifier corrected to treat `SKIP:` as non-pass.
+- Independent CI **47/47 PASS exit 0**, and synthetic Chromium returns UI at 1440/375/320 PASS; see `QA_G3E_CI_RESULTS.txt`, `QA_G3E_CHROMIUM_RESULTS.txt`.
+- Full local regression after the final code change: **119 scripts: 113 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL**, exit 0. See `QA_G3E_TEST_RESULTS.tsv` and `RAMSES_V81E_G3E_PRIVACY_QA_AR.md`. **NO-GO production** pending physical quarantine/clinical safety, original V8.0, off-device restore, real hospital UAT and financial/medical/IT signoff.
+
+---
+
 # V8.1E-G3D — Original-lot consumables returns / TEST ONLY (1 November 2026)
 
 - Local isolated branch `feat/g3d-case-consumables-returns` based on verified G3C commit `2a5d2ee`; synthetic data only, no hospital deployment.

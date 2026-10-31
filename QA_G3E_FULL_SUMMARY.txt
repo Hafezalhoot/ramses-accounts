@@ -1,0 +1,1 @@
+G3E LOCAL FULL REGRESSION 2026-11-01: 119 scripts; 113 PASS; 5 SKIP; 1 BLOCKED_NO_V80; 0 FAIL; 0 TIMEOUT; exit 0. Chromium G3D returns UI separate PASS on 320/375/1440. No production UAT.

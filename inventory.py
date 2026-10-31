@@ -196,21 +196,32 @@ def stock_asof(c,period=None):
       GROUP BY it.id ORDER BY it.id''',(upto,upto,upto,upto,upto,upto))]
 
 
+def visible_issue_scope(user):
+    # Patient case access is separate from warehouse access and can be revoked live.
+    if user['role']=='owner':
+        return '1=1',()
+    return ('''(i.case_id IS NULL OR EXISTS (
+        SELECT 1 FROM billing_cases b
+        JOIN billing_point_access a ON a.point_id=b.default_point_id
+        JOIN users u ON u.id=a.user_id
+        WHERE b.id=i.case_id AND a.user_id=? AND a.active=1 AND u.active=1))''',
+        (user['id'],))
+
+
 @router.get('/overview')
 def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     permission(c,user)
+    scope,params=visible_issue_scope(user)
     return {'vendors':[dict(v) for v in c.execute('SELECT * FROM inventory_vendors WHERE active=1 ORDER BY id')],
             'items':stock_asof(c),
             'receipts':[dict(r) for r in c.execute('''SELECT r.*,v.name vendor_name,
                (SELECT COALESCE(SUM(quantity*unit_cost_piasters),0) FROM inventory_receipt_lines l WHERE l.receipt_id=r.id) total_piasters
                FROM inventory_receipts r JOIN inventory_vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 60''')],
-            'issues':[dict(i) for i in c.execute('SELECT * FROM inventory_issues ORDER BY id DESC LIMIT 60')],
-            'returns':[dict(r) for r in c.execute('''SELECT ret.id,ret.issue_id,ret.returned_on,ret.evidence_ref,ret.status,ret.created_by,ret.cost_piasters FROM inventory_issue_returns ret
-                WHERE ret.issue_id IN (SELECT id FROM inventory_issues WHERE case_id IS NULL)
-                   OR ?='owner'
-                   OR ret.issue_id IN (SELECT i.id FROM inventory_issues i JOIN billing_cases b ON b.id=i.case_id
-                      JOIN billing_point_access g ON g.point_id=b.default_point_id AND g.user_id=? AND g.active=1)
-                ORDER BY ret.id DESC LIMIT 60''',(user['role'],user['id']))],
+            'issues':[dict(i) for i in c.execute(f'''SELECT i.* FROM inventory_issues i
+                WHERE {scope} ORDER BY i.id DESC LIMIT 60''',params)],
+            'returns':[dict(r) for r in c.execute(f'''SELECT ret.id,ret.issue_id,ret.returned_on,ret.evidence_ref,ret.status,ret.created_by,ret.cost_piasters
+                FROM inventory_issue_returns ret JOIN inventory_issues i ON i.id=ret.issue_id
+                WHERE {scope} ORDER BY ret.id DESC LIMIT 60''',params)],
             'grants':dict(c.execute('SELECT can_prepare,can_approve FROM inventory_access WHERE user_id=?',(user['id'],)).fetchone() or {'can_prepare':0,'can_approve':0}),
             'role':user['role'],
             'notice':'مخزن مستلزمات تجريبي واحد؛ لا يعادل صرف دواء، ولا يسدد فاتورة المورد نقدًا.'}
@@ -380,12 +391,13 @@ def decide_issue(issue_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.C
         permission(c,user,'approve')  # Revocation must win before GL posting.
         i=c.execute('SELECT * FROM inventory_issues WHERE id=?',(issue_id,)).fetchone()
         if not i:fail('إذن الصرف غير موجود',404)
+        # Authorize the specific patient case before revealing its decision status.
+        case=case_scope(c,user,i['case_id']) if i['case_id'] is not None else None
         if i['status']!='pending':fail('تم البت في إذن الصرف بالفعل',409)
         if i['created_by']==user['id']:fail('لا يجوز اعتماد إذن صرف أعددته بنفسك',403)
         month_open(c,i['used_on'][:7])
-        if i['case_id'] is not None:
-            case=c.execute('SELECT status FROM billing_cases WHERE id=?',(i['case_id'],)).fetchone()
-            if not case or case['status']!='open':fail('ملف الحالة أُغلق أثناء انتظار اعتماد الصرف',409)
+        if case is not None and case['status']!='open':
+            fail('ملف الحالة أُغلق أثناء انتظار اعتماد الصرف',409)
         if body.decision=='approve':
             ensure_fifo_date_order(c,'issue',issue_id,i['used_on'])
             cost=fifo_allocate(c,i)
@@ -458,11 +470,12 @@ def prepare_return(body:ReturnForm,user=Depends(get_user),c:sqlite3.Connection=D
         c.execute('BEGIN IMMEDIATE')
         permission(c,user,'prepare')
         issue=c.execute('SELECT * FROM inventory_issues WHERE id=?',(body.issue_id,)).fetchone()
-        if not issue or issue['status']!='approved':fail('إذن الصرف غير معتمد أو غير موجود',409)
+        if not issue:fail('إذن الصرف غير معتمد أو غير موجود',409)
+        case=case_scope(c,user,issue['case_id']) if issue['case_id'] is not None else None
+        if issue['status']!='approved':fail('إذن الصرف غير معتمد أو غير موجود',409)
         if issue['used_on']>day:fail('تاريخ الرد يسبق الصرف الأصلي',409)
-        if issue['case_id'] is not None:
-            case=case_scope(c,user,issue['case_id'])
-            if case['status']!='open':fail('ملف الحالة مغلق ويحتاج تسوية محاسبية منفصلة',409)
+        if case is not None and case['status']!='open':
+            fail('ملف الحالة مغلق ويحتاج تسوية محاسبية منفصلة',409)
         # Idempotent replay must not outlive the user's current patient grant.
         prior,digest=repeat(c,key,'inventory_return',user['id'],payload)
         if prior:return {'id':prior,'replayed':True}
@@ -504,12 +517,12 @@ def decide_return(return_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3
             FROM inventory_issue_returns ret JOIN inventory_issues i ON i.id=ret.issue_id
             WHERE ret.id=?''',(return_id,)).fetchone()
         if not ret:fail('محضر المرتجع غير موجود',404)
+        case=case_scope(c,user,ret['case_id']) if ret['case_id'] is not None else None
         if ret['status']!='pending':fail('تم البت في محضر المرتجع بالفعل',409)
         if ret['created_by']==user['id']:fail('لا يجوز اعتماد محضر مرتجع أعددته بنفسك',403)
         month_open(c,ret['returned_on'][:7])
-        if ret['case_id'] is not None:
-            case=case_scope(c,user,ret['case_id'])
-            if case['status']!='open':fail('ملف الحالة أُغلق أثناء انتظار اعتماد المرتجع',409)
+        if case is not None and case['status']!='open':
+            fail('ملف الحالة أُغلق أثناء انتظار اعتماد المرتجع',409)
         if body.decision=='approve':
             ensure_return_day(c,ret['issue_id'],ret['returned_on'])
             cost=return_cost(c,return_id)

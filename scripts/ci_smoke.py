@@ -10,6 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = (
+    'test_v82_g3e_inventory_privacy.py',
+    'test_qa_skip_reporting.py',
     'test_v82_g3d_inventory_returns.py',
     'test_v82_g3d_return_date_guards.py',
     'test_v82_g3d_upgrade.py',

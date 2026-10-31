@@ -1,3 +1,12 @@
+# حالة أولوية الخصوصية بعد G3E (1 نوفمبر 2026)
+
+- **G3D-08: تم تصحيح مسار الملخص ومراجعة إذن الصرف محليًا في G3E** مع اختبارات كشف المراجع والتفويض المسحوب، وليس قبولًا لإطلاق مستشفى.
+- **الخطوة الهندسية التالية P0:** تصميم وإقرار سياسة استقبال المرتجع وحجز الكميات `quarantined` حتى فحص المختص، منع إتاحتها في FIFO ومنع اعتماد صلاحية طبية من موظف مالي، ومراجعة مصير التالف/المرفوض مع قيد محاسبي مستقل غير معدِّل للأصل.
+- **الخطوة التشغيلية التالية P0:** أرشيف V8.0 الأصلي، واستعادة مشفرة على جهاز منفصل، واختبارات قبول طبية/مالية/IT وحوكمة الوصول للمعلومات الحقيقية.
+- **P1:** أوامر شراء وتوريد جزئي وفواتير موردين ومطابقة ثلاثية ومستحقات، ثم تصحيح كلفة المريض/التأمين والاستثناءات المالية المعتمدة.
+
+---
+
 # G3D next releases — after original-lot case consumables returns (development)
 
 1. **P0 patient/physical safety:** A finance return is *not* clearance for reusing a medical item. Require hospital inventory, infection-control and medical acceptance policy, damaged/quarantine route, and independent clinical reviewer before production.

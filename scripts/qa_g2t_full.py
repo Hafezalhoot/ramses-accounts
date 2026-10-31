@@ -8,13 +8,17 @@ ENV=os.environ.copy()
 for key in ('GOOGLE_SHEET_ID','GOOGLE_SERVICE_ACCOUNT_JSON','GOOGLE_SHEET_TARGET','RAMSES_DB_PATH'):
  ENV.pop(key,None)
 
+def success_status(output):
+ return 'SKIP' if any(line.strip().startswith('SKIP') for line in output.splitlines()) else 'PASS'
+
+
 def one(path):
  started=time.monotonic()
  try:
   result=subprocess.run([sys.executable,str(path)],env=ENV,cwd=ROOT,text=True,capture_output=True,timeout=110)
   output=(result.stdout+'\n'+result.stderr).strip()
   if result.returncode==0:
-   status='SKIP' if ('SKIP ' in output or '\nSKIP' in output) else 'PASS'
+   status=success_status(output)
   elif path.name=='test_billing_upgrade_v81.py' and 'Ramses_Accounts_V8_0' in output:
    status='BLOCKED_NO_V80'
   else:status='FAIL'
