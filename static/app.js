@@ -66,8 +66,8 @@ async function bootstrapUI(){
  const eLabel=$(".environment-label");
  eLabel.textContent="بيئة اختبار • لا تسجل بيانات مالية فعلية";
  eLabel.classList.toggle("test-mode",trial);
- $(".site-footer span:last-child").textContent="V8.1E-G2Y • غير معتمد للتشغيل الحقيقي";
- const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],inventory:["clerk","reviewer","owner"],reports:["viewer","reviewer","owner"],accounting:["reviewer","owner"],owner:["owner"]};
+ $(".site-footer span:last-child").textContent="V8.1E-G2Z • غير معتمد للتشغيل الحقيقي";
+ const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],inventory:["clerk","reviewer","owner"],clinical:["viewer"],reports:["viewer","reviewer","owner"],accounting:["reviewer","owner"],owner:["owner"]};
  $$('[data-permission]').forEach(el=>{el.hidden=!(allowed[el.dataset.permission]||[]).includes(state.me.role)});
  try{if(state.me.role!=='viewer'){await api('/api/inventory/overview');}else{throw Error('viewer');}}catch{const nav=$('[data-view="inventory"]');if(nav)nav.hidden=true;}
  if((state.me.role==="clerk")&&["reviews","legacy","payroll","reports","bank","accounting","admin"].includes(state.view))state.view="dashboard";
@@ -76,14 +76,14 @@ async function bootstrapUI(){
 function hideMenu(){$("#sidebar").classList.remove("open");$("#mobileShade").hidden=true;}
 async function navigate(view){
  if(!state.me)return;
- const restricted={inventory:["owner","reviewer","clerk"],billing:["owner","reviewer","clerk"],shifts:["owner","reviewer","clerk"],calendar:["owner","reviewer","clerk"],cashierCorrections:["owner","reviewer","clerk"],lateEntries:["owner","reviewer","clerk"],cashierRecoveries:["owner","reviewer","clerk"],cashierSettings:["owner"],reviews:["owner","reviewer"],legacy:["owner","reviewer"],payroll:["owner","reviewer"],reports:["owner","reviewer","viewer"],accounting:["owner","reviewer"],bank:["owner","reviewer"],admin:["owner"],new:["owner","reviewer","clerk"]};
+ const restricted={clinical:["viewer"],inventory:["owner","reviewer","clerk"],billing:["owner","reviewer","clerk"],shifts:["owner","reviewer","clerk"],calendar:["owner","reviewer","clerk"],cashierCorrections:["owner","reviewer","clerk"],lateEntries:["owner","reviewer","clerk"],cashierRecoveries:["owner","reviewer","clerk"],cashierSettings:["owner"],reviews:["owner","reviewer"],legacy:["owner","reviewer"],payroll:["owner","reviewer"],reports:["owner","reviewer","viewer"],accounting:["owner","reviewer"],bank:["owner","reviewer"],admin:["owner"],new:["owner","reviewer","clerk"]};
  if(restricted[view]&&!restricted[view].includes(state.me.role)){toast("ليست لديك صلاحية لهذه الصفحة",true);return;}
  state.view=view;hideMenu();$$('.nav-link[data-view]').forEach(b=>b.classList.toggle("active",b.dataset.view===view));
- const titles={inventory:"المخزن المركزي",billing:"الحالات والفواتير",dashboard:"نظرة عامة",new:"تسجيل سند",ledger:"دفتر الحركات",reviews:"الاعتمادات",funds:"الخزن والحسابات",shifts:"الورديات والجرد",calendar:"تقويم الورديات",cashierSettings:"إعدادات ورديات الكاشير",cashierRecoveries:"تسوية فروق الخزنة",cashierCorrections:"بلاغات تصحيح العمليات",lateEntries:"استدراك العمليات المتأخرة",payroll:"المرتبات",reports:"التقارير",accounting:"دفتر الأستاذ",bank:"مطابقة البنك",legacy:"الأرشيف التاريخي",admin:"الإدارة"};
+ const titles={clinical:"إثبات الخدمات الطبي",inventory:"المخزن المركزي",billing:"الحالات والفواتير",dashboard:"نظرة عامة",new:"تسجيل سند",ledger:"دفتر الحركات",reviews:"الاعتمادات",funds:"الخزن والحسابات",shifts:"الورديات والجرد",calendar:"تقويم الورديات",cashierSettings:"إعدادات ورديات الكاشير",cashierRecoveries:"تسوية فروق الخزنة",cashierCorrections:"بلاغات تصحيح العمليات",lateEntries:"استدراك العمليات المتأخرة",payroll:"المرتبات",reports:"التقارير",accounting:"دفتر الأستاذ",bank:"مطابقة البنك",legacy:"الأرشيف التاريخي",admin:"الإدارة"};
  $("#crumbTitle").textContent=titles[view]||"الإدارة المالية";
  $("#content").innerHTML='<div class="loading-state">جاري تحميل البيانات…</div>';
  try{
-  const f={inventory:window.renderInventory,billing:window.renderBilling,dashboard:renderDashboard,new:renderNew,ledger:renderLedger,reviews:renderReviews,funds:renderFunds,shifts:renderShifts,calendar:window.renderCashierCalendar,cashierSettings:window.renderCashierSettings,cashierRecoveries:window.renderCashierRecoveries,cashierCorrections:window.renderFinancialCorrections,lateEntries:window.renderLateEntries,payroll:renderPayroll,reports:renderReports,accounting:renderAccounting,bank:renderBankReconciliation,legacy:renderLegacy,admin:renderAdmin}[view];
+  const f={clinical:renderClinical,inventory:window.renderInventory,billing:window.renderBilling,dashboard:renderDashboard,new:renderNew,ledger:renderLedger,reviews:renderReviews,funds:renderFunds,shifts:renderShifts,calendar:window.renderCashierCalendar,cashierSettings:window.renderCashierSettings,cashierRecoveries:window.renderCashierRecoveries,cashierCorrections:window.renderFinancialCorrections,lateEntries:window.renderLateEntries,payroll:renderPayroll,reports:renderReports,accounting:renderAccounting,bank:renderBankReconciliation,legacy:renderLegacy,admin:renderAdmin}[view];
   await f();
  }catch(error){errorView(error.message);}
 }
@@ -150,6 +150,31 @@ function initialFormValues(){
  const p=state.prefill||{};state.prefill=null;
  return {kind:p.kind||"payment",employee_id:p.employee_id||"",salary_period:p.salary_period||"",category_code:p.category_code||"",department_id:p.department_id||""};
 }
+async function renderClinical(){
+ const data=await api('/api/billing/clinical/queue');
+ const pending=data.items||[];
+ $('#content').innerHTML=head('إثبات الخدمات · تجربة', 'الإثبات الطبي المستقل',
+   'لا ينشئ هذا الإجراء فاتورة أو حركة نقدية. دوّن فقط مرجع تنفيذ قابل للتحقق وبعد مراجعة واقعية للخدمة.',
+   `<button class="btn btn-secondary" id="refreshClinical">${ico('refresh')} تحديث القائمة</button>`)+
+   `<div class="info-box warning">${ico('alert')}<div><strong>نموذج للاختبار فقط:</strong> دور المشاهد بالتفويض الطبي لا يثبت مؤهلًا مهنيًا، والمرجع المكتوب ليس توقيعًا طبيًا إلكترونيًا. لا تُدخل معلومات مرضى حقيقية.</div></div>`+
+   `<section class="panel" style="margin-top:18px"><div class="panel-header"><h2>خدمات بانتظار الإثبات</h2><p>يعرض فقط الخدمات من الأقسام المفوّض بها الحساب، بدون أسعار أو أرصدة.</p></div>`+
+   table(['الحالة','المريض (الكود)','الخدمة','العدد','الوضع','الإجراء'],pending.map(x=>`<tr>`+
+     `<td>${esc(x.case_no)}</td><td>${esc(x.patient_code)}</td><td>${esc(x.service_name)}</td>`+
+     `<td class="num">${integer(x.quantity)}</td><td>${x.state==='fulfilled'?'منفذة سابقًا · تحتاج إثبات':'مطلوبة'}</td>`+
+     `<td><button class="btn btn-small btn-primary" data-clinical-attest="${esc(x.line_id)}">إثبات التنفيذ</button></td></tr>`).join(''))+`</section>`;
+ $('#refreshClinical').onclick=()=>navigate('clinical');
+ $$('[data-clinical-attest]',$('#content')).forEach(btn=>btn.onclick=async()=>{
+   const lineId=Number(btn.dataset.clinicalAttest);
+   if(!Number.isSafeInteger(lineId)||lineId<=0){toast('رقم بند الخدمة غير صحيح',true);return;}
+   const details=await modal('إثبات تنفيذ خدمة','تأكد من مطابقة الملف الطبي أولًا. هذا مرجع ورقي/نظامي للتجربة فقط، وليس توقيعًا سريريًا معتمدًا.',[
+     {name:'evidence_reference',label:'مرجع التقرير أو أمر التنفيذ',required:true,placeholder:'SYN-CLINICAL-REFERENCE-0001'}]);
+   if(!details)return;
+   try{await post(`/api/billing/clinical/lines/${lineId}/attest`,details);
+       toast('سُجل مرجع الإثبات التجريبي');await navigate('clinical');}
+   catch(error){toast(error.message,true);}
+ });
+}
+
 async function renderNew(){
  const p=initialFormValues();const categories=state.lookups.categories;
  const catId=(categories.find(x=>x.code===p.category_code)||{}).id||"";
@@ -1077,12 +1102,36 @@ async function renderAdmin(){
  $("#content").innerHTML=head('الإدارة والحوكمة','إعدادات وصلاحيات النظام','مدير النظام فقط يضيف المستخدمين ويحدد إقفال الفترات ويتابع النسخ إلى Google Sheets.')+
  `<div class="user-grid"><section class="panel"><div class="panel-header"><h2>مستخدمو قسم الحسابات</h2><button class="btn btn-primary btn-small" id="newUser">${ico('plus')} حساب موظف</button></div>`+
  table(['اسم المستخدم','الصلاحية','الحالة','إدارة الحساب'],users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(roleLabels[u.role])}</td><td>${u.active?'<span class="chip approved">نشط</span>':'<span class="chip rejected">معطل</span>'}</td><td><div class="row-actions"><button class="btn btn-small btn-secondary" data-user-password="${u.id}" data-user-name="${esc(u.username)}">تغيير كلمة المرور</button>${['clerk','reviewer'].includes(u.role)?`<button class="btn btn-small btn-secondary" data-user-fund="${u.id}" data-user-name="${esc(u.username)}">تفويض حساب أو خزنة</button>`:''}<button class="btn btn-small btn-outline" data-user-toggle="${u.id}" data-user-name="${esc(u.username)}" data-new-status="${u.active?'0':'1'}" ${u.username===state.me.username?'disabled title="لا يمكنك تعطيل حسابك"':''}>${u.active?'تعطيل':'تفعيل'}</button></div></td></tr>`).join(''))+`</section>`+
+ `<section class="panel"><div class="panel-header"><h2>تفويض إثبات الخدمات الطبي (تجريبي)</h2></div><div class="panel-pad"><p>التوثيق مستقل عن الحسابات. يُمنح فقط لحساب مشاهد مفوض على قسم محدد، ولا يقبل إنشاء فواتير. بعد تفعيل القسم لا يمكن إزالة شرط الإثبات صامتًا. يتطلب التشغيل الحقيقي هوية طبية معتمدة.</p><div class="row-actions"><button class="btn btn-small btn-secondary" id="clinicalGrantSetup">منح / سحب تفويض طبي</button><button class="btn btn-small btn-outline" id="clinicalActivateSetup">تفعيل شرط الإثبات لقسم</button></div></div></section>`+
  `<section class="panel"><div class="panel-header"><h2>سياسة صلاحيات الخزن النقدية</h2></div><div class="panel-pad"><p>الخزن القديمة تنتقل للحماية بعد تحديد تفويضات الموظفين، والخزن الجديدة تبدأ بالحماية مفعلة. عند التفعيل لا يمكن للموظف العمل أو اعتماد حركة دون تفويض خاص بهذه الخزنة.</p><button class="btn btn-secondary btn-small" type="button" id="configureCashFundPolicy">إدارة حماية الخزنة</button></div></section>`+
  `<section class="panel"><div class="panel-header"><h2>إقفال الفترة المحاسبية</h2><button class="btn btn-secondary btn-small" id="closePeriod">${ico('lock')} إقفال شهر</button></div>`+
  table(['الفترة','تاريخ الإقفال'],periods.map(p=>`<tr><td><b>${esc(p.period)}</b></td><td>${esc(p.closed_at.slice(0,10))}</td></tr>`).join(''))+`<div class="panel-pad"><p class="hint">المحاسبة لا تسمح باعتماد أو إدخال سند جديد في فترة مغلقة، ولا إقفال شهر به سندات معلقة.</p></div></section>`+
  `<section class="panel"><div class="panel-header"><div><h2>مزامنة Google Sheets</h2><p>نسخة متابعة خاصة بمالك المستشفى فقط</p></div><button class="btn btn-primary btn-small" id="syncNow" ${sync.configured?'':'disabled'}>${ico('refresh')} مزامنة الآن</button></div>`+
  `<div class="panel-pad"><p style="margin:0 0 12px">${sync.configured?'<span class="chip approved">تم إعداد الاتصال</span>':'<span class="chip pending">لم يتم ربط Google Sheets بعد</span>'}</p><p class="summary-note">آخر مزامنة: ${esc(sync.last_synced_at||'لم تحدث')} • ${sync.dirty?'هناك تغييرات لم تنسخ بعد':'النسخة محدثة حتى آخر مزامنة'}</p><div class="info-box">${ico('shield')}<div>الموظفون لا يحصلون على صلاحية للشيت. الخادم وحده يتصل باستخدام حساب خدمة، والبيانات الأصلية تظل محفوظة داخل قاعدة النظام.</div></div></div></section>`+
  `<section class="panel"><div class="panel-header"><h2>آخر الأحداث الرقابية</h2></div>${table(['الوقت','المستخدم','الإجراء','المرجع'],audit.slice(0,20).map(a=>`<tr><td class="tiny">${esc(a.created_at.replace('T',' ').slice(0,19))}</td><td>${esc(a.username)}</td><td>${esc(a.action)}</td><td>${esc(a.entity)} #${esc(a.entity_id)}</td></tr>`).join(''))}</section></div>`;
+ $('#clinicalGrantSetup').onclick=async()=>{
+   const viewers=users.filter(u=>u.active&&u.role==='viewer');
+   const departments=state.lookups?.departments||[];
+   if(!viewers.length||!departments.length){toast('أنشئ حساب مشاهد تجريبيًا وحدد القسم أولًا',true);return;}
+   const data=await modal('تفويض مُثبت خدمة مستقل','يُمنح للمستخدم صاحب مهمة طبية تجريبية، وليس للمدير أو المحاسب أو الكاشير.',[
+     {name:'user_id',type:'select',label:'حساب المُثبت',required:true,options:viewers.map(u=>[String(u.id),u.username])},
+     {name:'department_id',type:'select',label:'القسم',required:true,options:departments.map(d=>[String(d.id),d.name])},
+     {name:'active',type:'select',label:'القرار',required:true,options:[['true','تفويض'],['false','سحب التفويض فورًا']]}
+   ]);
+   if(!data)return;
+   try{await post('/api/billing/clinical/grants',{user_id:Number(data.user_id),department_id:Number(data.department_id),active:data.active==='true'});
+       toast('حُفظ تفويض التجربة مع سجل التدقيق');}
+   catch(error){toast(error.message,true);}
+ };
+ $('#clinicalActivateSetup').onclick=async()=>{
+   const departments=state.lookups?.departments||[];
+   const data=await modal('تفعيل إلزام الإثبات الطبي','التفعيل قرار غير قابل للإلغاء تلقائيًا؛ سيمنع فواتير الخدمات غير الموثقة بهذا القسم حتى للطلبات القديمة.',[
+     {name:'department_id',type:'select',label:'القسم',required:true,options:departments.map(d=>[String(d.id),d.name])}]);
+   if(!data)return;
+   try{await post(`/api/billing/clinical/departments/${Number(data.department_id)}/activate`);
+       toast('تفعّل الشرط التجريبي، وتجب مطابقة كل خدمة قبل الفوترة');}
+   catch(error){toast(error.message,true);}
+ };
  $('#configureCashFundPolicy').onclick=async()=>{
    const all=await api('/api/funds');const cash=all.filter(f=>f.kind==='cash'&&f.active);
    const info=await modal('حماية صلاحيات الخزنة النقدية','تفعيل الرقابة يمنع الموظفين غير المفوضين فورًا. عيّن صلاحيات إنشاء السندات واعتمادها أولًا، خصوصًا للوردية المفتوحة.',[

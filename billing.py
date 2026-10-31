@@ -139,6 +139,167 @@ class DraftForm(BaseModel):
     request_id:str
 
 
+class ClinicalGrantForm(BaseModel):
+    user_id:int
+    department_id:int
+    active:bool=True
+
+
+class ClinicalEvidenceForm(BaseModel):
+    evidence_reference:str=Field(min_length=8,max_length=180)
+
+
+def clinical_required(c, department_id):
+    return bool(c.execute('SELECT 1 FROM billing_clinical_policies WHERE department_id=?',
+                          (department_id,)).fetchone())
+
+
+def require_clinical_grant(c, user, department_id):
+    # A financial owner/reviewer/cashier cannot self-certify a medical service.
+    # G2Z pilot uses the viewer login class plus a separately approved dept grant;
+    # a first-class clinician identity requires hospital medical/IT acceptance.
+    if user['role']!='viewer' or not c.execute('''SELECT 1 FROM billing_clinical_grants g
+        JOIN users u ON u.id=g.user_id WHERE g.department_id=? AND g.user_id=?
+        AND g.active=1 AND u.active=1 AND u.role='viewer' ''',
+        (department_id,user['id'])).fetchone():
+        fail('لا تملك تفويض إثبات طبي مستقل لهذا القسم',403)
+
+
+def require_invoice_clinical_evidence(c, lines):
+    # Always re-check at ISSUE, including drafts created before policy activation.
+    for line in lines:
+        if clinical_required(c,line['department_id']) and not c.execute(
+                'SELECT 1 FROM billing_clinical_attestations WHERE case_line_id=?',
+                (line['case_line_id'] if 'case_line_id' in line.keys() else line['id'],)).fetchone():
+            fail('خدمة في هذه الفاتورة تحتاج إثبات تنفيذ طبي مستقل قبل الإصدار',409)
+
+
+@router.post('/clinical/grants')
+def clinical_grant(body:ClinicalGrantForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    require(user,'owner')
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        department=c.execute('SELECT id FROM departments WHERE id=? AND active=1',
+                             (body.department_id,)).fetchone()
+        staff=c.execute('SELECT id,role,active FROM users WHERE id=?',(body.user_id,)).fetchone()
+        if not department:fail('القسم غير موجود أو غير نشط',404)
+        if not staff or not staff['active'] or staff['role']!='viewer':
+            fail('التفويض التجريبي للطبيب يقبل حساب مشاهد نشط فقط ومنفصل عن المالية',400)
+        c.execute('''INSERT INTO billing_clinical_grants(department_id,user_id,active,assigned_by,assigned_at)
+          VALUES (?,?,?,?,?) ON CONFLICT(department_id,user_id) DO UPDATE SET
+          active=excluded.active,assigned_by=excluded.assigned_by,assigned_at=excluded.assigned_at''',
+          (department['id'],staff['id'],int(body.active),user['id'],stamp()))
+        audit(c,user['id'],'clinical_grant','department',body.department_id,
+              {'user_id':body.user_id,'active':body.active})
+    return {'user_id':body.user_id,'department_id':body.department_id,'active':body.active}
+
+
+@router.post('/clinical/departments/{department_id}/activate')
+def activate_clinical_policy(department_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    require(user,'owner')
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        if clinical_required(c,department_id):fail('القسم مفعل بالفعل ولا يمكن التراجع صامتًا',409)
+        if not c.execute('SELECT 1 FROM departments WHERE id=? AND active=1',(department_id,)).fetchone():
+            fail('القسم غير موجود أو غير نشط',404)
+        if not c.execute('''SELECT 1 FROM billing_clinical_grants g JOIN users u ON u.id=g.user_id
+          WHERE g.department_id=? AND g.active=1 AND u.active=1 AND u.role='viewer' ''',
+          (department_id,)).fetchone():
+            fail('لا يمكن تفعيل الإثبات الطبي قبل تحديد مُثبت مستقل ومفوض لهذا القسم',409)
+        c.execute('INSERT INTO billing_clinical_policies(department_id,activated_by,activated_at) VALUES (?,?,?)',
+                  (department_id,user['id'],stamp()))
+        audit(c,user['id'],'clinical_policy_activated','department',department_id)
+    return {'department_id':department_id,'enforced':True}
+
+
+@router.get('/clinical/policy')
+def clinical_policy(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    require(user,'owner')
+    return {'departments':[dict(x) for x in c.execute(
+        'SELECT department_id,activated_by,activated_at FROM billing_clinical_policies ORDER BY department_id')]}
+
+
+@router.get('/clinical/queue')
+def clinical_queue(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    require(user,'viewer')
+    # No prices, payer identity, clinical history or unrestricted patient lists.
+    rows=c.execute('''SELECT l.id line_id,l.department_id,l.service_name_snapshot service_name,
+        l.quantity,l.state,l.service_date,b.case_no,p.code patient_code
+        FROM billing_case_lines l
+        JOIN billing_cases b ON b.id=l.case_id
+        JOIN billing_patients p ON p.id=b.patient_id
+        JOIN billing_clinical_policies policy ON policy.department_id=l.department_id
+        JOIN billing_clinical_grants g ON g.department_id=l.department_id
+          AND g.user_id=? AND g.active=1
+        WHERE b.status='open' AND l.state IN ('ordered','fulfilled')
+          AND NOT EXISTS(SELECT 1 FROM billing_clinical_attestations a WHERE a.case_line_id=l.id)
+        ORDER BY l.id LIMIT 100''',(user['id'],)).fetchall()
+    return {'items':[dict(r) for r in rows], 'notice':'TEST ONLY — Evidence reference is not a licensed clinical signature'}
+
+
+@router.get('/clinical/lines/{line_id}/evidence')
+def clinical_evidence(line_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    line=c.execute('''SELECT a.*,l.case_id,l.department_id FROM billing_clinical_attestations a
+        JOIN billing_case_lines l ON l.id=a.case_line_id WHERE a.case_line_id=?''',(line_id,)).fetchone()
+    if not line:fail('لا يوجد إثبات طبي مسجل لهذا البند',404)
+    if user['role']=='viewer':require_clinical_grant(c,user,line['department_id'])
+    else:
+        require(user,'owner','reviewer')
+        case_scope(c,user,line['case_id'])
+    return {k:line[k] for k in ('case_line_id','department_id','service_date','evidence_reference','attested_by','attested_at')}
+
+
+def complete_line(c,line,actor):
+    """Single dated fulfillment path: identical for financial legacy and medical witness."""
+    night=c.execute('SELECT night_date FROM bed_night_charges WHERE case_line_id=?',(line['id'],)).fetchone()
+    late=c.execute('SELECT original_business_date FROM billing_late_cases WHERE case_id=?',
+                   (line['case_id'],)).fetchone()
+    service_day=(night['night_date'] if night else
+                 (late['original_business_date'] if late else cairo_today()))
+    month_open(c,(cairo_today() if late else service_day)[:7])
+    if night:
+        c.execute("UPDATE billing_case_lines SET state='fulfilled',service_date=?,fulfilled_by=?,fulfilled_at=? WHERE id=?",
+                  (service_day,actor,stamp(),line['id']))
+    else:
+        price=c.execute('''SELECT * FROM billing_service_prices WHERE service_id=? AND valid_from<=?
+               ORDER BY valid_from DESC LIMIT 1''',(line['service_id'],service_day)).fetchone()
+        if not price:fail('لا توجد تعريفة معتمدة بتاريخ تنفيذ الخدمة',409)
+        c.execute('''UPDATE billing_case_lines SET state='fulfilled',service_date=?,price_version_id=?,
+             unit_price_piasters=?,fulfilled_by=?,fulfilled_at=? WHERE id=?''',
+             (service_day,price['id'],price['price_piasters'],actor,stamp(),line['id']))
+    return service_day
+
+
+@router.post('/clinical/lines/{line_id}/attest')
+def attest_clinical_line(line_id:int,body:ClinicalEvidenceForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    evidence=trim(body.evidence_reference,'مرجع الإثبات الطبي',8,180)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        line=c.execute('SELECT * FROM billing_case_lines WHERE id=?',(line_id,)).fetchone()
+        if not line:fail('بند الخدمة غير موجود',404)
+        require_clinical_grant(c,user,line['department_id'])
+        if not clinical_required(c,line['department_id']):
+            fail('يجب تفعيل سياسة الإثبات الطبي لهذا القسم قبل التوثيق',409)
+        case=c.execute('SELECT id,status FROM billing_cases WHERE id=?',(line['case_id'],)).fetchone()
+        if not case or case['status']!='open' or line['state']=='cancelled':
+            fail('لا يمكن إثبات خدمة لحالة مغلقة أو بند ملغى',409)
+        if c.execute('SELECT 1 FROM billing_clinical_attestations WHERE case_line_id=?',
+                     (line_id,)).fetchone():fail('هذه الخدمة موثقة طبيًا بالفعل',409)
+        if c.execute('''SELECT 1 FROM billing_invoice_draft_lines dl JOIN billing_invoices i
+            ON i.draft_id=dl.draft_id WHERE dl.case_line_id=?''',(line_id,)).fetchone():
+            fail('لا يمكن إضافة إثبات طبي بأثر رجعي لفاتورة صادرة',409)
+        day=(complete_line(c,line,user['id']) if line['state']=='ordered' else line['service_date'])
+        if not day:fail('تاريخ تنفيذ الخدمة التاريخية غير مثبت؛ لا يمكن اعتمادها',409)
+        c.execute('''INSERT INTO billing_clinical_attestations(case_line_id,department_id,service_date,
+             evidence_reference,attested_by,attested_at) VALUES (?,?,?,?,?,?)''',
+             (line_id,line['department_id'],day,evidence,user['id'],stamp()))
+        audit(c,user['id'],'clinical_service_attested','billing_case_line',line_id,
+              {'case_id':line['case_id'],'department_id':line['department_id'],
+               'service_date':day})
+    return {'line_id':line_id,'state':'fulfilled','attested_by':user['id'],
+            'service_date':day,'evidence_reference':evidence}
+
+
 @router.get('/config')
 def config(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     points=visible_points(c,user)
@@ -377,23 +538,9 @@ def fulfill_line(line_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends
         if not line:fail('الخدمة غير موجودة',404)
         case=case_scope(c,user,line['case_id'])
         if case['status']!='open' or line['state']!='ordered':fail('الخدمة ليست قيد الانتظار',409)
-        night=c.execute('SELECT night_date FROM bed_night_charges WHERE case_line_id=?',(line_id,)).fetchone()
-        late=c.execute('SELECT original_business_date FROM billing_late_cases WHERE case_id=?',
-                       (line['case_id'],)).fetchone()
-        service_day=(night['night_date'] if night else
-                     (late['original_business_date'] if late else cairo_today()))
-        month_open(c,(cairo_today() if late else service_day)[:7])
-        if night:
-            # The bed's dated tariff is already immutable in its night evidence.
-            c.execute("UPDATE billing_case_lines SET state='fulfilled',service_date=?,fulfilled_by=?,fulfilled_at=? WHERE id=?",
-                      (service_day,user['id'],stamp(),line_id))
-        else:
-            price=c.execute('''SELECT * FROM billing_service_prices WHERE service_id=? AND valid_from<=?
-                   ORDER BY valid_from DESC LIMIT 1''',(line['service_id'],service_day)).fetchone()
-            if not price:fail('لا توجد تعريفة معتمدة بتاريخ تنفيذ الخدمة',409)
-            c.execute('''UPDATE billing_case_lines SET state='fulfilled',service_date=?,price_version_id=?,
-                 unit_price_piasters=?,fulfilled_by=?,fulfilled_at=? WHERE id=?''',
-                 (service_day,price['id'],price['price_piasters'],user['id'],stamp(),line_id))
+        if clinical_required(c,line['department_id']):
+            fail('تم تفعيل الإثبات الطبي المستقل؛ المراجع المالي لا يثبت تنفيذ هذه الخدمة',403)
+        service_day=complete_line(c,line,user['id'])
         audit(c,user['id'],'billing_fulfill_service','billing_case',line['case_id'],
               {'line_id':line_id,'service_date':service_day})
     return {'id':line_id,'state':'fulfilled'}
@@ -446,6 +593,7 @@ def create_draft(case_id:int,body:DraftForm,user=Depends(get_user),c:sqlite3.Con
                               WHERE d.case_line_id=l.id) ORDER BY l.id''',
               (case_id,case['business_date'],*allowed_periods)).fetchall()
         if not rows:fail('لا توجد خدمات منفذة غير مضافة لمسودة سابقة',409)
+        require_invoice_clinical_evidence(c,rows)
         total=sum(int(r['unit_price_piasters'])*int(r['quantity']) for r in rows)
         cur=c.execute('''INSERT INTO billing_invoice_drafts(draft_no,case_id,point_id,total_piasters,
                       created_by,created_at) VALUES (?,?,?,?,?,?)''',
@@ -676,6 +824,7 @@ def issue_invoice(draft_id:int,body:IssueInvoice,user=Depends(get_user),c:sqlite
           WHERE dl.draft_id=? ORDER BY dl.id''',(draft_id,)).fetchall()
         if not rows or any(r['state']!='fulfilled' for r in rows) or sum(r['total_piasters'] for r in rows)!=draft['total_piasters']:
             fail('المسودة تغيرت أو تحتوي على خدمة غير منفذة',409)
+        require_invoice_clinical_evidence(c,rows)
         late_origin=c.execute('''SELECT incident_id,original_business_date
             FROM billing_late_cases WHERE case_id=?''',(case['id'],)).fetchone()
         allowed_periods={day[:7]}

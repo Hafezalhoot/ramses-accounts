@@ -1533,3 +1533,47 @@ CREATE TRIGGER IF NOT EXISTS inv_receipt_no_closed_month_decision BEFORE UPDATE 
 CREATE TRIGGER IF NOT EXISTS inv_issue_no_closed_month_decision BEFORE UPDATE OF status ON inventory_issues
  WHEN EXISTS(SELECT 1 FROM periods WHERE period=substr(OLD.used_on,1,7))
  BEGIN SELECT RAISE(ABORT,'Sealed month inventory issue decision forbidden'); END;
+
+-- G2Z (test-only): independent per-department medical evidence gate.
+-- The viewer login class is used for *explicitly granted clinical pilot* users
+-- because the historical users.role CHECK cannot safely be expanded in-place.
+-- This is not a legally recognized clinical e-signature or medical credential.
+CREATE TABLE IF NOT EXISTS billing_clinical_grants (
+ department_id INTEGER NOT NULL REFERENCES departments(id),
+ user_id INTEGER NOT NULL REFERENCES users(id),
+ active INTEGER NOT NULL CHECK(active IN (0,1)),
+ assigned_by INTEGER NOT NULL REFERENCES users(id), assigned_at TEXT NOT NULL,
+ PRIMARY KEY(department_id,user_id)
+);
+CREATE TABLE IF NOT EXISTS billing_clinical_policies (
+ department_id INTEGER PRIMARY KEY REFERENCES departments(id),
+ activated_by INTEGER NOT NULL REFERENCES users(id), activated_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS billing_clinical_policy_no_update BEFORE UPDATE ON billing_clinical_policies
+ BEGIN SELECT RAISE(ABORT,'Clinical attestation activation cannot be silently disabled'); END;
+CREATE TRIGGER IF NOT EXISTS billing_clinical_policy_no_delete BEFORE DELETE ON billing_clinical_policies
+ BEGIN SELECT RAISE(ABORT,'Clinical attestation activation cannot be silently removed'); END;
+CREATE TABLE IF NOT EXISTS billing_clinical_attestations (
+ id INTEGER PRIMARY KEY,
+ case_line_id INTEGER NOT NULL UNIQUE REFERENCES billing_case_lines(id),
+ department_id INTEGER NOT NULL REFERENCES departments(id),
+ service_date TEXT NOT NULL,
+ evidence_reference TEXT NOT NULL CHECK(length(trim(evidence_reference)) BETWEEN 8 AND 180),
+ attested_by INTEGER NOT NULL REFERENCES users(id), attested_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS billing_clinical_attestation_no_update BEFORE UPDATE ON billing_clinical_attestations
+ BEGIN SELECT RAISE(ABORT,'Clinical witness reference is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS billing_clinical_attestation_no_delete BEFORE DELETE ON billing_clinical_attestations
+ BEGIN SELECT RAISE(ABORT,'Clinical witness reference is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS billing_clinical_attestation_validate_insert
+ BEFORE INSERT ON billing_clinical_attestations
+ WHEN NOT EXISTS (SELECT 1 FROM billing_clinical_policies p WHERE p.department_id=NEW.department_id)
+   OR NEW.department_id!=(SELECT department_id FROM billing_case_lines WHERE id=NEW.case_line_id)
+   OR NEW.service_date!=(SELECT service_date FROM billing_case_lines WHERE id=NEW.case_line_id)
+   OR (SELECT state FROM billing_case_lines WHERE id=NEW.case_line_id)!='fulfilled'
+   OR NOT EXISTS (SELECT 1 FROM billing_clinical_grants g JOIN users u ON u.id=g.user_id
+                  WHERE g.department_id=NEW.department_id AND g.user_id=NEW.attested_by
+                    AND g.active=1 AND u.active=1 AND u.role='viewer')
+   OR EXISTS (SELECT 1 FROM billing_invoice_draft_lines dl JOIN billing_invoices i
+              ON i.draft_id=dl.draft_id WHERE dl.case_line_id=NEW.case_line_id)
+ BEGIN SELECT RAISE(ABORT,'Invalid clinical attestation provenance'); END;

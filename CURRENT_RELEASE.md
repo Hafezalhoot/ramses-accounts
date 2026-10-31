@@ -1,3 +1,14 @@
+# V8.1E-G2Z — Independent Clinical Attestation Pilot (31 أكتوبر 2026) / TEST ONLY
+
+- **Local development branch:** `fix/g2z-clinical-evidence-gate`, derived from verified G2Y commit `405974d`.
+- Department-level pilot clinical sign-off backed by active owner grant to `viewer`-class synthetic account; never a substitute for medical identity/credential verification.
+- Finance cannot independently fulfill protected clinical services; invoices and drafts require independent evidence after owner activation, including recheck of old drafts.
+- Immutable SQL attestation rows and active-policy check; no fake historical signatures. Frozen G2Y encrypted migration with isolated restore tested.
+- Chromium pilot UI at 320/375/1440 tested with stubbed synthetic network. Full suite: 101 PASS, 5 SKIP, 1 blocked missing V8.0 / 107, zero functional failures; CI smoke 35/35 PASS. Evidence in `QA_G2Z_TEST_RESULTS.tsv` and `QA_G2Z_CI_RESULTS.txt`.
+- **NO-GO:** clinical/legal sign-off, full medical identity, financial governance, offsite backup, original V8.0 archive, hospital UAT and deployment approvals are missing.
+
+---
+
 - **بوابة CI المحلية النهائية: 33/33 PASS**؛ الاختبارات التاريخية الناقصة ليست جزءًا من البوابة. النتيجة `QA_G2Y_CI_RESULTS.txt`.
 ## V8.1E-G2Y — Project Autopilot (31 أكتوبر 2026) / TEST ONLY
 
