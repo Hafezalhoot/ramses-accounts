@@ -23,6 +23,16 @@ def report(c, month, user, *, at=None, grace_minutes=None):
         clause = ''' AND EXISTS(SELECT 1 FROM billing_point_access a
                  WHERE a.point_id=p.id AND a.user_id=? AND a.active=1)'''
         args.append(user['id'])
+    elif user['role']=='reviewer':
+        # Do not reveal restricted station schedules, shift IDs or totals
+        # merely because the user has a reviewer role.
+        clause = ''' AND NOT EXISTS(SELECT 1 FROM funds f WHERE f.id=p.fund_id
+            AND (f.kind IN ('bank','wallet') OR f.cash_restricted=1)
+            AND NOT EXISTS(SELECT 1 FROM user_fund_grants g
+              JOIN users u ON u.id=g.user_id AND u.active=1
+              WHERE g.user_id=? AND g.fund_id=f.id
+              AND (g.can_submit=1 OR g.can_approve=1)))'''
+        args.append(user['id'])
     points = [dict(r) for r in c.execute('''SELECT p.id,p.name,p.kind,p.fund_id,p.active,
               (SELECT MIN(s.business_date) FROM shift_sessions s WHERE s.point_id=p.id OR (s.point_id IS NULL AND s.fund_id=p.fund_id)) monitored_from
               FROM billing_points p WHERE EXISTS(SELECT 1 FROM cashier_schedule_versions v WHERE v.point_id=p.id)

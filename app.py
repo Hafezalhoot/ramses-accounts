@@ -550,7 +550,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G2V Encrypted Upgrade Development - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G2X Restricted Shift Scope Development - Test Only"}
 
 
 @app.post("/api/login")
@@ -1068,7 +1068,11 @@ def shifts(month:str="", user=Depends(get_user), c:sqlite3.Connection=Depends(db
            SELECT 1 FROM billing_points p JOIN billing_point_access a ON a.point_id=p.id
            WHERE p.fund_id=s.fund_id AND a.user_id=? AND a.active=1)))"""
         args.extend([user['id'],user['id']])
-    rows=c.execute("""SELECT s.*,f.name fund_name,f.kind fund_kind,u.username responsible_name,
+    elif user['role']=='reviewer':
+        scoped,scope_args=reviewer_shift_scope_sql(user)
+        where+=' AND '+scoped
+        args.extend(scope_args)
+    rows=c.execute("""SELECT s.*,f.name fund_name,f.kind fund_kind,f.cash_restricted fund_restricted,u.username responsible_name,
             r.username reviewer_name FROM shift_sessions s JOIN funds f ON f.id=s.fund_id
             JOIN users u ON u.id=s.responsible_id
             LEFT JOIN users r ON r.id=s.reviewed_by """+where+" ORDER BY s.business_date DESC,s.id DESC LIMIT 250",args).fetchall()
@@ -1090,8 +1094,11 @@ def shifts(month:str="", user=Depends(get_user), c:sqlite3.Connection=Depends(db
               'SELECT 1 FROM billing_point_access WHERE point_id=? AND user_id=? AND active=1',
               (station['id'],user['id'])).fetchone()))
         item['can_handoff']=bool(can_receive)
-        item["can_review"]=user["role"] in ("owner","reviewer") and not item["mine"] and not(
-             handoff and handoff['received_by']==user['id'])
+        can_review_role=(user['role']=='owner' or (user['role']=='reviewer' and (
+            (r['fund_kind']=='cash' and not r['fund_restricted']) or
+            fund_grant_rights(c,user,r['fund_id'])['can_approve'])))
+        item['can_review']=bool(can_review_role and not item['mine'] and not(
+             handoff and handoff['received_by']==user['id']))
         approved_delegate=(user['role']=='reviewer' and c.execute(
             'SELECT COALESCE(can_approve,0) FROM cashier_variance_permissions WHERE user_id=?',
             (user['id'],)).fetchone())
@@ -1129,13 +1136,14 @@ def cashier_day_summary(business_date:str,user=Depends(get_user),c:sqlite3.Conne
     require(user,'owner','reviewer')
     day=valid_date(business_date).isoformat()
     stations=[]
+    scoped,scope_args=reviewer_shift_scope_sql(user)
     for sh in c.execute('''SELECT s.id,s.business_date,s.shift,s.status,s.opening_piasters,
               s.counted_piasters,s.variance_piasters,s.responsible_id,
               s.count_version,s.fund_id,p.name point_name,f.name fund_name,u.username responsible_name
               FROM shift_sessions s JOIN funds f ON f.id=s.fund_id
               JOIN users u ON u.id=s.responsible_id
               JOIN billing_points p ON p.fund_id=s.fund_id
-              WHERE s.business_date=? ORDER BY p.id,s.id''',(day,)):
+              WHERE s.business_date=? AND '''+scoped+' ORDER BY p.id,s.id',[day]+scope_args):
         method=[dict(r) for r in c.execute('''SELECT p.method, SUM(p.amount_piasters) total_piasters
             FROM billing_payment_parts p JOIN billing_collections b ON b.id=p.collection_id
             WHERE b.shift_session_id=? GROUP BY p.method''',(sh['id'],))]
@@ -1172,6 +1180,7 @@ def shift_movements(shift_id:int,user=Depends(get_user),c:sqlite3.Connection=Dep
            FROM shift_sessions s JOIN funds f ON f.id=s.fund_id
            JOIN users u ON u.id=s.responsible_id WHERE s.id=?""",(shift_id,)).fetchone()
     if not session:fail("الوردية غير موجودة",404)
+    require_reviewer_shift_fund(c,user,session['fund_id'])
     lines=[dict(r) for r in c.execute("""SELECT v.voucher_no,v.date,v.kind,v.description,v.reference_no,
             m.amount_piasters,v.status,u.username created_by
             FROM fund_movements m JOIN vouchers v ON v.id=m.voucher_id
@@ -1339,7 +1348,10 @@ def shift_handoff(shift_id:int,body:ShiftHandoffForm,user=Depends(get_user),c:sq
     with c:
         c.execute('BEGIN IMMEDIATE')
         sh=c.execute('SELECT * FROM shift_sessions WHERE id=?',(shift_id,)).fetchone()
-        if not sh or sh['status']!='submitted':
+        if not sh:
+            fail('Shift is not available',404)
+        require_reviewer_shift_fund(c,user,sh['fund_id'])
+        if sh['status']!='submitted':
             fail('Shift handover is not currently awaiting receipt',409)
         station=station_handoff_required(c,sh)
         if not station:
@@ -1369,8 +1381,9 @@ def shift_handoff(shift_id:int,body:ShiftHandoffForm,user=Depends(get_user),c:sq
 @app.get('/api/shifts/{shift_id}/count-history')
 def shift_count_history(shift_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     require(user,'owner','reviewer','clerk')
-    sh=c.execute('SELECT responsible_id FROM shift_sessions WHERE id=?',(shift_id,)).fetchone()
+    sh=c.execute('SELECT responsible_id,fund_id FROM shift_sessions WHERE id=?',(shift_id,)).fetchone()
     if not sh:fail('الوردية غير موجودة',404)
+    require_reviewer_shift_fund(c,user,sh['fund_id'])
     if user['role']=='clerk' and sh['responsible_id']!=user['id']:
         fail('سجل الجرد متاح لصاحب الوردية والمراجع فقط',403)
     return [dict(r) for r in c.execute(
@@ -1383,6 +1396,7 @@ def shift_daily_report(shift_id:int,user=Depends(get_user),c:sqlite3.Connection=
         FROM shift_sessions s JOIN funds f ON f.id=s.fund_id
         LEFT JOIN billing_points p ON p.fund_id=s.fund_id WHERE s.id=?''',(shift_id,)).fetchone()
     if not sh:fail('Unknown shift',404)
+    require_reviewer_shift_fund(c,user,sh['fund_id'])
     if user['role']=='clerk' and sh['responsible_id']!=user['id']:
         fail('Only the shift owner can see their own detailed daily report',403)
     collection_rows=[dict(r) for r in c.execute('''SELECT p.method,COUNT(*) parts, SUM(p.amount_piasters) total_piasters
@@ -1421,6 +1435,7 @@ def shift_review(shift_id:int,body:ShiftReviewForm,user=Depends(get_user),c:sqli
         c.execute("BEGIN IMMEDIATE")
         sh=c.execute("SELECT * FROM shift_sessions WHERE id=?",(shift_id,)).fetchone()
         if not sh:fail("الوردية غير موجودة",404)
+        require_reviewer_shift_fund(c,user,sh['fund_id'],approve=True)
         if sh["status"]!="submitted":fail("الوردية ليست بانتظار الاعتماد",409)
         if user["id"] in (sh["responsible_id"],sh["submitted_by"]):
             fail("لا يجوز اعتماد جردك بنفسك",403)
@@ -1471,6 +1486,7 @@ def propose_shift_variance(shift_id:int,body:VarianceProposal,user=Depends(get_u
         c.execute("BEGIN IMMEDIATE")
         sh=c.execute("SELECT * FROM shift_sessions WHERE id=?",(shift_id,)).fetchone()
         if not sh:fail("الوردية غير موجودة",404)
+        require_reviewer_shift_fund(c,user,sh['fund_id'],approve=True)
         if sh["status"]!="submitted" or not sh["variance_piasters"]:
             fail("لا توجد وردية مُقدمة بفرق جرد فعلي",409)
         if user["id"] in (sh["responsible_id"],sh["submitted_by"]):
@@ -1507,6 +1523,7 @@ def decide_shift_variance(shift_id:int,body:VarianceResolution,user=Depends(get_
         c.execute("BEGIN IMMEDIATE")
         sh=c.execute("SELECT * FROM shift_sessions WHERE id=?",(shift_id,)).fetchone()
         if not sh:fail("الوردية غير موجودة",404)
+        require_reviewer_shift_fund(c,user,sh['fund_id'],approve=True)
         case=c.execute("""SELECT * FROM shift_variance_cases WHERE shift_session_id=?
                          AND status='proposed' ORDER BY id DESC LIMIT 1""",(shift_id,)).fetchone()
         if not case or sh["status"]!="submitted":fail("لا يوجد تحقيق مُعلّق للوردية",409)
@@ -1565,12 +1582,13 @@ def decide_shift_variance(shift_id:int,body:VarianceResolution,user=Depends(get_
 def unresolved_shift_variances(month:str="",user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     require(user,"owner","reviewer")
     month=valid_month(month or current_month())
+    scoped,scope_args=reviewer_shift_scope_sql(user)
     records=[dict(r) for r in c.execute("""SELECT vc.id,s.business_date,s.shift,
         f.name fund_name,vc.variance_piasters,vc.explanation,vc.proposed_at,
         vc.status,vc.decision_note,vc.adjustment_voucher_id,u.username proposed_by
         FROM shift_variance_cases vc JOIN shift_sessions s ON s.id=vc.shift_session_id
         JOIN funds f ON f.id=s.fund_id JOIN users u ON u.id=vc.proposed_by
-        WHERE substr(s.business_date,1,7)=? ORDER BY vc.id DESC""",(month,))]
+        WHERE substr(s.business_date,1,7)=? AND """+scoped+" ORDER BY vc.id DESC",[month]+scope_args)]
     approved=[r for r in records if r["status"]=="approved"]
     return {"month":month,"items":records,
             "proposed_count":sum(r["status"]=="proposed" for r in records),
@@ -1615,6 +1633,40 @@ def fund_grant_rights(c, user, fund_id):
         WHERE g.user_id=? AND g.fund_id=?""", (user['id'], fund_id)).fetchone()
     return {'can_submit': bool(grant and grant['can_submit']),
             'can_approve': bool(grant and grant['can_approve'])}
+
+
+def reviewer_shift_scope_sql(user, alias='s'):
+    """Hide restricted tills and wallets from ungranted reviewer *before* LIMIT.
+
+    The grant is read from SQLite on each request, so revocation is immediate.
+    Use on shift lists/aggregations; callers enforce roles independently.
+    """
+    if user['role'] != 'reviewer':
+        return '1=1', []
+    return (f'''NOT EXISTS (SELECT 1 FROM funds scoped_f WHERE scoped_f.id={alias}.fund_id
+      AND (scoped_f.kind IN ('bank','wallet') OR scoped_f.cash_restricted=1)
+      AND NOT EXISTS (SELECT 1 FROM user_fund_grants scoped_g
+        JOIN users scoped_u ON scoped_u.id=scoped_g.user_id AND scoped_u.active=1
+        WHERE scoped_g.user_id=? AND scoped_g.fund_id=scoped_f.id
+        AND (scoped_g.can_submit=1 OR scoped_g.can_approve=1)))''', [user['id']])
+
+
+def require_reviewer_shift_fund(c, user, fund_id, *, approve=False):
+    """Enforce per-fund reviewer access to shift details/evidence/decisions.
+
+    Unrestricted cash is covered by the existing hospital reviewer role.
+    Restricted cash/wallet require a current explicit fund grant; approvals
+    additionally require can_approve (a submit grant never approves).
+    """
+    if user['role'] != 'reviewer':
+        return
+    fund=c.execute('SELECT kind,cash_restricted FROM funds WHERE id=?',(fund_id,)).fetchone()
+    if not fund:
+        fail('الحساب المالي غير متاح',404)
+    if fund['kind'] in ('bank','wallet') or fund['cash_restricted']:
+        rights=fund_grant_rights(c,user,fund_id)
+        if not (rights['can_approve'] if approve else any(rights.values())):
+            fail('ليس لديك تفويض لهذه الوردية أو مستنداتها',403)
 
 
 def bank_statement_access(c, user, fund_id, permission='read'):

@@ -93,8 +93,10 @@ def create_cashier_point(body:NewCashierPoint,user=Depends(get_user),c:sqlite3.C
 @router.get('/plans')
 def plans(user=Depends(get_user), c:sqlite3.Connection=Depends(db)):
     require(user,'owner','reviewer','clerk')
+    from app import reviewer_shift_scope_sql
+    scoped,scope_args=reviewer_shift_scope_sql(user,'p')
     points=[]
-    for p in c.execute('SELECT * FROM billing_points ORDER BY id'):
+    for p in c.execute('SELECT p.* FROM billing_points p WHERE '+scoped+' ORDER BY p.id',scope_args):
         if user['role']=='clerk' and not c.execute('SELECT 1 FROM billing_point_access WHERE user_id=? AND point_id=? AND active=1',(user['id'],p['id'])).fetchone():
             continue
         policies=c.execute('SELECT * FROM cashier_point_policies WHERE point_id=?',(p['id'],)).fetchone()
@@ -220,10 +222,14 @@ class TreasuryDepositRequest(BaseModel):
 @router.get('/treasury-deposits')
 def list_treasury_deposits(month:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     require(user,'owner','reviewer','clerk')
-    from app import valid_month, current_month
+    from app import valid_month, current_month, reviewer_shift_scope_sql
     month=valid_month(month or current_month())
     where='substr(v.date,1,7)=?';args=[month]
     if user['role']=='clerk':where+=' AND t.received_by=?';args.append(user['id'])
+    elif user['role']=='reviewer':
+        scoped,scope_args=reviewer_shift_scope_sql(user)
+        where+=' AND '+scoped
+        args.extend(scope_args)
     return [dict(r) for r in c.execute('''SELECT t.id,t.source_shift_id,t.target_shift_id,
          t.amount_piasters,t.voucher_id,t.received_by,t.received_at,t.note,v.voucher_no,
          s.business_date source_day,s.shift source_shift
@@ -255,6 +261,9 @@ def treasury_deposit(body:TreasuryDepositRequest,user=Depends(get_user),c:sqlite
                   WHERE s.id=?''',(body.source_shift_id,)).fetchone()
         if not source or source['point_kind']!='external' or source['status'] not in ('submitted','closed'):
             fail('التوريدة تتطلب جردًا سابقًا مثبتًا لكاشير خارجي',409)
+        if user['role']=='reviewer':
+            from app import require_reviewer_shift_fund
+            require_reviewer_shift_fund(c,user,source['fund_id'])
         handoff=c.execute('''SELECT * FROM shift_handoffs
                 WHERE shift_session_id=? AND count_version=? AND decision='accepted' ORDER BY id DESC LIMIT 1''',
                 (source['id'],source['count_version'])).fetchone()
@@ -319,6 +328,9 @@ def attachment_shift_scope(c,shift_id,user,for_upload=False):
     if not row:fail('الوردية غير موجودة',404)
     if user['role']=='viewer' or (user['role']=='clerk' and row['responsible_id']!=user['id']):
         fail('مرفقات الجرد لصاحب الوردية والمراجع المخول فقط',403)
+    if user['role']=='reviewer':
+        from app import require_reviewer_shift_fund
+        require_reviewer_shift_fund(c,user,row['fund_id'])
     if for_upload and row['status']=='closed':fail('لا يمكن تغيير إثباتات وردية أُقفلت',409)
     return row
 
@@ -433,6 +445,7 @@ class ShortageRepaymentForm(BaseModel):
 @router.get('/shortage-repayments')
 def shortage_repayments(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     require(user,'owner','reviewer','clerk')
+    from app import reviewer_shift_scope_sql
     if user['role']=='clerk':
         # The current central-treasury receiver needs to locate the approved
         # shortage by case ID before their first receipt, not only afterwards.
@@ -443,6 +456,10 @@ def shortage_repayments(user=Depends(get_user),c:sqlite3.Connection=Depends(db))
         args=[] if central else [user['id'],user['id']]
     else:
         clause='';args=[]
+    if user['role']=='reviewer':
+        scoped,scope_args=reviewer_shift_scope_sql(user)
+        clause+=' AND '+scoped
+        args.extend(scope_args)
     cases=[]
     for r in c.execute('''SELECT vc.id case_id,vc.shift_session_id,vc.status,vc.variance_piasters,
            s.responsible_id,s.business_date,s.shift,
@@ -453,11 +470,14 @@ def shortage_repayments(user=Depends(get_user),c:sqlite3.Connection=Depends(db))
            GROUP BY vc.id ORDER BY vc.id DESC''',args):
         row=dict(r);row['outstanding_piasters']=-r['variance_piasters']-r['repaid_piasters']
         cases.append(row)
+    scoped,scope_args=reviewer_shift_scope_sql(user)
     paid=[dict(r) for r in c.execute('''SELECT rp.id,rp.variance_case_id,rp.amount_piasters,
        rp.payer_user_id,rp.central_shift_id,rp.recorded_by,rp.recorded_at,
        rp.voucher_id,v.voucher_no
        FROM cashier_shortage_repayments rp JOIN vouchers v ON v.id=rp.voucher_id
-       ORDER BY rp.id DESC LIMIT 100''')]
+       JOIN shift_variance_cases vc ON vc.id=rp.variance_case_id
+       JOIN shift_sessions s ON s.id=vc.shift_session_id
+       WHERE '''+scoped+' ORDER BY rp.id DESC LIMIT 100',scope_args)]
     if user['role']=='clerk':
         paid=[r for r in paid if r['recorded_by']==user['id'] or any(x['case_id']==r['variance_case_id'] for x in cases)]
     return {'cases':cases,'receipts':paid,

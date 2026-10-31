@@ -1,3 +1,17 @@
+# Ramses Accounts V8.1E-G2X — Restricted cashier shift privacy / TEST ONLY (31 Oct 2026)
+
+**Current isolated development branch:** `fix/g2x-restricted-shift-authorization` starting from G2W commit `35f22cd`. This is local source only; **NO-GO** for real patient or financial processing.
+
+- Reuses current `user_fund_grants`: ungranted reviewers cannot read restricted cash/bank/wallet cashier shifts, their attachments, variance details, station schedules and day totals. Object-level decisions require `can_approve` for a restricted fund. Grant revocation takes effect on the next request.
+- Retains G2W viewer denial on global journal/trial balance JSON and CSV. Updates a stale legacy test that still expected unrestricted viewer access; restores G2X version identity in HTTP, UI and Mac launcher.
+- No schema or money-posting algorithm changes; only restricted-reader/reviewer authorization and release labels.
+- Automated endpoint inventory is a heuristic worklist, not independent approval of all routes.
+- QA recheck: 104 scripts, 98 PASS, 3 historical SKIP, 2 private-workbook SKIP, 1 blocked original V8.0, 0 FAIL. CI smoke 32/32 PASS. One preview HTTP failure in the preceding run did not recur in standalone or full recheck; root cause still unknown.
+- See `RAMSES_V81E_G2X_PERMISSION_QA_AR.md`, `QA_G2X_TEST_RESULTS.tsv`, `README_G2X_AR.md`, and source-history Git Bundle.
+- Remaining hard blocks: independently approved reporting hierarchy, clinician-signed service attestations, offline/offsite restore, V8.0 source, procurement/doctor/insurance lifecycle and hospital acceptance.
+
+---
+
 # Ramses Accounts V8.1E-G2V — Encrypted upgrade rollback / TEST ONLY (31 Oct 2026)
 
 **Current local development branch:** `fix/g2v-encrypted-upgrade`; derived from G2U. **NO-GO** for patient or monetary production use. No deployment or connection to hospital database.

@@ -77,9 +77,12 @@ def run():
                     time.sleep(0.1)
             else:
                 raise AssertionError('Real HTTP preview did not start within 35 seconds')
-            assert b'"status":"ok"' in content
-            assert fetch('/api/vouchers')[0]==401
-            assert fetch('/api/sync-status')[0]==401
+            assert b'"status":"ok"' in content and b'G2X' in content, (
+                'Preview responded from an unexpected application', content[:220])
+            status, body, _ = fetch('/api/vouchers')
+            assert status == 401, ('Unauthenticated voucher HTTP status', status, body[:220])
+            status, body, _ = fetch('/api/sync-status')
+            assert status == 401, ('Unauthenticated sync HTTP status', status, body[:220])
             assert 'nosniff'==headers.get('X-Content-Type-Options')
             assert fetch('/static/app.js')[0]==200
             db=p/'data'/'free-preview.sqlite3'

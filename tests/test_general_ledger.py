@@ -82,8 +82,11 @@ def run():
         assert data['coverage']['unverified_opening_funds']==1
         assert data['coverage']['not_final'] is True
         assert clerk.get('/api/accounting/trial-balance?period='+period).status_code==403
-        assert viewer.get('/api/accounting/trial-balance?period='+period).status_code==200
-        export=viewer.get('/api/accounting/trial-balance.csv?period='+period)
+        # G2W: a general viewer cannot inspect or export hospital-wide account balances.
+        assert viewer.get('/api/accounting/trial-balance?period='+period).status_code==403
+        assert viewer.get('/api/accounting/trial-balance.csv?period='+period).status_code==403
+        assert reviewer.get('/api/accounting/trial-balance?period='+period).status_code==200
+        export=owner.get('/api/accounting/trial-balance.csv?period='+period)
         assert export.status_code==200 and 'غير مكتمل' in export.text and '4100' in export.text
         assert clerk.get('/api/accounting/trial-balance.csv?period='+period).status_code==403
         assert TestClient(app).get('/api/accounting/trial-balance?period='+period).status_code==401
