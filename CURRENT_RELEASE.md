@@ -5,7 +5,7 @@
 - Encryption before schema upgrade: existing older or partially upgraded SQLite databases require an authenticated `.rbe` preflight archive; no secure key means the DDL operation stops without altering historic records.
 - Destructive shift-table migration creates an independent encrypted `.rbe` rollback, not a persistent plaintext SQLite file.
 - Uses established AES-256-GCM/scrypt G2M backup tooling, with isolated authenticated restore; no silent downgrade or overwrite.
-- Only synthetic historical and frozen G2T schema scenarios verified. Full G2V QA and CI outcome recorded separately after a fresh completed run, not assumed from G2U.
+- Only synthetic historical and frozen G2T schema scenarios verified. Fresh G2V QA: 97 PASS / 3 SKIP / 1 BLOCKED V8.0 (101 scripts, 0 functional FAIL); CI smoke 29/29 PASS locally. See QA_G2V_TEST_RESULTS.tsv / QA_G2V_CI_RESULTS.txt.
 - Transient sensitive SQLite snapshots may touch local disk during creation; use full-disk encryption in real operation. Existing plaintext pre-upgrade backups remain on user devices until inventoried and safely handled by IT.
 - Still NO-GO: signed clinical attestation, full finance/HR report permissions, real offsite restore/UAT, missing V8.0 source, supplier/doctor/insurance subledgers and approved month close.
 

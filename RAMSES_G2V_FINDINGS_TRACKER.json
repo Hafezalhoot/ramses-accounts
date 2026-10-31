@@ -601,7 +601,7 @@
       "g2u_status": "open",
       "g2u_note": "Pre-upgrade SQLite local copies are not yet encrypted; must be fixed before deployment.",
       "g2v_status": "implemented_local_encrypted_upgrade_needs_offsite_dr",
-      "g2v_note": "bootstrap/cashier old rollback paths now encrypted and authenticated; synthetic legacy restore and fail-closed tested, full CI pending, old pre-existing plaintext snapshots and transient scratch/offsite remain."
+      "g2v_note": "bootstrap/cashier old rollback paths now encrypted and authenticated; synthetic legacy restore and fail-closed tested, full CI pending, old pre-existing plaintext snapshots and transient scratch/offsite remain. G2V fresh full 101 scripts: 97 PASS / 3 SKIP / 1 V8.0 BLOCKED; CI 29/29 PASS."
     },
     {
       "id": "G2T-N06",
@@ -706,16 +706,16 @@
   },
   "new_g2v_changes": {
     "G2T-N05": {
-      "status": "implemented_locally_pending_full_suite",
+      "status": "tested_locally_synthetic_not_production_authorized",
       "summary": "Pre-schema-upgrade (V7/V8/V81/G2T and partial) consistent rollback is encrypted authenticated .rbe, fail-closed without strong private passphrase. Historical plaintext snapshots not automatically cleaned; ephemeral plaintext exists on local disk, requires encrypted volume. Offsite restore not tested."
     },
     "G2V-N01": {
-      "status": "implemented_locally_pending_full_suite",
+      "status": "tested_locally_synthetic_not_production_authorized",
       "priority": "P1",
       "summary": "Legacy shift table migration now emits encrypted, authenticated .rbe rollback; retains historical rows, denies unsafe/absent passphrase."
     },
     "G2V-N02": {
-      "status": "implemented_locally_pending_full_suite",
+      "status": "tested_locally_synthetic_not_production_authorized",
       "priority": "P1",
       "summary": "Source-detected incomplete schema upgrades take encrypted preflight before any new DDL; idempotent current schema emits no snapshot."
     }
