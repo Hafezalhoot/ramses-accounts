@@ -1,3 +1,13 @@
+# V8.1E-G3B — Source document fingerprint (31 أكتوبر 2026) / TEST ONLY
+
+- **Local source**: `feat/g3b-clinical-document-fingerprint`, created from verified G3A source commit `885e80e`; no deployment, financial posting or real hospital accounts modified.
+- Clinician-only synthetic PDF/JPG/PNG upload creates SHA-256/size/media metadata bound to immutable service attestation. Source file contents and original filenames are not persisted in finance database or audit log; system/Starlette may spool uploads into temporary files, which needs encrypted host storage and privacy review before any genuine use.
+- Owner may opt in one department to an immutable mandatory-document policy with password re-entry and pre-existing unbilled-witness guard. Invoice finalization and direct SQLite attestation reject un-hashed proof when required. Source re-upload verification honors current department grant.
+- Real frozen G3A schema upgrade: authenticated `.rbe` pre-DDL rollback, isolated restoration, no historical witness backfill; responsive Chromium at 320/375/1440.
+- **G3B full regression:** 112 executed scripts = **106 PASS / 5 SKIP / 1 BLOCKED original V8.0 / 0 FAIL / 0 TIMEOUT**. Original automated report mistakenly labeled 3 historical scripts PASS because they print `SKIP ` without colon; reclassified against captured stdout and individually rechecked. CI separately 39/39 PASS, 3 Chromium scripts PASS; source-archive validation recorded in final G3B artifact.
+- **NO-GO** until independent medical credential approval, legal signature/document custody/IT security, off-device restore, original V8.0 and prior source fixtures, approved remediation for old witness, full hospital/UAT and financial signoff. See `RAMSES_V81E_G3B_DOCUMENT_FINGERPRINT_QA_AR.md` and `README_G3B_AR.md`.
+
+---
 # V8.1E-G3A — Clinician Role Isolation (31 أكتوبر 2026) / TEST ONLY
 
 - **مرجع المصدر:** إصدار G2Z الموثّق commit `a17aeec`؛ فرع اختبار محلي `feat/g3a-clinician-isolated-access`، لا نشر ولا وصول لأي قاعدة مستشفى حقيقية.

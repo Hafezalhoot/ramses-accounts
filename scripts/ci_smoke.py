@@ -10,6 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TESTS = (
+    'test_v82_g3b_clinical_document_hash.py',
+    'test_v82_g3b_upgrade.py',
     'test_v82_g3a_clinician_identity.py',
     'test_v82_g3a_role_upgrade.py',
     'test_v82_g2z_release_label.py',

@@ -72,7 +72,7 @@ async function bootstrapUI(){
  const eLabel=$(".environment-label");
  eLabel.textContent="بيئة اختبار • لا تسجل بيانات مالية فعلية";
  eLabel.classList.toggle("test-mode",trial);
- $(".site-footer span:last-child").textContent="V8.1E-G3A • غير معتمد للتشغيل الحقيقي";
+ $(".site-footer span:last-child").textContent="V8.1E-G3B • غير معتمد للتشغيل الحقيقي";
  const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],inventory:["clerk","reviewer","owner"],clinical:["clinician"],reports:["viewer","reviewer","owner"],accounting:["reviewer","owner"],owner:["owner"]};
  $$('[data-permission]').forEach(el=>{el.hidden=!(allowed[el.dataset.permission]||[]).includes(state.me.role)});
  try{if(['owner','reviewer','clerk'].includes(state.me.role)){await api('/api/inventory/overview');}else{throw Error('no inventory role');}}catch{const nav=$('[data-view="inventory"]');if(nav)nav.hidden=true;}
@@ -165,22 +165,36 @@ async function renderClinical(){
  $('#content').innerHTML=head('إثبات الخدمات · تجربة', 'الإثبات الطبي المستقل',
    'لا ينشئ هذا الإجراء فاتورة أو حركة نقدية. دوّن فقط مرجع تنفيذ قابل للتحقق وبعد مراجعة واقعية للخدمة.',
    `<button class="btn btn-secondary" id="refreshClinical">${ico('refresh')} تحديث القائمة</button>`)+
-   `<div class="info-box warning">${ico('alert')}<div><strong>نموذج للاختبار فقط:</strong> دور المشاهد بالتفويض الطبي لا يثبت مؤهلًا مهنيًا، والمرجع المكتوب ليس توقيعًا طبيًا إلكترونيًا. لا تُدخل معلومات مرضى حقيقية.</div></div>`+
+   `<div class="info-box warning">${ico('alert')}<div><strong>نموذج للاختبار فقط:</strong> الحساب الطبي المستقل لا يثبت ترخيصًا مهنيًا أو توقيعًا إلكترونيًا معتمدًا. ملفات المصدر تُقرأ لحساب بصمة SHA-256 فقط ولا تُحفظ في الحسابات؛ احتفظ بالأصل في السجل الطبي المصرّح به، ولا تستخدم ملفات مرضى حقيقية في التجربة.</div></div>`+
    `<section class="panel" style="margin-top:18px"><div class="panel-header"><h2>خدمات بانتظار الإثبات</h2><p>يعرض فقط الخدمات من الأقسام المفوّض بها الحساب، بدون أسعار أو أرصدة.</p></div>`+
    table(['الحالة','المريض (الكود)','الخدمة','العدد','الوضع','الإجراء'],pending.map(x=>`<tr>`+
      `<td>${esc(x.case_no)}</td><td>${esc(x.patient_code)}</td><td>${esc(x.service_name)}</td>`+
      `<td class="num">${integer(x.quantity)}</td><td>${x.state==='fulfilled'?'منفذة سابقًا · تحتاج إثبات':'مطلوبة'}</td>`+
-     `<td><button class="btn btn-small btn-primary" data-clinical-attest="${esc(x.line_id)}">إثبات التنفيذ</button></td></tr>`).join(''))+`</section>`;
+     `<td>${x.document_required?'<span class="chip pending">بصمة ملف إلزامية</span>':''}<button class="btn btn-small btn-primary" data-clinical-attest="${esc(x.line_id)}" data-clinical-doc-required="${x.document_required?1:0}">إثبات التنفيذ</button></td></tr>`).join(''))+`</section>`;
  $('#refreshClinical').onclick=()=>navigate('clinical');
  $$('[data-clinical-attest]',$('#content')).forEach(btn=>btn.onclick=async()=>{
    const lineId=Number(btn.dataset.clinicalAttest);
    if(!Number.isSafeInteger(lineId)||lineId<=0){toast('رقم بند الخدمة غير صحيح',true);return;}
-   const details=await modal('إثبات تنفيذ خدمة','تأكد من مطابقة الملف الطبي أولًا. هذا مرجع ورقي/نظامي للتجربة فقط، وليس توقيعًا سريريًا معتمدًا.',[
-     {name:'evidence_reference',label:'مرجع التقرير أو أمر التنفيذ',required:true,placeholder:'SYN-CLINICAL-REFERENCE-0001'}]);
+   const needsFile=btn.dataset.clinicalDocRequired==='1';
+   const details=await modal('إثبات تنفيذ خدمة','تحقق من المستند الطبي في سجله الأصلي قبل المتابعة. يتم الاحتفاظ ببصمة الملف ونوعه وحجمه فقط، ولا تحفظ الحسابات محتوى المستند أو اسمه. هذا ليس توقيعًا طبيًا معتمدًا.',[
+     {name:'evidence_reference',label:'مرجع التقرير أو أمر التنفيذ',required:true,placeholder:'SYN-CLINICAL-REFERENCE-0001'},
+     {name:'file',type:'file',label:needsFile?'ملف المصدر الطبي (إلزامي، حتى 6 ميجابايت)':'ملف المصدر الطبي (اختياري، حتى 6 ميجابايت)',required:needsFile}]);
    if(!details)return;
-   try{await post(`/api/billing/clinical/lines/${lineId}/attest`,details);
-       toast('سُجل مرجع الإثبات التجريبي');await navigate('clinical');}
-   catch(error){toast(error.message,true);}
+   const file=details.file;
+   try{
+     if(file&&file.size){
+       const payload=new FormData();
+       payload.append('evidence_reference',details.evidence_reference);
+       payload.append('file',file,file.name);
+       await api(`/api/billing/clinical/lines/${lineId}/attest-document`,{method:'POST',body:payload});
+       toast('تم إثبات الخدمة وحفظ بصمة المستند دون حفظ محتواه');
+     }else{
+       if(needsFile){toast('اختر ملف المصدر المطلوب أولًا',true);return;}
+       await post(`/api/billing/clinical/lines/${lineId}/attest`,{evidence_reference:details.evidence_reference});
+       toast('تم إثبات الخدمة بمرجع تجريبي دون بصمة مصدر');
+     }
+     await navigate('clinical');
+   }catch(error){toast(error.message,true);}
  });
 }
 
@@ -1111,7 +1125,7 @@ async function renderAdmin(){
  $("#content").innerHTML=head('الإدارة والحوكمة','إعدادات وصلاحيات النظام','مدير النظام فقط يضيف المستخدمين ويحدد إقفال الفترات ويتابع النسخ إلى Google Sheets.')+
  `<div class="user-grid"><section class="panel"><div class="panel-header"><h2>مستخدمو قسم الحسابات</h2><button class="btn btn-primary btn-small" id="newUser">${ico('plus')} حساب موظف</button></div>`+
  table(['اسم المستخدم','الصلاحية','الحالة','إدارة الحساب'],users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(roleLabels[u.role])}</td><td>${u.active?'<span class="chip approved">نشط</span>':'<span class="chip rejected">معطل</span>'}</td><td><div class="row-actions"><button class="btn btn-small btn-secondary" data-user-password="${u.id}" data-user-name="${esc(u.username)}">تغيير كلمة المرور</button>${['clerk','reviewer'].includes(u.role)?`<button class="btn btn-small btn-secondary" data-user-fund="${u.id}" data-user-name="${esc(u.username)}">تفويض حساب أو خزنة</button>`:''}<button class="btn btn-small btn-outline" data-user-toggle="${u.id}" data-user-name="${esc(u.username)}" data-new-status="${u.active?'0':'1'}" ${u.username===state.me.username?'disabled title="لا يمكنك تعطيل حسابك"':''}>${u.active?'تعطيل':'تفعيل'}</button></div></td></tr>`).join(''))+`</section>`+
- `<section class="panel"><div class="panel-header"><h2>تفويض إثبات الخدمات الطبي (تجريبي)</h2></div><div class="panel-pad"><p>التوثيق منفصل تمامًا عن المالية. أنشئ حسابًا بدور طبي ثم سجّل مراجعة هويته يدويًا قبل تفويض القسم. مراجعة المالك لا تعني التحقق الرسمي من الترخيص أو توقيعًا إلكترونيًا معتمدًا.</p><div class="row-actions"><button class="btn btn-small btn-secondary" id="clinicalIdentitySetup">مراجعة الهوية المهنية</button><button class="btn btn-small btn-secondary" id="clinicalGrantSetup">منح / سحب تفويض طبي</button><button class="btn btn-small btn-outline" id="clinicalActivateSetup">تفعيل شرط الإثبات لقسم</button></div></div></section>`+
+ `<section class="panel"><div class="panel-header"><h2>تفويض إثبات الخدمات الطبي (تجريبي)</h2></div><div class="panel-pad"><p>التوثيق منفصل تمامًا عن المالية. أنشئ حسابًا بدور طبي ثم سجّل مراجعة هويته يدويًا قبل تفويض القسم. مراجعة المالك لا تعني التحقق الرسمي من الترخيص أو توقيعًا إلكترونيًا معتمدًا.</p><div class="row-actions"><button class="btn btn-small btn-secondary" id="clinicalIdentitySetup">مراجعة الهوية المهنية</button><button class="btn btn-small btn-secondary" id="clinicalGrantSetup">منح / سحب تفويض طبي</button><button class="btn btn-small btn-outline" id="clinicalActivateSetup">تفعيل شرط الإثبات لقسم</button><button class="btn btn-small btn-secondary" id="clinicalDocumentSetup">إلزام بصمة مصدر طبي</button></div></div></section>`+
  `<section class="panel"><div class="panel-header"><h2>سياسة صلاحيات الخزن النقدية</h2></div><div class="panel-pad"><p>الخزن القديمة تنتقل للحماية بعد تحديد تفويضات الموظفين، والخزن الجديدة تبدأ بالحماية مفعلة. عند التفعيل لا يمكن للموظف العمل أو اعتماد حركة دون تفويض خاص بهذه الخزنة.</p><button class="btn btn-secondary btn-small" type="button" id="configureCashFundPolicy">إدارة حماية الخزنة</button></div></section>`+
  `<section class="panel"><div class="panel-header"><h2>إقفال الفترة المحاسبية</h2><button class="btn btn-secondary btn-small" id="closePeriod">${ico('lock')} إقفال شهر</button></div>`+
  table(['الفترة','تاريخ الإقفال'],periods.map(p=>`<tr><td><b>${esc(p.period)}</b></td><td>${esc(p.closed_at.slice(0,10))}</td></tr>`).join(''))+`<div class="panel-pad"><p class="hint">المحاسبة لا تسمح باعتماد أو إدخال سند جديد في فترة مغلقة، ولا إقفال شهر به سندات معلقة.</p></div></section>`+
@@ -1156,6 +1170,18 @@ async function renderAdmin(){
    if(!data)return;
    try{await post(`/api/billing/clinical/departments/${Number(data.department_id)}/activate`);
        toast('تفعّل الشرط التجريبي، وتجب مطابقة كل خدمة قبل الفوترة');}
+   catch(error){toast(error.message,true);}
+ };
+ $('#clinicalDocumentSetup').onclick=async()=>{
+   const departments=state.lookups?.departments||[];
+   const data=await modal('إلزام بصمة المستند الطبي — اختبار فقط',
+     'هذا قرار دائم لا يُعطّل تلقائيًا. يرفض النظام خدمات بلا بصمة مصدر ويمنع التفعيل مع إثباتات قديمة غير مفوترة. لا تُرفع بيانات مرضى حقيقية؛ تُحفظ البصمة فقط ويجب الاحتفاظ بالأصل في نظام السجلات الطبية.',[
+     {name:'department_id',type:'select',label:'القسم الطبي',required:true,options:departments.map(d=>[String(d.id),d.name])},
+     {name:'current_password',type:'password',label:'كلمة مرور المالك لتأكيد القرار',required:true}]);
+   if(!data)return;
+   try{await post(`/api/billing/clinical/departments/${Number(data.department_id)}/require-document`,
+                {current_password:data.current_password});
+       toast('تم تفعيل شرط بصمة المصدر الطبي لهذا القسم');}
    catch(error){toast(error.message,true);}
  };
  $('#configureCashFundPolicy').onclick=async()=>{

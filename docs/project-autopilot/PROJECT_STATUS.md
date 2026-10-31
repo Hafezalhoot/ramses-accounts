@@ -1,14 +1,13 @@
-# G3A Project Autopilot state — 2026-10-31
+# G3B Project Autopilot verified state — 2026-10-31
 
-- Source baseline: G2Z frozen commit `a17aeec`.
-- Local feature branch: `feat/g3a-clinician-isolated-access` — no shared repo push, no production deployment or live database changes.
-- IMPLEMENTED locally: separate medical role, owner manual professional review plus password re-entry, department grants, deny-by-default finance API access, SQLite verified encrypted rollback and historical preservation, suspension of G2Z viewer grants, old viewer attestation not usable for new invoices, identity-revocation on password reset/disable, mobile-friendly owner review.
-- TESTED locally: FastAPI/SQLite, frozen G2Z historical migration+restore, role denial, Chromium stub UI; full **103 PASS/5 SKIP/1 BLOCKED** from 109 scripts. CI: 37/37 PASS في تشغيل منفصل (31 أكتوبر 2026).
-- Remaining blockers: real medical licensing/signature check and medical leadership approval; no off-device restore; missing V8.0 and some historical sources; procurement and doctor remuneration; complete hospital UAT and authorization certification.
-- Production gate: NO-GO.
+- Git baseline: G3A `885e80e`; branch: `feat/g3b-clinical-document-fingerprint`; NO shared push or hospital deployment.
+- IMPLEMENTED locally: independently attested source SHA-256/size/media, clinician signed-in upload/verification, department opt-in owner/password, SQLite immutable guards, invoice-time enforcement, migrated genuine G3A schema with pre-DDL encrypted backup, responsive pilot UI.
+- Regression: 112 run, 106 PASS, 5 SKIP historic/private, 1 BLOCKED missing genuine V8.0, 0 FAIL, 0 TIMEOUT. Historical G2J/G2K/G2L `SKIP ` stdout corrected instead of falsely counted as PASS. See QA_G3B_TEST_RESULTS.tsv.
+- Source file is transiently read and may be spooled to OS temp disk. No clinical source persisted in accounting tables. This is not evidence of professional licensing, validated source retention or legal signature.
+- CI independent 39/39 PASS (exit 0); 3 Chromium browser test scripts PASS. Source-archive evidence will be recorded in `QA_G3B_RELEASE_VERIFICATION.txt` when issued.
+- Production gate: NO-GO. Real off-device restore, medical/finance/IT signoff, professional licensing, secured HIS document custody, missing genuine historical source, complete case costing and hospital UAT outstanding.
 
-## Top next three actions
-
-1. Authoritative medical credential validation + clinical approval workflow and source document hash (with human policy sign-off); no invented legal status.
-2. Approved remediation for old G2Z viewer-attested service lines without new invoices + clinical/financial audit trail.
-3. Full authorized cross-department workflows and case-level supply consumption, supplier AP, doctors fees and acceptance/offsite restore checks.
+Next three:
+1. Independent medical identity/signature approval, clinical source custody policy, short-lived file/upload and privacy audit.
+2. Governed remediation for historical unbilled reference-only/legacy viewer witnesses, with human audit and no silent DB rewrite.
+3. Case-linked operating room/NICU consumables and suppliers/doctors/insurance subledger followed by independent hospital UAT and offsite restore.

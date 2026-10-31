@@ -10,15 +10,16 @@ import re
 import secrets
 import sqlite3
 from datetime import date, datetime
+from pathlib import Path
 from typing import Literal
 from zoneinfo import ZoneInfo
 import ledger
 import shift_schedule
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel, Field
 
-from app import (audit, book_movements, c_piasters, current_month, db, fail, get_user,
+from app import (MAX_EVIDENCE_BYTES, audit, book_movements, c_piasters, checked_evidence, current_month, db, fail, get_user,
                  lookup, month_open, require, stamp, valid_date, valid_month,
                  verify_password)
 
@@ -150,6 +151,10 @@ class ClinicalEvidenceForm(BaseModel):
     evidence_reference:str=Field(min_length=8,max_length=180)
 
 
+class ClinicalDocumentRequirementForm(BaseModel):
+    current_password:str
+
+
 class ClinicalIdentityReviewForm(BaseModel):
     user_id:int=Field(ge=1)
     professional_name:str=Field(min_length=3,max_length=120)
@@ -182,7 +187,10 @@ def require_invoice_clinical_evidence(c, lines):
         if clinical_required(c,line['department_id']) and not c.execute(
                 '''SELECT 1 FROM billing_clinical_attestations a
                    JOIN users u ON u.id=a.attested_by AND u.role='clinician'
-                   WHERE a.case_line_id=?''',
+                   WHERE a.case_line_id=? AND
+                     (NOT EXISTS(SELECT 1 FROM billing_clinical_document_requirements d
+                                  WHERE d.department_id=a.department_id)
+                      OR a.document_sha256 IS NOT NULL)''',
                 (line['case_line_id'] if 'case_line_id' in line.keys() else line['id'],)).fetchone():
             fail('خدمة في هذه الفاتورة تحتاج إثبات تنفيذ طبي مستقل قبل الإصدار',409)
 
@@ -270,11 +278,43 @@ def activate_clinical_policy(department_id:int,user=Depends(get_user),c:sqlite3.
     return {'department_id':department_id,'enforced':True}
 
 
+@router.post('/clinical/departments/{department_id}/require-document')
+def require_source_document(department_id:int,body:ClinicalDocumentRequirementForm,
+                            user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    require(user,'owner')
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        owner=c.execute('SELECT password_hash FROM users WHERE id=?',(user['id'],)).fetchone()
+        if not owner or not verify_password(body.current_password,owner['password_hash']):
+            fail('يجب تأكيد كلمة مرور المالك قبل إلزام المستند الأصلي',403)
+        if not clinical_required(c,department_id):
+            fail('فعّل أولًا شرط الإثبات الطبي المستقل لهذا القسم',409)
+        if c.execute('SELECT 1 FROM billing_clinical_document_requirements WHERE department_id=?',
+                     (department_id,)).fetchone():
+            fail('بصمة المستند إلزامية بالفعل ولا يمكن إلغاؤها صامتًا',409)
+        # A new source rule cannot strand existing unbilled G3A witness rows
+        # whose immutable, reference-only statements cannot be edited.
+        if c.execute('''SELECT 1 FROM billing_clinical_attestations a
+            WHERE a.department_id=? AND a.document_sha256 IS NULL
+            AND NOT EXISTS (SELECT 1 FROM billing_invoice_draft_lines dl
+                            JOIN billing_invoices i ON i.draft_id=dl.draft_id
+                            WHERE dl.case_line_id=a.case_line_id) LIMIT 1''',
+                     (department_id,)).fetchone():
+            fail('توجد خدمات موثقة سابقًا ولم تفوتر؛ يلزم تسوية معتمدة قبل تشديد السياسة',409)
+        c.execute('''INSERT INTO billing_clinical_document_requirements
+             (department_id,activated_by,activated_at) VALUES (?,?,?)''',
+             (department_id,user['id'],stamp()))
+        audit(c,user['id'],'clinical_document_requirement_activated','department',department_id)
+    return {'department_id':department_id,'document_required':True}
+
+
 @router.get('/clinical/policy')
 def clinical_policy(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     require(user,'owner')
     return {'departments':[dict(x) for x in c.execute(
-        'SELECT department_id,activated_by,activated_at FROM billing_clinical_policies ORDER BY department_id')]}
+        'SELECT department_id,activated_by,activated_at FROM billing_clinical_policies ORDER BY department_id')],
+        'document_requirements':[dict(x) for x in c.execute(
+        'SELECT department_id,activated_by,activated_at FROM billing_clinical_document_requirements ORDER BY department_id')]}
 
 
 @router.get('/clinical/queue')
@@ -285,11 +325,13 @@ def clinical_queue(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
         fail('الحساب الطبي يحتاج مراجعة هوية مهنية يدوية سارية',403)
     # No prices, payer identity, clinical history or unrestricted patient lists.
     rows=c.execute('''SELECT l.id line_id,l.department_id,l.service_name_snapshot service_name,
-        l.quantity,l.state,l.service_date,b.case_no,p.code patient_code
+        l.quantity,l.state,l.service_date,b.case_no,p.code patient_code,
+        CASE WHEN dr.department_id IS NULL THEN 0 ELSE 1 END document_required
         FROM billing_case_lines l
         JOIN billing_cases b ON b.id=l.case_id
         JOIN billing_patients p ON p.id=b.patient_id
         JOIN billing_clinical_policies policy ON policy.department_id=l.department_id
+        LEFT JOIN billing_clinical_document_requirements dr ON dr.department_id=l.department_id
         JOIN billing_clinical_grants g ON g.department_id=l.department_id
           AND g.user_id=? AND g.active=1
         WHERE b.status='open' AND l.state IN ('ordered','fulfilled')
@@ -307,7 +349,8 @@ def clinical_evidence(line_id:int,user=Depends(get_user),c:sqlite3.Connection=De
     else:
         require(user,'owner','reviewer')
         case_scope(c,user,line['case_id'])
-    return {k:line[k] for k in ('case_line_id','department_id','service_date','evidence_reference','attested_by','attested_at')}
+    return {k:line[k] for k in ('case_line_id','department_id','service_date','evidence_reference',
+                              'attested_by','attested_at','document_sha256','document_size','document_media_type')}
 
 
 def complete_line(c,line,actor):
@@ -331,9 +374,21 @@ def complete_line(c,line,actor):
     return service_day
 
 
-@router.post('/clinical/lines/{line_id}/attest')
-def attest_clinical_line(line_id:int,body:ClinicalEvidenceForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    evidence=trim(body.evidence_reference,'مرجع الإثبات الطبي',8,180)
+def _read_clinical_source(file:UploadFile):
+    # Medical *content* is deliberately discarded after local hashing; the
+    # original source stays in the authorized clinical record system.
+    name=Path((file.filename or '').replace('\\','/')).name.strip()
+    if not name or len(name)>100 or any(ord(ch)<32 for ch in name):
+        fail('اسم ملف المصدر الطبي غير صالح')
+    contents=file.file.read(MAX_EVIDENCE_BYTES+1)
+    file.file.close()
+    if not contents or len(contents)>MAX_EVIDENCE_BYTES:
+        fail('مستند فارغ أو أكبر من 6 ميجابايت',413)
+    media=checked_evidence(name,contents)
+    return (hashlib.sha256(contents).hexdigest(),len(contents),media)
+
+
+def _record_clinical_line(c,line_id,evidence,user,source=None):
     with c:
         c.execute('BEGIN IMMEDIATE')
         line=c.execute('SELECT * FROM billing_case_lines WHERE id=?',(line_id,)).fetchone()
@@ -341,6 +396,10 @@ def attest_clinical_line(line_id:int,body:ClinicalEvidenceForm,user=Depends(get_
         require_clinical_grant(c,user,line['department_id'])
         if not clinical_required(c,line['department_id']):
             fail('يجب تفعيل سياسة الإثبات الطبي لهذا القسم قبل التوثيق',409)
+        if source is None and c.execute(
+                'SELECT 1 FROM billing_clinical_document_requirements WHERE department_id=?',
+                (line['department_id'],)).fetchone():
+            fail('هذا القسم يلزم بصمة ملف المصدر الطبي قبل توثيق الخدمة',409)
         case=c.execute('SELECT id,status FROM billing_cases WHERE id=?',(line['case_id'],)).fetchone()
         if not case or case['status']!='open' or line['state']=='cancelled':
             fail('لا يمكن إثبات خدمة لحالة مغلقة أو بند ملغى',409)
@@ -351,14 +410,46 @@ def attest_clinical_line(line_id:int,body:ClinicalEvidenceForm,user=Depends(get_
             fail('لا يمكن إضافة إثبات طبي بأثر رجعي لفاتورة صادرة',409)
         day=(complete_line(c,line,user['id']) if line['state']=='ordered' else line['service_date'])
         if not day:fail('تاريخ تنفيذ الخدمة التاريخية غير مثبت؛ لا يمكن اعتمادها',409)
+        fingerprint=source or (None,None,None)
         c.execute('''INSERT INTO billing_clinical_attestations(case_line_id,department_id,service_date,
-             evidence_reference,attested_by,attested_at) VALUES (?,?,?,?,?,?)''',
-             (line_id,line['department_id'],day,evidence,user['id'],stamp()))
+             evidence_reference,attested_by,attested_at,document_sha256,document_size,document_media_type)
+             VALUES (?,?,?,?,?,?,?,?,?)''',
+             (line_id,line['department_id'],day,evidence,user['id'],stamp(),*fingerprint))
         audit(c,user['id'],'clinical_service_attested','billing_case_line',line_id,
               {'case_id':line['case_id'],'department_id':line['department_id'],
-               'service_date':day})
+               'service_date':day,'source_fingerprint_recorded':source is not None})
     return {'line_id':line_id,'state':'fulfilled','attested_by':user['id'],
-            'service_date':day,'evidence_reference':evidence}
+            'service_date':day,'evidence_reference':evidence,
+            'document_sha256':fingerprint[0],'document_size':fingerprint[1],
+            'document_media_type':fingerprint[2]}
+
+
+@router.post('/clinical/lines/{line_id}/attest')
+def attest_clinical_line(line_id:int,body:ClinicalEvidenceForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    evidence=trim(body.evidence_reference,'مرجع الإثبات الطبي',8,180)
+    return _record_clinical_line(c,line_id,evidence,user)
+
+
+@router.post('/clinical/lines/{line_id}/attest-document')
+def attest_clinical_document(line_id:int,evidence_reference:str=Form(...),
+                             file:UploadFile=File(...),user=Depends(get_user),
+                             c:sqlite3.Connection=Depends(db)):
+    require(user,'clinician')
+    evidence=trim(evidence_reference,'مرجع الإثبات الطبي',8,180)
+    return _record_clinical_line(c,line_id,evidence,user,_read_clinical_source(file))
+
+
+@router.post('/clinical/lines/{line_id}/verify-document')
+def verify_clinical_document(line_id:int,file:UploadFile=File(...),
+                             user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    require(user,'clinician')
+    proof=c.execute('''SELECT a.document_sha256,a.department_id
+        FROM billing_clinical_attestations a WHERE a.case_line_id=?''',(line_id,)).fetchone()
+    if not proof:fail('لا يوجد إثبات طبي لهذه الخدمة',404)
+    require_clinical_grant(c,user,proof['department_id'])
+    if not proof['document_sha256']:
+        fail('الإثبات التاريخي لا يحتوي بصمة مصدر موثقة',409)
+    return {'matches':secrets.compare_digest(_read_clinical_source(file)[0],proof['document_sha256'])}
 
 
 @router.get('/config')

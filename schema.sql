@@ -1575,8 +1575,33 @@ CREATE TABLE IF NOT EXISTS billing_clinical_attestations (
  department_id INTEGER NOT NULL REFERENCES departments(id),
  service_date TEXT NOT NULL,
  evidence_reference TEXT NOT NULL CHECK(length(trim(evidence_reference)) BETWEEN 8 AND 180),
- attested_by INTEGER NOT NULL REFERENCES users(id), attested_at TEXT NOT NULL
+ attested_by INTEGER NOT NULL REFERENCES users(id), attested_at TEXT NOT NULL,
+ -- G3B: exact-source fingerprint; source bytes and original file name are NEVER archived.
+ document_sha256 TEXT,document_size INTEGER,document_media_type TEXT
 );
+-- G3B one-way owner opt-in; no backdating an existing witness to a different file.
+CREATE TABLE IF NOT EXISTS billing_clinical_document_requirements (
+ department_id INTEGER PRIMARY KEY REFERENCES departments(id),
+ activated_by INTEGER NOT NULL REFERENCES users(id),activated_at TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS billing_clinical_document_requirement_no_update
+ BEFORE UPDATE ON billing_clinical_document_requirements
+ BEGIN SELECT RAISE(ABORT,'Clinical document requirement cannot be disabled'); END;
+CREATE TRIGGER IF NOT EXISTS billing_clinical_document_requirement_no_delete
+ BEFORE DELETE ON billing_clinical_document_requirements
+ BEGIN SELECT RAISE(ABORT,'Clinical document requirement cannot be deleted'); END;
+CREATE TRIGGER IF NOT EXISTS billing_clinical_document_hash_guard
+ BEFORE INSERT ON billing_clinical_attestations
+ WHEN (EXISTS(SELECT 1 FROM billing_clinical_document_requirements d
+              WHERE d.department_id=NEW.department_id) AND NEW.document_sha256 IS NULL)
+   OR (NEW.document_sha256 IS NULL AND
+       (NEW.document_size IS NOT NULL OR NEW.document_media_type IS NOT NULL))
+   OR (NEW.document_sha256 IS NOT NULL AND
+       (length(NEW.document_sha256)!=64 OR NEW.document_sha256 GLOB '*[^0-9a-f]*'
+        OR NEW.document_size IS NULL OR NEW.document_size NOT BETWEEN 1 AND 6291456
+        OR NEW.document_media_type IS NULL OR
+           NEW.document_media_type NOT IN ('application/pdf','image/png','image/jpeg')))
+ BEGIN SELECT RAISE(ABORT,'Invalid or missing source document fingerprint'); END;
 CREATE TRIGGER IF NOT EXISTS billing_clinical_attestation_no_update BEFORE UPDATE ON billing_clinical_attestations
  BEGIN SELECT RAISE(ABORT,'Clinical witness reference is immutable'); END;
 CREATE TRIGGER IF NOT EXISTS billing_clinical_attestation_no_delete BEFORE DELETE ON billing_clinical_attestations

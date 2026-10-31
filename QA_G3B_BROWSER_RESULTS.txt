@@ -1,0 +1,6 @@
+--- browser_g3b_source_hash_ui_offline.py ---
+PASS G3B Chromium source document hash UI and owner one-way opt-in, widths 320/375/1440
+--- browser_g3a_clinician_ui_offline.py ---
+PASS G3A real Chromium: isolated clinical queue / modal / mobile 320/375 and desktop 1440
+--- browser_g3a_owner_review_offline.py ---
+PASS G3A owner medical review modal in Chromium 375/1440; synthetic payload and owner confirmation

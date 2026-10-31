@@ -1,15 +1,10 @@
-# Ramses Accounts: post-G3A prioritized next slices
+# Ramses Accounts priorities after G3B — 2026-10-31
 
-1. P0 — Real professional credential validation and independent chief-medical approval, document custody with cryptographic hash, immutable correction/void chain; synthetic medical UAT on OR/NICU/IPD.
-2. P0 — Approved role/accounting grant matrix across every export, clinician confidentiality, and external security/UAT review before live deployment.
-3. P0 — Original V8.0 source archive and G2J/G2K/G2L migration fixtures; execute historical upgrade tests with encrypted rollback and independent restore on another device.
-4. P1 — Item-to-case OR/NICU consumption and returns, date-effective costing and valuation, audit across inventory, invoices and GL.
-5. P1 — Suppliers/AP and POs, doctors/professional-fee payable lifecycle, insurance invoicing and adjustment, month-end/year-end and reconciliation.
-6. P1 — Operational usability: cashier roles, shift grid/print, monthly close UAT, RTL/responsive visual/a11y checks and training.
+1. **P0 — Identity & medical governance:** independent clinician registration/licensing verification, authorized medical reviewer, legally valid signature, source-document ownership and retention in HIS/EMR/LIS. SHA-256 proves identical bytes only; G3B medical pilot is not approval.
+2. **P0 — Historical resolution:** owner and clinical leader approve a corrective path for old `viewer`/reference-only attestations not yet invoiced; no false witnessing, no silent modification of old invoices.
+3. **P0 — Security and readiness:** full endpoint-level clinical/finance RBAC audit, encrypted host temporary uploads, production privacy policy, off-device backup restore, genuine V8.0/G2J/G2K/G2L source tests, monitored hospital UAT and authority signoffs.
+4. **P1 — Inventory to patient cost:** OR/NICU/IPD consumable allocation per case, date-effective inventory valuation, cost-of-service and reconciled GL with approvals.
+5. **P1 — Accounts payable & professionals:** supplier POs/receipt/vendor invoices/AP, doctor fees, insurer contracts/claims/reconciliation, financial period/year-end with immutable audit trail.
+6. **P1 — UX and operational rollout:** bilingual/RTL accessibility, cashier shift print grids, documented training, complete synthetic E2E workflows.
 
-**Current system remains NO-GO; green local tests do not authorize production.**
-
-- **G3A-05 (P0 resolved locally):** Reject G2Z viewer-signed historical attestation as proof for a newly issued protected invoice. Preserve historical evidence/invoices without overwrite. Regression frozen G2Z upgrade.
-- **G3B blocker (pending medical+finance sign-off):** Authorized remediation for old, not-yet-invoiced G2Z viewer witness (no impersonation, no silent DB mutation), plus genuine medical license validation and documentary evidence.
-- **G3A-06 (P0 resolved locally):** Revoke manual medical identity approval whenever credential is reset or clinician account disabled; synthetic negative/positive lifecycle regression added.
-- **G3A-07 (P1 resolved locally):** Sidebar scroll allows bottom admin items on small screens. Chromium owner review modal 375/1440 passes.
+G3B already implemented locally: per-department optional source fingerprint, immutable SHA-256, audited UI/server enrollment and encrypted historic migration. NO-GO production.

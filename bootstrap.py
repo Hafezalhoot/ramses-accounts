@@ -189,6 +189,8 @@ def backup_before_schema_upgrade(c):
                                  'worked_minutes', 'work_entries_count',
                                  'adjustment_additions_piasters', 'adjustment_deductions_piasters',
                                  'signoff_status', 'signed_off_by', 'signed_off_at', 'signoff_note'),
+            'billing_clinical_attestations': ('document_sha256', 'document_size',
+                                               'document_media_type'),
         }
         for table, fields in columns.items():
             if table not in tables:
@@ -280,6 +282,15 @@ def initialize(legacy_path=None):
             witness=c.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='billing_clinical_attestation_validate_insert'").fetchone()
             if witness and "u.role='viewer'" in witness['sql']:
                 c.execute('DROP TRIGGER billing_clinical_attestation_validate_insert')
+            # G3B additive clinical fingerprint; back up old schema first (above).
+            # Existing witness rows remain NULL; never invent a signed document.
+            has_attest=c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='billing_clinical_attestations'").fetchone()
+            if has_attest:
+                known={r['name'] for r in c.execute('PRAGMA table_info(billing_clinical_attestations)')}
+                for col in ('document_sha256','document_size','document_media_type'):
+                    if col not in known:
+                        c.execute(f'ALTER TABLE billing_clinical_attestations ADD COLUMN {col} '+
+                                  ('INTEGER' if col=='document_size' else 'TEXT'))
             c.executescript((ROOT / "schema.sql").read_text(encoding="utf8"))
             # G2U additive, preservation-first migration: old dates stay unknown.
             if 'service_date' not in {r['name'] for r in c.execute('PRAGMA table_info(billing_case_lines)')}:

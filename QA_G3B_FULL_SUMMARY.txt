@@ -1,0 +1,4 @@
+Classified from 112 actually executed test logs, 3 returncode=0 historical scripts print SKIP without colon. Reclassified from captured stdout; no tests fabricated.
+{'PASS': 106, 'SKIP': 5, 'BLOCKED_NO_V80': 1}
+Total 112
+Reclassified: ['test_v81e_g2j_schema_upgrade.py', 'test_v81e_g2k_upgrade.py', 'test_v81e_g2l_schema_upgrade.py']
