@@ -1,3 +1,14 @@
+# Ramses Accounts V8.1E-G3G — Independent rejected-stock writeoffs (1 November 2026) / TEST ONLY
+
+- Based on original G3F commit `0e87a3b` on `feat/g3g-return-writeoffs`. No production deployment, live hospital database, patient or payment mutation.
+- New immutable partial writeoff for physically removed, medically rejected original FIFO return lines. An independent warehouse approver creates Dr5195/Cr1100 using historical lot cost; pending/rejected requests do not adjust stock or GL. Original RETURN Dr1100/Cr5100, FIFO issues, and case-cost history remain immutable.
+- SQLite and API enforce active warehouse grants, proposer/reviewer separation, amount and cumulative quantity constraints, sealed-period checks, non-reissued historical lot validation, source GL verification and no month close with pending writeoff.
+- Stock and reconciliation reports subtract approved writeoffs; RTL warehouse UI shows only stock line/batch, not patient or clinical notes. Frozen G3F SQL schema upgrade is preceded by encrypted, locally verified rollback.
+- **Local G3G QA results:** see `RAMSES_V81E_G3G_WRITEOFF_QA_AR.md`; Full regression: 123 = 117 PASS + 5 SKIP + 1 BLOCKED_NO_V80, 0 FAIL, exit 0. CI 51/51 PASS; Chromium G3G/G3F/G3D/G3B/G3A 5/5 independent flows on 320/375/1440. Skips and block excluded from pass count.
+- **NO-GO:** hospital disposal policy, physical witness signatures, off-device restore, V8.0 archive, medical/finance/IT UAT and approval still missing. Next: supplier purchase orders and 3-way match.
+
+---
+
 # V8.1E-G3F — Quarantined return / independent medical disposition (1 November 2026) / TEST ONLY
 
 - Built on verified G3E source commit `827d458`, on isolated `feat/g3f-return-quarantine` branch. No production or patient databases used.

@@ -37,6 +37,7 @@ ACCOUNTS = (
     ('5170','مصروفات ضيافة وإدارة مدفوعة','expense'),
     ('5176','POS acquiring fees','expense'),
     ('5180','رواتب مستحقة عن الفترة','expense'),
+    ('5195','خسائر تلف وإعدام مستلزمات مخزون','expense'),
 )
 
 # Explicit seed-category mapping. Unknown categories must NOT silently hit revenue/expense.

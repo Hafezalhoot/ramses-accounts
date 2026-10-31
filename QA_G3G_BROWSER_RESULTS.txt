@@ -1,0 +1,16 @@
+RUN tests/browser_g3g_writeoff_ui_offline.py
+PASS G3G Chromium 320/375/1440: rejected stock writeoff form, independent reviewer, Cairo date, no overflow
+EXIT 0 tests/browser_g3g_writeoff_ui_offline.py
+RUN tests/browser_g3f_inspection_ui_offline.py
+PASS G3F Chromium clinician quarantine UI 320/375/1440, independent release/reject and no finance endpoints
+EXIT 0 tests/browser_g3f_inspection_ui_offline.py
+RUN tests/browser_g3d_returns_ui_offline.py
+PASS G3D Chromium 1440/375/320 original-lot return workflow, reviewer approval and stale denial clearing
+EXIT 0 tests/browser_g3d_returns_ui_offline.py
+RUN tests/browser_g3b_source_hash_ui_offline.py
+PASS G3B Chromium source document hash UI and owner one-way opt-in, widths 320/375/1440
+EXIT 0 tests/browser_g3b_source_hash_ui_offline.py
+RUN tests/browser_g3a_clinician_ui_offline.py
+PASS G3A real Chromium: isolated clinical queue / modal / mobile 320/375 and desktop 1440
+EXIT 0 tests/browser_g3a_clinician_ui_offline.py (isolated after aggregate runtime timeout)
+SUMMARY 5/5 independently verified Chromium UI scripts at 320, 375, 1440. Original aggregate 90-second wrapper exceeded time budget before isolated G3A execution; not a functional test failure.

@@ -1,7 +1,7 @@
 "use strict";
 /* G2T: Central consumables only. Deliberately no pharmacy, payments or auto patient invoices. */
 (function(){
-  const today=()=>new Date().toLocaleDateString('sv-SE');
+  const today=()=>new Date().toLocaleDateString('sv-SE',{timeZone:'Africa/Cairo'});
   const requestId=()=>globalThis.crypto?.randomUUID?.()||('inventory_'+Date.now()+'_'+Math.random().toString(36).slice(2));
   const unitName={piece:'قطعة',box:'صندوق',pack:'عبوة',bottle:'زجاجة',meter:'متر'};
   const statusName={pending:'تحت المراجعة',approved:'معتمد',rejected:'مرفوض'};
@@ -16,7 +16,7 @@
     if(!rows.length)return empty('لا توجد مستندات في هذا القسم.');
     return `<div class="table-wrap"><table class="data-table"><thead><tr><th>المستند</th><th>التاريخ</th><th>الحالة</th><th>القيمة</th><th>القرار</th></tr></thead><tbody>${rows.map(row=>{
       const ref=type==='receipts'?row.invoice_ref:row.evidence_ref;
-      const date=type==='receipts'?row.received_on:type==='returns'?row.returned_on:row.used_on;
+      const date=type==='receipts'?row.received_on:type==='returns'?row.returned_on:type==='writeoffs'?row.disposed_on:row.used_on;
       const amount=type==='receipts'?row.total_piasters:row.cost_piasters;
       const controls=canApprove&&row.status==='pending'&&Number(row.created_by)!==Number(meId)?
         `<div class="inv-actions"><button class="btn btn-small btn-primary" data-inv-decision="${type}:${row.id}:approve">اعتماد</button><button class="btn btn-small btn-outline" data-inv-decision="${type}:${row.id}:reject">رفض</button></div>`:'—';
@@ -44,9 +44,9 @@
     const units=[['piece','قطعة'],['box','صندوق'],['pack','عبوة'],['bottle','زجاجة'],['meter','متر']];
     root.innerHTML=head('المخازن والمشتريات','المخزن المركزي للمستلزمات','قيود مخزون وموردين وتكلفة تشغيل، ولا يحدث صرف من الخزنة تلقائيًا.',isOwner?`<button type="button" class="btn btn-secondary" id="invGrant">${ico('shield')} إدارة تفويضات المخزن</button>`:'')+
       `<div class="info-box warning" role="note">${ico('alert')}<div><strong>تجريبي — مستلزمات غير دوائية فقط.</strong> لا يشمل أدوية المرضى أو الصرف العلاجي أو مطابقة فواتير الموردين مع البنك أو ضريبة القيمة المضافة. التقرير لا يثبت قيمة مخزون افتتاحي تاريخي.</div></div>`+
-      `<div class="inv-stats"><div><small>أصناف مسجلة</small><strong>${integer(items.length)}</strong></div><div><small>المملوك فعليًا (يشمل الحجر)</small><strong>${integer(totalUnits)}</strong></div><div><small>الحجر الطبي</small><strong>${integer(totalQuarantine)}</strong></div><div><small>المتاح بعد الحجر*</small><strong>${integer(totalAvailable)}</strong></div><div><small>قيمة المخزون (تشمل الحجر)</small><strong>${fmt(totalValue)} ج.م</strong></div></div>`+
+      `<div class="inv-stats"><div><small>أصناف مسجلة</small><strong>${integer(items.length)}</strong></div><div><small>الرصيد الدفتري (يشمل الحجر)</small><strong>${integer(totalUnits)}</strong></div><div><small>الحجر الطبي</small><strong>${integer(totalQuarantine)}</strong></div><div><small>المتاح بعد الحجر*</small><strong>${integer(totalAvailable)}</strong></div><div><small>قيمة المخزون (تشمل الحجر)</small><strong>${fmt(totalValue)} ج.م</strong></div></div>`+
       `<div class="info-box warning" role="note">الموافقة المحاسبية على المرتجع لا تعني صلاحية إعادة الاستخدام. الكمية المحجوزة طبيًا لا تدخل FIFO إلا بقرار طبي مستقل، والرصيد غير المحجوز لا يضمن الصلاحية أو سلامة العبوة؛ يتم فحصهما عند الصرف. لا يجوز استخدام هذه الدورة مع مرضى حقيقيين قبل اعتماد مكافحة العدوى.</div>`+
-      `<section class="panel inv-panel"><div class="panel-header"><div><h2>الأرصدة حسب الصنف</h2><p>المملوك يشمل المستلزمات المرتجعة داخل الحجر؛ قيد المرتجع المالي مستقل عن الإفراج الطبي.</p></div>${isOwner?`<div class="inv-actions"><button id="invVendor" class="btn btn-small btn-outline">مورد جديد</button><button id="invItem" class="btn btn-small btn-primary">صنف جديد</button></div>`:''}</div>`+
+      `<section class="panel inv-panel"><div class="panel-header"><div><h2>الأرصدة حسب الصنف</h2><p>الرصيد الدفتري يشمل المرتجعات بالحجر حتى اعتماد تسويتها؛ لا يساوي جردًا ماديًا.</p></div>${isOwner?`<div class="inv-actions"><button id="invVendor" class="btn btn-small btn-outline">مورد جديد</button><button id="invItem" class="btn btn-small btn-primary">صنف جديد</button></div>`:''}</div>`+
       (items.length?table(['الكود','الصنف','الوحدة','المملوك','بالحجر','غير محجوز*','القيمة'],items.map(x=>`<tr><td>${esc(x.code)}</td><td><strong>${esc(x.name)}</strong></td><td>${esc(unitName[x.unit]||x.unit)}</td><td class="num">${integer(x.quantity_on_hand)}</td><td class="num">${integer(x.quarantined_quantity)}</td><td class="num">${integer(x.available_quantity)}</td><td class="num">${fmt(x.value_piasters)}</td></tr>`).join('')):empty('سجّل موردًا وصنفًا أولًا ثم أنشئ محضر توريد.'))+
       `</section>`+
       (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">محضر استلام من مورد</h2><p class="section-subtitle">القيد المالي والكمية يترحلان فقط بعد اعتماد موظف آخر.</p><form id="invReceiptForm" class="inv-form">`+
@@ -71,6 +71,19 @@
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>فواتير توريد الموردين</h2><p>تثبيت مخزون وموردين بعد مراجعة المستند</p></div></div>${docTable(d.receipts||[],'receipts',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>أذون صرف المستلزمات</h2><p>تكاليف حالة أو قسم، وليس تحصيلًا نقديًا</p></div></div>${docTable(d.issues||[],'issues',canApprove,state.me.id)}</section></div>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مرتجعات مستلزمات</h2><p>الاعتماد المالي يعيد الملكية إلى المخزون المحجوز، ولا يجعل المرتجع متاحًا حتى يجيزه طبيب مفوض مستقل.</p></div></div>${docTable(d.returns||[],'returns',canApprove,state.me.id)}</section>`+
+      `<section class="panel inv-panel"><div class="panel-header"><div><h2>تسويات تلف وإعدام المستلزمات</h2><p>تسوية مستقلة للوحدات المرتجعة المرفوضة طبيًا فقط. الاعتماد يخصم من أصل المخزون ويثبت خسارة، ولا يغير تكلفة الحالة.</p></div></div>${docTable(d.writeoffs||[],'writeoffs',canApprove,state.me.id)}</section>`+
+      (canPrepare?`<section class="panel panel-pad"><h2 class="section-title">طلب شطب مستلزم محجوز</h2>`+
+      `<p class="section-subtitle">يجب توثيق الفحص الطبي الرافض والإزالة المادية. لن تتغير قيمة المخزون قبل اعتماد مراجع مستقل.</p>`+
+      ((d.writeoff_candidates||[]).length?`<form id="invWriteoffForm" class="inv-form">`+
+        field('','دفعة المرتجع المرفوض',`<select name="return_line_id" required>${(d.writeoff_candidates||[]).map(row=>`<option value="${Number(row.return_line_id)}">${esc(row.item_code)} — ${esc(row.item_name)} / ${esc(row.batch_ref)} (متبقي ${integer(row.remaining_quantity)})</option>`).join('')}</select>`)+
+        field('','كمية الشطب',`<input name="quantity" type="number" min="1" max="${Number(d.writeoff_candidates[0].remaining_quantity)}" step="1" required>`)+
+        field('','تاريخ الإزالة المادية',`<input name="disposed_on" type="date" value="${today()}" required>`)+
+        field('','سبب التلف',`<select name="reason" required><option value="damaged">تلف أو كسر</option><option value="contaminated">تلوث</option><option value="expired">انتهاء صلاحية</option><option value="other">سبب موثق آخر</option></select>`)+
+        field('','مرجع محضر الإعدام أو التلف',`<input name="evidence_ref" minlength="8" maxlength="180" placeholder="محضر إزالة مادي موقع" required>`)+
+        `<label class="inv-field"><span><input name="physical_disposal_confirmed" type="checkbox" required> أؤكد أن الكمية أُزيلت فعليًا من العهدة وفق محضر الإثبات</span></label>`+
+        `<button type="submit" class="btn btn-primary">إرسال التسوية للمراجع المالي</button></form>`:
+        empty('لا توجد حاليًا مستلزمات مرفوضة طبيًا بكمية غير مسوّاة.'))+
+      `</section>`:'')+
       (canPrepare?`<section class="panel panel-pad"><h2 class="section-title">إرجاع مستلزمات غير مستخدمة</h2>`+
       `<p class="section-subtitle">إرجاع فعلي لإذن معتمد. كل كمية تعتمد ماليًا تدخل الحجر الطبي تلقائيًا، ولا يُسمح بالصرف منها حتى فحص مستقل.</p>`+
       `<form id="invReturnLookupForm" class="inv-form">`+
@@ -143,6 +156,29 @@
         });
       }catch(error){source.innerHTML=`<p role="alert">${esc(error.message)}</p>`;}
       finally{button.disabled=false;}
+    });
+    $('#invWriteoffForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
+      const selected=(d.writeoff_candidates||[]).find(x=>Number(x.return_line_id)===Number(form.elements.return_line_id.value));
+      const quantity=Number(form.elements.quantity.value);
+      if(!selected||!Number.isSafeInteger(quantity)||quantity<1||quantity>Number(selected.remaining_quantity)){
+        toast('كمية التسوية لا تطابق رصيد المرتجع المرفوض',true);return;
+      }
+      if(!form.elements.physical_disposal_confirmed.checked){
+        toast('يجب تأكيد الإزالة المادية قبل تقديم المحضر',true);return;
+      }
+      button.disabled=true;
+      try{await apply('/api/inventory/writeoffs',{
+        return_line_id:Number(form.elements.return_line_id.value),quantity,
+        disposed_on:form.elements.disposed_on.value,reason:form.elements.reason.value,
+        evidence_ref:form.elements.evidence_ref.value,physical_disposal_confirmed:true,
+        request_id:requestId()},'أُرسل طلب تسوية التلف للمراجع؛ لا يوجد خصم أو قيد قبل الاعتماد');}
+      finally{button.disabled=false;}
+    });
+    $('#invWriteoffForm [name="return_line_id"]')?.addEventListener('change',event=>{
+      const selected=(d.writeoff_candidates||[]).find(x=>Number(x.return_line_id)===Number(event.target.value));
+      const qty=$('#invWriteoffForm [name="quantity"]');if(qty&&selected)qty.max=Number(selected.remaining_quantity);
     });
     $('#invReceiptForm')?.addEventListener('submit',async event=>{
       event.preventDefault();const el=event.currentTarget, b=el.querySelector('button[type="submit"]');b.disabled=true;

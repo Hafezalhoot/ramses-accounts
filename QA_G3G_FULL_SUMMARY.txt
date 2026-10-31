@@ -1,0 +1,8 @@
+Ramses Accounts G3G -- local synthetic testing only / NOT production ready
+Full regression: 123 invoked, 117 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL, 0 TIMEOUT, exit 0.
+CI independent scripts: 51/51 PASS, exit 0.
+Chromium: G3G/G3F/G3D/G3B/G3A 5/5 UI scripts independently PASS at 320,375,1440px.
+Aggregate browser wrapper initially timed out on total wall time; G3A isolated rerun PASS, see browser log.
+Frozen G3F schema -> G3G encrypted rollback upgrade test PASS; no backfill.
+Original V8.0 archive unavailable; independent off-device hospital restore, physical clinical governance and UAT NOT done.
+Production: NO-GO.

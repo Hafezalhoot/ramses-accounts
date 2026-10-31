@@ -1,0 +1,460 @@
+name	status	seconds	last_output
+test_bank_migration.py	PASS	3.91	"Verified encrypted pre-upgrade rollback: /tmp/tmp424f7k2l/pre_gl_upgrade_backups/before_v8_20261031_233506_231ff6c9.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Upgraded legacy shift names after an encrypted rollback snapshot
+Database initialized: /tmp/tmp424f7k2l/existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmp424f7k2l/existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - V7.5 ledger survives additive bank schema upgrade twice without silent matching"
+test_bank_reconciliation.py	PASS	7.58	"Database initialized: /tmp/tmp0hkguny0/bank.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — bank CSV evidence, manual matching and undo audit, two-person approval, immutable posting lock, month close, roles and correction"
+test_billing_credit_refunds_v81c.py	PASS	8.29	"Database initialized: /tmp/tmpkcm5q8tr/credits.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1C credit notes, AR, contra revenue, approved patient refund, protected reversal, unused advance, trial balance"
+test_billing_foundation_v81.py	PASS	8.0	"Database initialized: /tmp/tmpxhdg_em8/billing.db
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpxhdg_em8/billing.db
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1A: dual-station permissions, separate internal case, catalog prices, fulfillment, idempotency, unposted draft"
+test_billing_invoicing_v81b.py	PASS	8.43	"Database initialized: /tmp/tmp3w_jklhe/billing_v81b.db
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1B: invoice -> AR/revenue, split POS/cash, advance -> liability, allocation, double entry, shifts, security, idempotency"
+test_billing_upgrade_v81.py	BLOCKED_NO_V80	1.55	"Traceback (most recent call last):
+  File ""/mnt/data/ramses_work/g3d_repo/tests/test_billing_upgrade_v81.py"", line 66, in <module>
+    if __name__=='__main__':run()
+                            ~~~^^
+  File ""/mnt/data/ramses_work/g3d_repo/tests/test_billing_upgrade_v81.py"", line 45, in run
+    else:raise AssertionError(f'Original V8.0 ZIP not found: put it at {ROOT / ""tests"" / ""fixtures"" / fixture_name} or set RAMSES_V80_ARCHIVE. Historical migration untested.')
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Original V8.0 ZIP not found: put it at /mnt/data/ramses_work/g3d_repo/tests/fixtures/Ramses_Accounts_V8_0_Double_Entry_Decision_Foundation.zip or set RAMSES_V80_ARCHIVE. Historical migration untested."
+test_billing_upgrade_v81b.py	PASS	5.3	"Verified encrypted pre-upgrade rollback: /tmp/tmpjvr2wulj/pre_billing_v81b_backups/before_v81b_20261031_233512_4eb81106.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Upgraded legacy shift names after an encrypted rollback snapshot
+Database initialized: /tmp/tmpjvr2wulj/ramses_v81a.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpjvr2wulj/ramses_v81a.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1A -> V8.1B: pre-upgrade backup, patient case unchanged, new ledger accounts, idempotent start"
+test_cashier_shift_open_guard_v81c.py	PASS	8.4	"Database initialized: /tmp/tmp978rmj2m/shift_guard.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - mapped cash fund rejects untracked voucher; linked movement accepted only under open shift"
+test_deployment.py	PASS	7.03	"Database initialized: /tmp/tmpv9o4bcrx/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - staging marked, secure cookie, HSTS, private endpoints and CSRF verified"
+test_evidence_variance.py	PASS	10.57	"Database initialized: /tmp/tmpevkxz01p/ledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — evidence BLOB/permissions/type/size/backup/immutability + investigation, shortage, overage, maker-checker, retries"
+test_free_preview.py	SKIP	2.44	SKIP: private June historical workbook intentionally excluded from development ZIP
+test_free_preview_e2e.py	PASS	17.6	PASS - real preview HTTP, fabricated approved vouchers, private API, 5-tab mock Google snapshot, staging allowlist and diagnostics
+test_general_ledger.py	PASS	8.76	"Database initialized: /tmp/tmp4qw33dvb/ledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8: balanced journal, cashbook mapping, double-entry reversal, invoice accrual, frozen postings, payroll liability and security"
+test_gl_migration.py	PASS	5.17	"Verified encrypted pre-upgrade rollback: /tmp/tmpb7v9fwnm/pre_gl_upgrade_backups/before_v8_20261031_233522_7b65edfd.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Upgraded legacy shift names after an encrypted rollback snapshot
+Database initialized: /tmp/tmpb7v9fwnm/prior-version.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8 migration - old cash vouchers kept, old postings not silently certified into GL"
+test_google_sync.py	PASS	3.8	"Database initialized: /tmp/tmp11ypmnkk/hospital.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - atomic private mirror, no pre-clear, preserved owner tabs, failures are safe"
+test_local_server.py	PASS	13.92	"Database initialized: /tmp/tmpd1dv3hpg/ledger.db
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpd1dv3hpg/ledger.db
+Historical rows: 0 (quarantined, not posted)
+PASS: first-run secret, restart without secret, backup verify, private API"
+test_mixed_payroll.py	PASS	7.15	"Database initialized: /tmp/tmp05_ge679/mixed.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — mixed hourly+monthly payroll, minute accuracy, independent approvals, no duplicates, immutable snapshots, closed month and roles"
+test_mixed_payroll_migration.py	PASS	4.37	"Verified encrypted pre-upgrade rollback: /tmp/tmpwe3wmic_/pre_gl_upgrade_backups/before_v8_20261031_233526_ff76f1a6.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Upgraded legacy shift names after an encrypted rollback snapshot
+Database initialized: /tmp/tmpwe3wmic_/v73.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpwe3wmic_/v73.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — V7.3 monthly salaries, accruals and historical values preserved through idempotent V7.5 migration"
+test_payroll_corrections.py	PASS	6.09	"Database initialized: /tmp/tmptcw2xjne/payroll.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — salary corrections audited, CSV protected, pending salary freezes revisions, reject restores editability"
+test_payroll_review_workflow.py	PASS	7.5	"Database initialized: /tmp/tmpvpu2k6ul/review.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - payroll V7.5 manual approved additions/deductions, separate signoffs, blocking payments, audit, CSV, mirror and month close"
+test_preview_key_protection.py	PASS	2.05	PASS - insecure service-account permission refused, fixed staging only, archive separate, secure tunnel cookie
+test_preview_modes.py	SKIP	1.8	SKIP: private June historical workbook intentionally excluded from development ZIP
+test_qa_skip_reporting.py	PASS	1.92	PASS QA runner distinguishes skipped source dependencies from PASS
+test_shift_coverage_v81e_p0.py	PASS	4.12	"Database initialized: /tmp/tmp8zhq66mf/coverage.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS: visible missing electronic shift, submitted review, station-day incompleteness, clerk scope, no financial mutations"
+test_shift_migration.py	PASS	4.12	"Verified encrypted pre-upgrade rollback: /tmp/tmpwsxfob9p/pre_gl_upgrade_backups/before_v8_20261031_233534_3e7fd825.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Upgraded legacy shift names after an encrypted rollback snapshot
+Database initialized: /tmp/tmpwsxfob9p/previous.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpwsxfob9p/previous.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — upgrade adds shift link without deleting or changing historical live postings"
+test_shift_schedule_handoff_v81c.py	PASS	6.92	"Database initialized: /tmp/tmp5654vzh5/handoff.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1C: configurable shifts, correct night business date, blind count, independent cash receipt, rolling cash operations, separate accountant approval"
+test_shift_schedule_upgrade_v81c.py	PASS	3.16	"Verified encrypted pre-upgrade rollback: /tmp/tmpv9pq459z/pre_billing_v81c_backups/before_v81c_20261031_233537_f4fb0c5d.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Upgraded legacy shift names after an encrypted rollback snapshot
+Database initialized: /tmp/tmpv9pq459z/old_v81b.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpv9pq459z/old_v81b.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1C upgrade: historical cashier shifts unchanged, consistent pre-upgrade backup, new schedules and unique-open guard"
+test_shifts.py	PASS	6.59	"Database initialized: /tmp/tmpvu4jvmwb/shifts.db
+Historical rows: 0 (quarantined, not posted)
+PASS — shift open, blind count, pending guard, variance, segregation, recount, freeze, reversal, month close"
+test_system.py	PASS	6.94	"Database initialized: /tmp/tmpuirb8v4s/hospital.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — historical quarantine (when available), idempotency, login/CSRF/RBAC, cash, payroll, reversals & close"
+test_user_lifecycle.py	PASS	7.12	"Database initialized: /tmp/tmp_x1n1vab/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - account disable/reactivate, session revocation, password reset and owner confirmation"
+test_v73_migration.py	PASS	3.37	"Verified encrypted pre-upgrade rollback: /tmp/tmpyr103go4/pre_gl_upgrade_backups/before_v8_20261031_233540_f628d562.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Upgraded legacy shift names after an encrypted rollback snapshot
+Database initialized: /tmp/tmpyr103go4/oldledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpyr103go4/oldledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — V7.2 balances and shift ledger survived V7.3 additive upgrade twice"
+test_v81e_g0_bank_review_migration.py	PASS	3.89	"Database initialized: /tmp/tmpcd6d12yo/upgrade.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Verified encrypted pre-upgrade rollback: /tmp/tmpcd6d12yo/pre_schema_upgrade_backups/before_schema_20261031_233544_502edba5.rbe
+Database initialized: /tmp/tmpcd6d12yo/upgrade.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G0: upgrade old submit grant without granting historical approval rights"
+test_v81e_g0_billing_close.py	PASS	6.14	"Database initialized: /tmp/tmp6jnyvd0b/billing_gate.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G0-05: unissued draft blocks close, issued invoice recognized in GL, posted case no longer blocks close"
+test_v81e_g0_regressions.py	PASS	7.25	"Database initialized: /tmp/tmp4fyihzhk/g0.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G0-01: missing scheduled but unregistered shifts BLOCK month close
+PASS G0-02: explicit bank grant + GL-authoritative revenue report, no cash double count
+PASS G0-03: voucher correction intake no HTTP 500, no financial mutation
+PASS G0-04: immediate grant revocation blocks new AND pending bank posting"
+test_v81e_g1_g2a.py	PASS	7.54	"Database initialized: /tmp/tmpy7evm0co/g1_g2a.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G1: cash fund restricted, independent approvals, immediate revocation
+PASS G1: legacy cash opt-in lockdown applies immediately even inside an open shift
+PASS G2A: late incident intake, duplicate paper guard, immutable evidence, independent source link, ZERO financial double-post"
+test_v81e_g2b_late_invoice.py	PASS	6.58	"Database initialized: /tmp/tmp44ajicp1/g2b.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2B: closed-old-month late visit; independent triage; historical pricing; current GL; no invented cash"
+test_v81e_g2b_schema_upgrade.py	PASS	3.6	"Database initialized: /tmp/tmpao_rp0l8/existing_ramses.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Verified encrypted pre-upgrade rollback: /tmp/tmpao_rp0l8/pre_schema_upgrade_backups/before_schema_20261031_233548_dfc01db5.rbe
+Database initialized: /tmp/tmpao_rp0l8/existing_ramses.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2B schema: old ledger, users, funds, schedules, and patient retained"
+test_v81e_g2c_cash_clearance.py	PASS	7.96	"Database initialized: /tmp/tmpgsqmz10g/cash-g2c.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2C: 2 old invoices, one approved 1500 EGP suspense voucher, zero new cash, immutable allocations"
+test_v81e_g2d_mixed_envelope.py	PASS	9.35	"Database initialized: /tmp/tmp_5_0xu_d/g2d.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2D mixed: gross 4500, paper expenses 600, cash 3900, shortage 50, overage 50, zero duplicate cash"
+test_v81e_g2e_shortage_recovery.py	PASS	12.06	"Database initialized: /tmp/tmpaz11yt81/g2d.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2D mixed: gross 4500, paper expenses 600, cash 3900, shortage 50, overage 50, zero duplicate cash
+PASS G2E: real cash recovery 30+20, independent approval, no duplicate ref, 1190 cleared, overage remains liability"
+test_v81e_g2f_overage_refund.py	PASS	12.72	"Database initialized: /tmp/tmp6whxyc__/g2d.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2D mixed: gross 4500, paper expenses 600, cash 3900, shortage 50, overage 50, zero duplicate cash
+PASS G2E: real cash recovery 30+20, independent approval, no duplicate ref, 1190 cleared, overage remains liability
+PASS G2F: claim evidence, signed proof, two-party refund 30+20, 2190 cleared, no income"
+test_v81e_g2f_overage_ui.py	PASS	11.32	"PASS G2F UI 1365 screenshot QA_G2F_OVERAGE_1365.png
+PASS G2F UI 375 screenshot QA_G2F_OVERAGE_375.png"
+test_v81e_g2g_invoice_credit.py	PASS	9.54	"Database initialized: /tmp/tmpk8sfm17h/correction.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2G invoice credit: independent review, balanced GL, no cash, replay protection, paid invoice guard, closed-origin/open-post"
+test_v81e_g2g_invoice_ui.py	PASS	7.57	"PASS G2G UI 1365 saved /mnt/data/ramses_work/QA_G2G_CORRECTION_1365.png
+PASS G2G UI 375 saved /mnt/data/ramses_work/QA_G2G_CORRECTION_375.png"
+test_v81e_g2g_upgrade.py	PASS	4.69	"Database initialized: /tmp/tmp0o81jsns/legacy_g2f_shape.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Verified encrypted pre-upgrade rollback: /tmp/tmp0o81jsns/pre_schema_upgrade_backups/before_schema_20261031_233606_34bb8065.rbe
+Database initialized: /tmp/tmp0o81jsns/legacy_g2f_shape.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmp0o81jsns/legacy_g2f_shape.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2G schema upgrade: existing users/funds/points preserved; new immutable table idempotent"
+test_v81e_g2h_receipt_reassign.py	PASS	11.1	"Database initialized: /tmp/tmpqg742p37/g2h.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2H: wrong-patient FULL mixed receipt; no new cash/GL; case AR; immutable audit; replay; stale/identity guards; closed origin/new effective date"
+test_v81e_g2h_receipt_ui.py	PASS	7.81	"PASS G2H corrected receipt UI 1365
+PASS G2H corrected receipt UI 375"
+test_v81e_g2h_upgrade.py	PASS	4.06	"Database initialized: /tmp/tmpl5w7lmh8/g2g_existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Verified encrypted pre-upgrade rollback: /tmp/tmpl5w7lmh8/pre_schema_upgrade_backups/before_schema_20261031_233609_39534274.rbe
+Database initialized: /tmp/tmpl5w7lmh8/g2g_existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpl5w7lmh8/g2g_existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2H additive migration from G2G shape; repeat initialize safe, original records intact"
+test_v81e_g2i_financial_safety.py	PASS	7.63	"Database initialized: /tmp/tmp0eaic38g/g2i.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2I: auto-journal reversals blocked; manual control account blocked; pending bypass blocked; AR/advance/refund matched; historical mismatch and future close rejected"
+test_v81e_g2i_financial_ui.py	PASS	8.96	"PASS G2I static shell: 320 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 375 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 620 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 621 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 768 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 1365 px, logout accessible, nav groups, no scroll overflow"
+test_v81e_g2j_schema_upgrade.py	SKIP	1.8	SKIP G2J G2I upgrade: original preceding source checkout unavailable
+test_v81e_g2j_treasury_integrity.py	PASS	7.16	"Database initialized: /tmp/tmp4g3ek6bq/treasury.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2J: source-voucher GL agreement, signed bank evidence, legacy phantom GL, independent physical count, close-block and roles"
+test_v81e_g2k_pos_settlement.py	PASS	7.11	"Database initialized: /tmp/tmplmnws008/pos.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2K: 160 gross / 2 fee / 158 bank, rejected batch released, blocked premature bank approval, zero fee"
+test_v81e_g2k_pos_ui.py	PASS	7.17	PASS G2K POS UI: 1440/375/320, 160 - 2 = 158, review controls, no console errors/overflow
+test_v81e_g2k_upgrade.py	SKIP	2.1	SKIP G2K historical G2J -> G2K upgrade: G2J source checkout not packaged
+test_v81e_g2l_fund_opening.py	PASS	6.57	"Database initialized: /tmp/tmp6uvl9azg/opening.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2L independent openings: posted GL, cashbook unchanged, no self-approval, no retry/DB tampering, rejection and zero case"
+test_v81e_g2l_opening_concurrency.py	PASS	6.25	"Database initialized: /tmp/tmp21uhhi8c/race.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2L concurrent opening: one signed journal, second approval rejected, no duplicate GL"
+test_v81e_g2l_opening_ui.py	PASS	6.84	PASS G2L opening review UI: 1440, 375, 320; zero/candidate/reviewer states, modal, no overflow or console errors
+test_v81e_g2l_schema_upgrade.py	SKIP	1.97	SKIP G2L G2K source checkout not available; migration must be rerun with historical source
+test_v81e_g2m_finance_preflight.py	PASS	9.61	PASS G2M read-only accounting preflight catches balanced-but-fake fund journal; no data changed
+test_v81e_g2m_nonproduction_badges.py	PASS	2.11	PASS G2M: unapproved environment cannot display false production-approved status
+test_v81e_g2m_secure_backup.py	PASS	23.36	PASS G2M AES-GCM backup: WAL snapshot, integrity, real restore, no overwrite, wrong key, tamper, truncation, key permissions
+test_v81e_g2n_bank_scope.py	PASS	8.88	"Database initialized: /tmp/tmphmnlvzhc/bank_scope.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2N bank fund-scoped read/import/match/approve/revoke and POS IDOR safety"
+test_v81e_g2o_patient_scope_ui.py	PASS	7.89	PASS G2O Chromium reviewer grant/revoke modal and denied empty state, 1440/375/320, no page errors/overflow
+test_v81e_g2o_patient_scopes.py	PASS	8.66	"Database initialized: /tmp/tmpxbk8y4xh/scope.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2O patient reviewer point grants, credit/refund/correction IDOR and instant revocation"
+test_v81e_p1_flexible_schedules.py	PASS	6.42	"Database initialized: /tmp/tmpfpu8a20z/ramses.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P1: owner schedule updates, history frozen, internal 1/external 3→2, opening treasury, date-crossing, policy defaults, live API"
+test_v81e_p3_main_treasury.py	PASS	8.73	"Database initialized: /tmp/tmpd4_w4_g7/ledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2A treasury evidence: source shift matched to existing approved main-safe deposit, no double posting
+PASS P3 treasury: 990 physical transfer after source count, central expense 100, shortage 10 adjusted, external next opening 0, balanced GL, no revenue duplicate"
+test_v81e_p3_provisional_handoff.py	PASS	7.6	"Database initialized: /tmp/tmpk1u7uas7/hospital.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P3: provisional cash accepted independently, next shift runs physically counted, shortage adjusted once, history immutable, owner grants/revokes, no self-approval"
+test_v81e_p4_points.py	PASS	6.93	"Database initialized: /tmp/tmpzm0u0gsj/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P4 points: immutable historical tills; effective pause/resume; unbound drafts produce NO fake missing alerts"
+test_v81e_p4_shortage_repayment.py	PASS	6.69	"Database initialized: /tmp/tmpl8xbzpwc/ledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P4 repayments: 6+4 settled, no overpay, immutable rows, suspense 1190 cleared, GL balanced
+PASS P3 treasury: 990 physical transfer after source count, central expense 100, shortage 10 adjusted, external next opening 0, balanced GL, no revenue duplicate"
+test_v81e_p5_corrections_intake.py	PASS	7.0	"Database initialized: /tmp/tmpg2e3zhee/corrections.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P5 correction tickets: source scoping, idempotency, independent review, append-only events, ZERO ledger impact"
+test_v81e_shift_images.py	PASS	5.57	"Database initialized: /tmp/tmpl_1nykud/cash.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS optional/required evidence: upload, PDF validation, duplicate, authorization, conditional envelope, immutable BLOB"
+test_v81e_staff_access.py	PASS	5.73	"Database initialized: /tmp/tmpwfe5b8ai/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1E staff access owner only, per shift open guard, revocation and preservation"
+test_v82_g2p_case_settlement.py	PASS	8.55	"Database initialized: /tmp/tmp00fovm8i/sandbox.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS: ready, invoice, financial close maker/checker, no-charge, concurrent approval, immutable closure"
+test_v82_g2p_case_settlement_ui.py	PASS	9.74	PASS: G2P readiness, request, review, closed UI at 1440/375/320; no JS errors or horizontal overflow
+test_v82_g2p_schema_upgrade.py	PASS	4.87	"Verified encrypted pre-upgrade rollback: /tmp/tmpymvezz3y/pre_schema_upgrade_backups/before_schema_20261031_233649_fd37fa32.rbe
+Database initialized: /tmp/tmpymvezz3y/original_g2o.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpymvezz3y/original_g2o.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS: G2O table migration twice without lost old cases or broken FKs"
+test_v82_g2q_accessibility.py	PASS	4.8	PASS G2Q accessible skip link: tab order, focus state, keyboard activation, RTL mobile
+test_v82_g2q_google_privacy.py	PASS	3.25	"Database initialized: /tmp/tmpxni_gc1o/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2Q Google sync requires deliberate privacy approval before any external network call"
+test_v82_g2q_security.py	PASS	18.13	"Database initialized: /tmp/tmpksssz2ox/ramses.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpksssz2ox/ramses.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2Q security: source-scoped throttle, employee minimum disclosure, immutable audit, encrypted-only backup"
+test_v82_g2q_upgrade.py	PASS	4.27	"Verified encrypted pre-upgrade rollback: /tmp/tmpan3z_c5o/pre_g2u_upgrade_backups/before_g2u_20261031_233654_e3979e96.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Database initialized: /tmp/tmpan3z_c5o/old-g2p.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpan3z_c5o/old-g2p.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2P frozen-schema -> G2Q x2: historical records retained, auth failures table and immutable audit added"
+test_v82_g2r_bed_stays.py	PASS	7.99	"Database initialized: /tmp/tmp0ozdsf0m/test.sqlite
+Historical rows: 0 (quarantined, not posted)
+PASS G2R: occupancy, period-specific night fees, atomic charges, scope, immutable audit, close gate"
+test_v82_g2r_bed_stays_ui.py	PASS	8.59	PASS G2R browser 1440/375/320; priced-night overview, owner controls, clerk scopes, RTL and no errors
+test_v82_g2r_upgrade.py	PASS	5.3	"Verified encrypted pre-upgrade rollback: /tmp/tmpmgfgkk8b/pre_g2u_upgrade_backups/before_g2u_20261031_233658_a6fecbee.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Database initialized: /tmp/tmpmgfgkk8b/old-g2q.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpmgfgkk8b/old-g2q.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2Q frozen-schema -> G2R x2: original records retained, new bed tables added"
+test_v82_g2s_bed_transfers.py	PASS	8.14	"Database initialized: /tmp/tmpm89pte5n/g2s.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2S transfer: atomic, immutable, authorized, idempotent, priced split, zero GL"
+test_v82_g2s_bed_transfers_ui.py	PASS	11.27	PASS G2S browser 1440/375/320; priced-night overview, owner controls, clerk scopes, RTL and no errors
+test_v82_g2s_closed_bed_period.py	PASS	10.59	"Database initialized: /tmp/tmpvjndvf26/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2S sealed period: release/bed insert/night insert all rejected"
+test_v82_g2s_month_end.py	PASS	9.58	"Database initialized: /tmp/tmpa8oblybn/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2S monthly night checks: missed nights and uninvoiced nights are scoped to service month"
+test_v82_g2s_month_end_ledger_date.py	PASS	4.77	PASS G2S: month-end recognizes invoice only with posted GL in matching period
+test_v82_g2s_preview_archive_guard.py	PASS	4.84	PASS G2S: missing historical archive fails before creating any demo data
+test_v82_g2s_tariff_integrity.py	PASS	4.8	"Database initialized: /tmp/tmpjcvlqzmi/test.sqlite
+Historical rows: 0 (quarantined, not posted)
+PASS G2S: stale tariff rejected; latest dated tariff accepted"
+test_v82_g2s_upgrade.py	PASS	6.9	"Verified encrypted pre-upgrade rollback: /tmp/tmpmjcea5hi/pre_g2u_upgrade_backups/before_g2u_20261031_233714_f88dbc6b.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Database initialized: /tmp/tmpmjcea5hi/frozen-g2r.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpmjcea5hi/frozen-g2r.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2R frozen-schema -> G2S twice, old bed/charge/patient/audit rows preserved"
+test_v82_g2t_closed_inventory_period.py	PASS	8.35	"Database initialized: /tmp/tmp98m1_mo0/month.sqlite
+Historical rows: 0 (quarantined, not posted)
+PASS G2T SQL plus API sealed-month inventory review rejection"
+test_v82_g2t_concurrency.py	PASS	8.97	"Database initialized: /tmp/tmpl0j7v0vc/concurrent.sqlite
+Historical rows: 0 (quarantined, not posted)
+PASS G2T concurrent review of receipt and last unit: exactly one receipt and one issue GL"
+test_v82_g2t_inventory.py	PASS	9.86	"Database initialized: /tmp/tmpwllv2qyh/inventory.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2T receipt and FIFO medical consumables: maker/checker, GL 1100/2200/5100, immutable evidence, no negative stock, reconciliation"
+test_v82_g2t_inventory_ui.py	PASS	15.44	PASS G2T Chromium 1440/375/320: Arabic owner/reviewer, forms, approval gates, no horizontal overflow or JS errors
+test_v82_g2t_revocation_race.py	PASS	8.14	"Database initialized: /tmp/tmpviyie0ig/revoke.sqlite
+Historical rows: 0 (quarantined, not posted)
+PASS G2T revoked grant cannot authorize in-flight financial approval"
+test_v82_g2t_upgrade.py	PASS	5.92	"Verified encrypted pre-upgrade rollback: /tmp/tmpkmlri7hl/pre_g2u_upgrade_backups/before_g2u_20261031_233722_1424ada8.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Database initialized: /tmp/tmpkmlri7hl/historical-g2s.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpkmlri7hl/historical-g2s.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2T actual archived G2S DDL -> G2T x2, preserved users/funds/departments/audit, no new stock"
+test_v82_g2u_cross_month_billing.py	PASS	7.16	"Database initialized: /tmp/tmp9l0d0sw8/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2U: old closed 2026-10 does not block 2026-11 invoicing/GL, closing and coverage"
+test_v82_g2u_privacy_scope.py	PASS	7.36	"Database initialized: /tmp/tmpftn0hg0k/scope.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2U read scope: staff/private funds/global reports/voucher export/evidence/review queue/instant revoke"
+test_v82_g2u_upgrade.py	PASS	6.48	"Verified encrypted pre-upgrade rollback: /tmp/tmpdx93bwt3/pre_g2u_upgrade_backups/before_g2u_20261031_233729_6f4348ce.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Database initialized: /tmp/tmpdx93bwt3/g2t_upgrade.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpdx93bwt3/g2t_upgrade.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2U real archived G2T schema x2, 1 unissued old draft preserved, unknown dates NULL, immutable evidence"
+test_v82_g2v_encrypted_upgrade.py	PASS	13.77	"Verified encrypted pre-upgrade rollback: /tmp/g2v-test-j17w8wmc/pre_gl_upgrade_backups/before_v8_20261031_233727_d2a9ea0c.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Upgraded legacy shift names after an encrypted rollback snapshot
+Database initialized: /tmp/g2v-test-j17w8wmc/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/g2v-test-j17w8wmc/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Verified encrypted pre-upgrade rollback: /tmp/g2v-test-yqeha5to/pre_g2u_upgrade_backups/before_g2u_20261031_233733_402d60ad.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Database initialized: /tmp/g2v-test-yqeha5to/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/g2v-test-yqeha5to/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Verified encrypted pre-upgrade rollback: /tmp/g2v-test-sok5tnfg/pre_schema_upgrade_backups/before_schema_20261031_233737_66c3422c.rbe
+Database initialized: /tmp/g2v-test-sok5tnfg/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/g2v-test-sok5tnfg/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2V: legacy + frozen G2T encrypted upgrade, fail-closed key, authenticated restore and no plaintext rollback"
+test_v82_g2w_gl_viewer_scope.py	PASS	5.8	"Database initialized: /tmp/tmp7045ta81/g2w.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2W global ledger viewer scope"
+test_v82_g2w_shift_fund_scope.py	PASS	7.62	"Database initialized: /tmp/tmp1etma40v/g2w.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2W restricted shift reads, attachments, day summary, review authorization and live revocation"
+test_v82_g2y_report_scope.py	PASS	7.24	"Database initialized: /tmp/tmpkf03qnvp/reports.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2Y reports: protected bank/restricted fund excluded, viewer GL masked, grants live, patient recon restricted"
+test_v82_g2z_clinical_attestation.py	PASS	8.64	"Database initialized: /tmp/g2z-clinical-xlnhy52b/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2Z: independent department clinical witness, invoice gate, immutable proof, live revocation"
+test_v82_g2z_release_label.py	PASS	3.97	"Database initialized: /tmp/tmpcdofq78k/release_test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3G development-only version label across HTTP, UI and Mac startup"
+test_v82_g2z_upgrade.py	PASS	4.75	"Verified encrypted pre-upgrade rollback: /tmp/g2z-upgrade-8ys0bpwz/pre_schema_upgrade_backups/before_schema_20261031_233739_ad9c4636.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Database initialized: /tmp/g2z-upgrade-8ys0bpwz/legacy-test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/g2z-upgrade-8ys0bpwz/legacy-test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2Z: encrypted rollback restores pristine G2Y, additive schema retains historical service and policies off"
+test_v82_g3a_clinician_identity.py	PASS	8.91	"Database initialized: /tmp/g3a-clinician-fkqm_w1z/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3A clinician account isolated from all financial routes; manual approval and revocation enforced"
+test_v82_g3a_role_upgrade.py	PASS	7.34	"Verified encrypted pre-upgrade rollback: /tmp/g3a-legacy-wdu29z48/pre_schema_upgrade_backups/before_schema_20261031_233741_4ebae6a8.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Database initialized: /tmp/g3a-legacy-wdu29z48/g2z-legacy.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/g3a-legacy-wdu29z48/g2z-legacy.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3A: actual G2Z schema preserved, encrypted rollback restorable, old viewer grant suspended"
+test_v82_g3b_clinical_document_hash.py	PASS	10.39	"Database initialized: /tmp/g3b-hash-83st7xwt/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3B: immutable source fingerprint, protected invoice, one-way owner activation, revocation, no clinical bytes stored"
+test_v82_g3b_upgrade.py	PASS	6.09	"Verified encrypted pre-upgrade rollback: /tmp/g3b-g3a-upgrade-eb_tdql6/pre_schema_upgrade_backups/before_schema_20261031_233744_bd7ce082.rbe
+Database initialized: /tmp/g3b-g3a-upgrade-eb_tdql6/frozen_g3a.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/g3b-g3a-upgrade-eb_tdql6/frozen_g3a.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3B genuine G3A schema upgrade with encrypted rollback and preserved legacy clinical witnesses"
+test_v82_g3c_case_consumables_cost.py	PASS	8.24	"Database initialized: /tmp/tmpvhqd128l/cost.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3C case FIFO costs from approved immutable issues, no phantom costs, dual grants and revocation"
+test_v82_g3c_fifo_date_guard.py	PASS	7.08	"Database initialized: /tmp/tmpoby7sbi3/fifo.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3C chronological FIFO: API and SQLite reject backdated approvals without partial GL; same-day allowed"
+test_v82_g3c_upgrade.py	PASS	5.82	"Verified encrypted pre-upgrade rollback: /tmp/g3c-frozen-g3b-godgiihe/pre_schema_upgrade_backups/before_schema_20261031_233750_8dffb730.rbe
+Database initialized: /tmp/g3c-frozen-g3b-godgiihe/historical-g3b.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/g3c-frozen-g3b-godgiihe/historical-g3b.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3C frozen G3B encrypted pre-DDL rollback, isolated restore, schema guards, no extra archive"
+test_v82_g3d_inventory_returns.py	PASS	10.06	"Database initialized: /tmp/ramses-g3d-returns-t67jgd7w/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3D independent source-lot partial returns, accurate net case FIFO cost, balanced GL, immutable documents, direct SQLite guard, revocation and month-close preflight"
+test_v82_g3d_return_date_guards.py	PASS	7.37	"Database initialized: /tmp/g3d-return-guards-jrwh0_zc/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3D expiry, dated FIFO return, raw SQL quantity/date guards and sealed-month approval all fail closed"
+test_v82_g3d_upgrade.py	PASS	4.62	"Verified encrypted pre-upgrade rollback: /tmp/ramses-g3d-frozen-g3c-ufv3eqah/pre_schema_upgrade_backups/before_schema_20261031_233753_26b0de6d.rbe
+Database initialized: /tmp/ramses-g3d-frozen-g3c-ufv3eqah/real-g3c-history.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/ramses-g3d-frozen-g3c-ufv3eqah/real-g3c-history.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3D original G3C encrypted pre-DDL snapshot, one-time FIFO trigger replacement, isolated recovery and preserved history"
+test_v82_g3e_inventory_privacy.py	PASS	7.2	"Database initialized: /tmp/ramses-g3e-privacy-xluv22_l/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3E overview case data scoping, live grant revocation, reviewer decision, and unlinked stock visibility"
+test_v82_g3f_return_quarantine.py	PASS	8.89	"Database initialized: /tmp/ramses-g3f-quarantine-itejdfx0/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3F return quarantine, independent licensed-manual-role pilot, FIFO SQL guard, immutable inspection, live revocation, GL unchanged"
+test_v82_g3f_upgrade.py	PASS	7.38	"Verified encrypted pre-upgrade rollback: /tmp/g3f-real-g3e-upgrade-qefwbh2i/pre_schema_upgrade_backups/before_schema_20261031_233758_23d84615.rbe
+Database initialized: /tmp/g3f-real-g3e-upgrade-qefwbh2i/g3e-old.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/g3f-real-g3e-upgrade-qefwbh2i/g3e-old.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3F frozen G3E encrypted upgrade, G3E reuse history unchanged and old returned units quarantined, independent restore"
+test_v82_g3g_return_writeoffs.py	PASS	7.17	"Database initialized: /tmp/ramses-g3g-writeoff-yq7wekj3/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3G two-person rejected stock writeoffs, partial cap, immutable GL, privacy, revocation, patient cost and month-close gate"
+test_v82_g3g_upgrade.py	PASS	5.11	"Verified encrypted pre-upgrade rollback: /tmp/ramses-g3g-upgrade-06fy3i4z/pre_schema_upgrade_backups/before_schema_20261031_233800_6f7b33b8.rbe
+Database initialized: /tmp/ramses-g3g-upgrade-06fy3i4z/g3f-original.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/ramses-g3g-upgrade-06fy3i4z/g3f-original.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3G original G3F frozen migration and encrypted independent rollback; no synthetic writeoff backfill"
+test_worklog_pagination.py	PASS	5.3	"Database initialized: /tmp/tmpafvzs7aa/hours.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — 62 genuine work entries, 60/2 pages, pending count not clipped, accrual stays blocked"

@@ -1810,3 +1810,89 @@ CREATE TRIGGER IF NOT EXISTS inv_return_inspection_no_update BEFORE UPDATE ON in
  BEGIN SELECT RAISE(ABORT,'Clinical return inspection immutable'); END;
 CREATE TRIGGER IF NOT EXISTS inv_return_inspection_no_delete BEFORE DELETE ON inventory_return_inspections
  BEGIN SELECT RAISE(ABORT,'Clinical return inspection immutable'); END;
+
+-- G3G: physical write-off after independent medical REJECTION, followed by
+-- independent finance review. Do not edit the original patient return/GL.
+CREATE TABLE IF NOT EXISTS inventory_return_writeoffs (
+ id INTEGER PRIMARY KEY,
+ return_line_id INTEGER NOT NULL REFERENCES inventory_return_lines(id),
+ quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 1000000),
+ disposed_on TEXT NOT NULL CHECK(length(disposed_on)=10),
+ reason TEXT NOT NULL CHECK(reason IN ('damaged','contaminated','expired','other')),
+ evidence_ref TEXT NOT NULL CHECK(length(trim(evidence_ref)) BETWEEN 8 AND 180),
+ physical_disposal_confirmed INTEGER NOT NULL CHECK(physical_disposal_confirmed=1),
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL,
+ reviewed_by INTEGER REFERENCES users(id),reviewed_at TEXT,review_note TEXT,
+ cost_piasters INTEGER NOT NULL DEFAULT 0 CHECK(cost_piasters>=0),
+ journal_id INTEGER UNIQUE REFERENCES gl_journals(id),
+ CHECK(status!='approved' OR (reviewed_by IS NOT NULL AND reviewed_by!=created_by AND journal_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_writeoffs_line ON inventory_return_writeoffs(return_line_id,status);
+CREATE INDEX IF NOT EXISTS idx_inventory_writeoffs_day ON inventory_return_writeoffs(disposed_on,status);
+CREATE TRIGGER IF NOT EXISTS inv_writeoff_initial_guard BEFORE INSERT ON inventory_return_writeoffs
+ WHEN NEW.status!='pending' OR NEW.reviewed_by IS NOT NULL OR NEW.journal_id IS NOT NULL OR
+   NEW.cost_piasters!=0 OR NEW.reviewed_at IS NOT NULL OR
+   EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.disposed_on,1,7)) OR
+   NOT EXISTS (
+     SELECT 1 FROM inventory_return_lines rl
+     JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+     JOIN inventory_return_inspections med ON med.return_line_id=rl.id AND med.decision='rejected'
+     JOIN users u ON u.id=NEW.created_by AND u.active=1
+     LEFT JOIN inventory_access grant_row ON grant_row.user_id=u.id
+     WHERE rl.id=NEW.return_line_id AND NEW.disposed_on>=ret.returned_on
+       AND NEW.disposed_on>=med.inspected_on
+       AND (u.role='owner' OR (u.role IN ('clerk','reviewer') AND grant_row.can_prepare=1))
+       AND NEW.quantity + COALESCE((SELECT SUM(w.quantity) FROM inventory_return_writeoffs w
+           WHERE w.return_line_id=rl.id AND w.status IN ('pending','approved')),0)<=rl.quantity
+   )
+ BEGIN SELECT RAISE(ABORT,'Writeoff requires medically rejected lot, current grant, original quantity and open month'); END;
+CREATE TRIGGER IF NOT EXISTS inv_writeoff_core_locked BEFORE UPDATE OF
+ return_line_id,quantity,disposed_on,reason,evidence_ref,physical_disposal_confirmed,created_by,created_at
+ ON inventory_return_writeoffs
+ BEGIN SELECT RAISE(ABORT,'Writeoff source evidence immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_writeoff_final_locked BEFORE UPDATE ON inventory_return_writeoffs
+ WHEN OLD.status!='pending'
+ BEGIN SELECT RAISE(ABORT,'Final inventory writeoff immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_writeoff_approval_guard BEFORE UPDATE OF status ON inventory_return_writeoffs
+ WHEN NEW.status='approved' AND (
+   OLD.status!='pending' OR NEW.reviewed_by IS NULL OR NEW.reviewed_by=OLD.created_by OR
+   NEW.journal_id IS NULL OR NEW.cost_piasters<=0 OR
+   EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.disposed_on,1,7)) OR
+   NOT EXISTS (
+      SELECT 1 FROM inventory_return_lines rl
+      JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+      JOIN inventory_return_inspections med ON med.return_line_id=rl.id AND med.decision='rejected'
+      JOIN inventory_issue_allocations alloc ON alloc.id=rl.issue_allocation_id
+      JOIN inventory_receipt_lines lot ON lot.id=alloc.receipt_line_id
+      JOIN users reviewer ON reviewer.id=NEW.reviewed_by AND reviewer.active=1
+      LEFT JOIN inventory_access grant_row ON grant_row.user_id=reviewer.id
+      WHERE rl.id=NEW.return_line_id AND NEW.disposed_on>=med.inspected_on
+        AND (reviewer.role='owner' OR (reviewer.role IN ('clerk','reviewer') AND grant_row.can_approve=1))
+        AND NEW.cost_piasters=NEW.quantity*lot.unit_cost_piasters
+        AND (SELECT COALESCE(SUM(gross.quantity),0) FROM inventory_issue_allocations gross
+             WHERE gross.receipt_line_id=lot.id) <= lot.quantity +
+            COALESCE((SELECT SUM(prior.quantity) FROM inventory_return_lines prior
+              JOIN inventory_issue_allocations src ON src.id=prior.issue_allocation_id
+              JOIN inventory_issue_returns prior_ret ON prior_ret.id=prior.return_id AND prior_ret.status='approved'
+              JOIN inventory_return_inspections passed ON passed.return_line_id=prior.id
+                AND passed.decision='released' AND passed.inspected_on<=NEW.disposed_on
+              WHERE src.receipt_line_id=lot.id AND prior_ret.returned_on<=NEW.disposed_on),0)
+   ) OR
+   NOT EXISTS(SELECT 1 FROM gl_journals j WHERE j.id=NEW.journal_id AND j.status='posted'
+     AND j.entry_date=NEW.disposed_on AND j.memo='INV:WRITE_OFF#'||NEW.id
+     AND j.reviewed_by=NEW.reviewed_by) OR
+   (SELECT COUNT(*) FROM gl_lines WHERE journal_id=NEW.journal_id)!=2 OR
+   NOT EXISTS(SELECT 1 FROM gl_lines l JOIN gl_accounts a ON a.id=l.account_id
+      WHERE l.journal_id=NEW.journal_id AND a.code='5195'
+      AND l.debit_piasters=NEW.cost_piasters AND l.credit_piasters=0) OR
+   NOT EXISTS(SELECT 1 FROM gl_lines l JOIN gl_accounts a ON a.id=l.account_id
+      WHERE l.journal_id=NEW.journal_id AND a.code='1100'
+      AND l.credit_piasters=NEW.cost_piasters AND l.debit_piasters=0)
+ ) BEGIN SELECT RAISE(ABORT,'Writeoff requires posted independent loss journal at original lot cost'); END;
+CREATE TRIGGER IF NOT EXISTS inv_writeoff_no_delete BEFORE DELETE ON inventory_return_writeoffs
+ BEGIN SELECT RAISE(ABORT,'Inventory writeoff immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_writeoff_pending_period_guard BEFORE INSERT ON periods
+ WHEN EXISTS(SELECT 1 FROM inventory_return_writeoffs w
+     WHERE w.status='pending' AND substr(w.disposed_on,1,7)=NEW.period)
+ BEGIN SELECT RAISE(ABORT,'Cannot seal month with pending inventory writeoff'); END;

@@ -98,6 +98,16 @@ class ReturnInspectionForm(BaseModel):
     infection_control_clearance:bool=False
 
 
+
+class WriteoffForm(BaseModel):
+    return_line_id:int=Field(gt=0)
+    quantity:int=Field(ge=1,le=1000000)
+    disposed_on:str
+    reason:Literal['damaged','contaminated','expired','other']
+    evidence_ref:str=Field(min_length=8,max_length=180)
+    physical_disposal_confirmed:bool=False
+    request_id:str
+
 def permission(c,user,ability='read'):
     if user['role']=='owner':return
     if user['role'] not in ('clerk','reviewer'):
@@ -189,7 +199,12 @@ def stock_asof(c,period=None):
          JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
          JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
          JOIN inventory_receipt_lines k ON k.id=a.receipt_line_id
-         WHERE k.item_id=it.id AND ret.returned_on<=?),0) AS quantity_on_hand,
+         WHERE k.item_id=it.id AND ret.returned_on<=?),0)-
+      COALESCE((SELECT SUM(w.quantity) FROM inventory_return_writeoffs w
+         JOIN inventory_return_lines rl ON rl.id=w.return_line_id
+         JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+         JOIN inventory_receipt_lines k ON k.id=a.receipt_line_id
+         WHERE k.item_id=it.id AND w.status='approved' AND w.disposed_on<=?),0) AS quantity_on_hand,
       COALESCE(SUM(CASE WHEN r.status='approved' AND r.received_on<=? THEN l.quantity*l.unit_cost_piasters ELSE 0 END),0)-
       COALESCE((SELECT SUM(a.cost_piasters) FROM inventory_issue_allocations a
          JOIN inventory_issues i ON i.id=a.issue_id AND i.status='approved'
@@ -199,11 +214,16 @@ def stock_asof(c,period=None):
          JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
          JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
          JOIN inventory_receipt_lines k ON k.id=a.receipt_line_id
-         WHERE k.item_id=it.id AND ret.returned_on<=?),0) AS value_piasters
+         WHERE k.item_id=it.id AND ret.returned_on<=?),0)-
+      COALESCE((SELECT SUM(w.quantity*k.unit_cost_piasters) FROM inventory_return_writeoffs w
+         JOIN inventory_return_lines rl ON rl.id=w.return_line_id
+         JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+         JOIN inventory_receipt_lines k ON k.id=a.receipt_line_id
+         WHERE k.item_id=it.id AND w.status='approved' AND w.disposed_on<=?),0) AS value_piasters
       FROM inventory_items it
       LEFT JOIN inventory_receipt_lines l ON l.item_id=it.id
       LEFT JOIN inventory_receipts r ON r.id=l.receipt_id
-      GROUP BY it.id ORDER BY it.id''',(upto,upto,upto,upto,upto,upto))]
+      GROUP BY it.id ORDER BY it.id''',(upto,upto,upto,upto,upto,upto,upto,upto))]
     for item in items:
         # A return is a hospital asset once financially approved, but cannot be
         # consumed a second time without an independent *dated* clinical release.
@@ -218,7 +238,13 @@ def stock_asof(c,period=None):
             WHERE lot.item_id=? AND ret.returned_on<=?
               AND (med.decision IS NULL OR med.decision!='released' OR med.inspected_on>?)''',
               (item['id'],upto,upto)).fetchone()[0]
-        item['quarantined_quantity']=min(max(0,item['quantity_on_hand']),int(blocked))
+        disposed=c.execute('''SELECT COALESCE(SUM(w.quantity),0) FROM inventory_return_writeoffs w
+             JOIN inventory_return_lines rl ON rl.id=w.return_line_id
+             JOIN inventory_issue_allocations alloc ON alloc.id=rl.issue_allocation_id
+             JOIN inventory_receipt_lines lot ON lot.id=alloc.receipt_line_id
+             WHERE lot.item_id=? AND w.status='approved' AND w.disposed_on<=?''',
+             (item['id'],upto)).fetchone()[0]
+        item['quarantined_quantity']=min(max(0,item['quantity_on_hand']),int(blocked)-int(disposed))
         item['available_quantity']=max(0,item['quantity_on_hand']-item['quarantined_quantity'])
     return items
 
@@ -235,6 +261,35 @@ def visible_issue_scope(user):
         (user['id'],))
 
 
+
+def writeoff_candidates(c):
+    """A stock-team-only worklist, with no patient or clinical notes."""
+    return [dict(r) for r in c.execute('''SELECT rl.id return_line_id,ret.returned_on,
+         med.inspected_on,lot.batch_ref,it.code item_code,it.name item_name,
+         lot.unit_cost_piasters,rl.quantity,
+         rl.quantity-COALESCE((SELECT SUM(w.quantity) FROM inventory_return_writeoffs w
+            WHERE w.return_line_id=rl.id AND w.status IN ('pending','approved')),0) remaining_quantity
+       FROM inventory_return_lines rl
+       JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+       JOIN inventory_return_inspections med ON med.return_line_id=rl.id AND med.decision='rejected'
+       JOIN inventory_issue_allocations alloc ON alloc.id=rl.issue_allocation_id
+       JOIN inventory_receipt_lines lot ON lot.id=alloc.receipt_line_id
+       JOIN inventory_items it ON it.id=lot.item_id
+       ORDER BY med.inspected_on DESC,rl.id DESC LIMIT 100''').fetchall()
+            if r['remaining_quantity']>0]
+
+
+def writeoff_documents(c):
+    return [dict(r) for r in c.execute('''SELECT w.id,w.return_line_id,w.quantity,w.disposed_on,
+         w.reason,w.evidence_ref,w.status,w.created_by,w.cost_piasters,w.journal_id,
+         it.code item_code,it.name item_name,lot.batch_ref
+       FROM inventory_return_writeoffs w
+       JOIN inventory_return_lines rl ON rl.id=w.return_line_id
+       JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+       JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+       JOIN inventory_items it ON it.id=lot.item_id
+       ORDER BY w.id DESC LIMIT 100''')]
+
 @router.get('/overview')
 def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     permission(c,user)
@@ -249,6 +304,8 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
             'returns':[dict(r) for r in c.execute(f'''SELECT ret.id,ret.issue_id,ret.returned_on,ret.evidence_ref,ret.status,ret.created_by,ret.cost_piasters
                 FROM inventory_issue_returns ret JOIN inventory_issues i ON i.id=ret.issue_id
                 WHERE {scope} ORDER BY ret.id DESC LIMIT 60''',params)],
+            'writeoffs':writeoff_documents(c),
+            'writeoff_candidates':writeoff_candidates(c),
             'grants':dict(c.execute('SELECT can_prepare,can_approve FROM inventory_access WHERE user_id=?',(user['id'],)).fetchone() or {'can_prepare':0,'can_approve':0}),
             'role':user['role'],
             'notice':'مخزن مستلزمات تجريبي واحد؛ لا يعادل صرف دواء، ولا يسدد فاتورة المورد نقدًا.'}
@@ -660,6 +717,111 @@ def decide_return_inspection(return_line_id:int,body:ReturnInspectionForm,
             'financial_return_unchanged':True,'clinical_pilot_only':True}
 
 
+
+@router.get('/writeoffs/queue')
+def rejected_return_writeoff_queue(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user)
+    return {'items':writeoff_candidates(c),'documents':writeoff_documents(c),
+            'scope':'Only rejected non-drug lots. No patient data or clinical inspection notes.'}
+
+
+@router.post('/writeoffs')
+def prepare_return_writeoff(body:WriteoffForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'prepare')
+    key=request_key(body.request_id)
+    day=business_day(body.disposed_on)
+    evidence=trim(body.evidence_ref,'محضر التلف أو الإعدام',8,180)
+    if not body.physical_disposal_confirmed:
+        fail('لا يجوز تسجيل شطب مخزون دون تأكيد إزالة المستلزم فعليًا ومحضر إثبات',409)
+    payload={'return_line_id':body.return_line_id,'quantity':body.quantity,
+             'disposed_on':day,'reason':body.reason,'evidence_ref':evidence,
+             'physical_disposal_confirmed':True}
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'prepare')
+        prior,digest=repeat(c,key,'inventory_writeoff',user['id'],payload)
+        if prior:return {'id':prior,'replayed':True}
+        month_open(c,day[:7])
+        row=c.execute('''SELECT rl.quantity,ret.returned_on,med.inspected_on,med.decision,
+             ret.status,lot.id lot_id,lot.quantity lot_quantity
+             FROM inventory_return_lines rl
+             JOIN inventory_issue_returns ret ON ret.id=rl.return_id
+             LEFT JOIN inventory_return_inspections med ON med.return_line_id=rl.id
+             JOIN inventory_issue_allocations alloc ON alloc.id=rl.issue_allocation_id
+             JOIN inventory_receipt_lines lot ON lot.id=alloc.receipt_line_id
+             WHERE rl.id=?''',(body.return_line_id,)).fetchone()
+        if not row or row['status']!='approved' or row['decision']!='rejected':
+            fail('لا توجد كمية مرتجعة مرفوضة طبيًا وقابلة للتسوية المالية',409)
+        if day<max(row['returned_on'],row['inspected_on']):
+            fail('لا يجوز إثبات تلف قبل رد أو رفض المستلزم طبيًا',409)
+        already=c.execute('''SELECT COALESCE(SUM(quantity),0) FROM inventory_return_writeoffs
+            WHERE return_line_id=? AND status IN ('pending','approved')''',(body.return_line_id,)).fetchone()[0]
+        if already+body.quantity>row['quantity']:
+            fail('كمية الشطب تتجاوز الرصيد المحجوز غير المسوى',409)
+        cur=c.execute('''INSERT INTO inventory_return_writeoffs
+           (return_line_id,quantity,disposed_on,reason,evidence_ref,physical_disposal_confirmed,
+            created_by,created_at) VALUES(?,?,?,?,?,1,?,?)''',
+           (body.return_line_id,body.quantity,day,body.reason,evidence,user['id'],stamp()))
+        remember(c,key,'inventory_writeoff',user['id'],digest,cur.lastrowid)
+        audit(c,user['id'],'inventory_writeoff_requested','inventory_return_writeoff',cur.lastrowid,
+              {'return_line_id':body.return_line_id,'quantity':body.quantity,'reason':body.reason})
+    return {'id':cur.lastrowid,'status':'pending'}
+
+
+@router.post('/writeoffs/{writeoff_id}/decision')
+def decide_return_writeoff(writeoff_id:int,body:ReviewForm,
+                           user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'approve')
+    note=trim(body.note,'مراجعة محضر التلف أو الإعدام',8,300)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'approve')
+        row=c.execute('''SELECT w.*,ret.status return_status,ret.returned_on,
+             med.decision medical_decision,med.inspected_on,
+             lot.id lot_id,lot.quantity lot_quantity,lot.unit_cost_piasters,
+             issue.department_id
+          FROM inventory_return_writeoffs w
+          JOIN inventory_return_lines rl ON rl.id=w.return_line_id
+          JOIN inventory_issue_returns ret ON ret.id=rl.return_id
+          JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+          JOIN inventory_issues issue ON issue.id=ret.issue_id
+          JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+          LEFT JOIN inventory_return_inspections med ON med.return_line_id=rl.id
+          WHERE w.id=?''',(writeoff_id,)).fetchone()
+        if not row:fail('مستند تسوية التلف غير موجود',404)
+        if row['status']!='pending':fail('تم البت في مستند التسوية بالفعل',409)
+        if row['created_by']==user['id']:fail('لا يجوز اعتماد تسوية تلف أعددتها بنفسك',403)
+        month_open(c,row['disposed_on'][:7])
+        if row['return_status']!='approved' or row['medical_decision']!='rejected' or row['disposed_on']<row['inspected_on']:
+            fail('مستند تسوية التلف ليس مرتبطًا برفض طبي معتمد',409)
+        if body.decision=='approve':
+            # Historical G3E may have reused uninspected returns. Such lots
+            # need a human physical count, not a fictitious retroactive writeoff.
+            historical=c.execute('''SELECT
+              (SELECT COALESCE(SUM(quantity),0) FROM inventory_issue_allocations
+               WHERE receipt_line_id=?) gross,
+              (SELECT COALESCE(SUM(prior.quantity),0) FROM inventory_return_lines prior
+               JOIN inventory_issue_allocations a ON a.id=prior.issue_allocation_id
+               JOIN inventory_issue_returns ret ON ret.id=prior.return_id AND ret.status='approved'
+               JOIN inventory_return_inspections med ON med.return_line_id=prior.id
+                  AND med.decision='released' AND med.inspected_on<=?
+               WHERE a.receipt_line_id=? AND ret.returned_on<=?) released''',
+               (row['lot_id'],row['disposed_on'],row['lot_id'],row['disposed_on'])).fetchone()
+            if historical['gross']>row['lot_quantity']+historical['released']:
+                fail('دفعة قديمة أُعيد صرفها دون فحص؛ يلزم جرد فعلي وتصحيح مستقل قبل الشطب',409)
+            cost=row['quantity']*row['unit_cost_piasters']
+            jid=ledger_post(c,row['disposed_on'],'WRITE_OFF',writeoff_id,row['created_by'],user['id'],
+                            '5195','1100',cost,row['department_id'])
+            status='approved'
+        else:
+            cost=0;jid=None;status='rejected'
+        c.execute('''UPDATE inventory_return_writeoffs SET status=?,reviewed_by=?,reviewed_at=?,
+              review_note=?,cost_piasters=?,journal_id=? WHERE id=?''',
+              (status,user['id'],stamp(),note,cost,jid,writeoff_id))
+        audit(c,user['id'],'inventory_writeoff_'+status,'inventory_return_writeoff',writeoff_id,
+              {'cost_piasters':cost,'journal_id':jid,'quantity':row['quantity']})
+    return {'id':writeoff_id,'status':status,'cost_piasters':cost,'journal_id':jid}
+
 @router.get('/cases/{case_id}/cost')
 def case_consumables_cost(case_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     """Trace already-posted FIFO cost per authorized patient case; never infer profit."""
@@ -711,9 +873,11 @@ def reconciliation(c,period):
        WHERE status='approved' AND substr(used_on,1,7)<=?''',(period,)).fetchall()
     returns=c.execute('''SELECT id,journal_id,cost_piasters total FROM inventory_issue_returns
        WHERE status='approved' AND substr(returned_on,1,7)<=?''',(period,)).fetchall()
-    expected_balance=sum(int(r['total']) for r in receipts)-sum(int(i['total']) for i in issues)+sum(int(r['total']) for r in returns)
+    writeoffs=c.execute('''SELECT id,journal_id,cost_piasters total FROM inventory_return_writeoffs
+       WHERE status='approved' AND substr(disposed_on,1,7)<=?''',(period,)).fetchall()
+    expected_balance=sum(int(r['total']) for r in receipts)-sum(int(i['total']) for i in issues)+sum(int(r['total']) for r in returns)-sum(int(w['total']) for w in writeoffs)
     actual_balance=0
-    for group,debit,credit in ((receipts,'1100','2200'),(issues,'5100','1100'),(returns,'1100','5100')):
+    for group,debit,credit in ((receipts,'1100','2200'),(issues,'5100','1100'),(returns,'1100','5100'),(writeoffs,'5195','1100')):
         for item in group:
             if not item['journal_id']:
                 errors.append('Missing GL for inventory document #'+str(item['id']))
@@ -735,7 +899,7 @@ def reconciliation(c,period):
             'quarantined_quantity':sum(x['quarantined_quantity'] for x in items),
             'available_quantity':sum(x['available_quantity'] for x in items),
             'inventory_gl_piasters':actual_balance,'approved_receipts':len(receipts),'approved_issues':len(issues),
-            'approved_returns':len(returns),
+            'approved_returns':len(returns),'approved_writeoffs':len(writeoffs),
             'scope':'مستلزمات تجريبية مرتبطة بمستندات G2T فقط؛ لا تشمل رصيد مخزون افتتاحي قديم أو مشتريات سندات V8 أو دواء أو تسويات الموردين.'}
 
 
@@ -753,6 +917,8 @@ def month_close_inventory_issue(c,period):
         return 'أذون صرف مستلزمات تنتظر اعتماد مراجع مستقل'
     if c.execute("SELECT 1 FROM inventory_issue_returns WHERE substr(returned_on,1,7)=? AND status='pending' LIMIT 1",(period,)).fetchone():
         return 'محاضر مرتجع مستلزمات تنتظر اعتماد مراجع مستقل'
+    if c.execute("SELECT 1 FROM inventory_return_writeoffs WHERE substr(disposed_on,1,7)=? AND status='pending' LIMIT 1",(period,)).fetchone():
+        return 'تسوية تلف أو إعدام مستلزمات تنتظر اعتماد مراجع مالي مستقل'
     # Before period closure, compare all approved inventory documents up to the month.
     report=reconciliation(c,period)
     return 'مخزون المستلزمات لا يطابق قيوده ومستنداته؛ راجع تقرير المطابقة' if not report['matched'] else None
