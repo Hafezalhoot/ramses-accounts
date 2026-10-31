@@ -2811,14 +2811,14 @@ class JournalReverseForm(BaseModel):
 
 @app.get('/api/accounting/trial-balance')
 def accounting_trial_balance(period:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    require(user,'owner','reviewer','viewer')
+    require(user,'owner','reviewer')
     month=valid_month(period or current_month())
     return {'trial_balance':ledger.trial_balance(c,month),'coverage':ledger.coverage(c,month)}
 
 
 @app.get('/api/accounting/trial-balance.csv')
 def accounting_trial_balance_csv(period:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    require(user,'owner','reviewer','viewer')
+    require(user,'owner','reviewer')
     month=valid_month(period or current_month())
     result=ledger.trial_balance(c,month)
     output=io.StringIO();writer=csv.writer(output)
@@ -2836,7 +2836,7 @@ def accounting_trial_balance_csv(period:str='',user=Depends(get_user),c:sqlite3.
 
 @app.get('/api/accounting/journals')
 def accounting_journals(period:str='',status:str='',page:int=1,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    require(user,'owner','reviewer','viewer')
+    require(user,'owner','reviewer')
     month=valid_month(period or current_month())
     if status not in ('','pending','posted','rejected') or not 1<=page<=2000:fail('فلتر غير صحيح')
     where="substr(entry_date,1,7)=?"+(' AND status=?' if status else '')
