@@ -1,3 +1,18 @@
+# V8.1E-G2R — Project Autopilot M4 / bed occupancy and priced nightly orders (31 Oct 2026)
+
+Development-only addition based on **G2Q**; neither installed in hospital nor approved for live patient/payment use.
+
+- New `bed_stays.py` + `schema.sql` structures for inpatient/NICU beds, period-scoped occupancy and immutable nightly service snapshots.
+- Owner creates beds and records administrative admission/release only with evidence; cashier/reviewer read solely their authorized patient cases. No clinical discharge approval is represented.
+- Date-effective room tariffs reuse the existing service price table; preview shows calendar nights **[start_date,end_date)**. This is a **provisional proposed rule**, NOT approved hospital billing policy; accountant and medical operations must confirm nights, partial days, transfers, payer, exemptions and month-end allocations.
+- The owner explicitly orders missing nights as **billing_case_lines in ordered state**. Separate service fulfillment and invoice issuance remain necessary; no cash or GL posted when recording a bed or selecting nights.
+- Concurrency constraints and SQL triggers prevent double occupancy, duplicate nights, cross-case snapshot links, unauthorized mutation of night evidence and re-opening financial cases. Financial case clearance blocks open bed stays and unrecorded nights. Same-day zero-night cancellation can still undergo independent no-charge review without fake invoices.
+- NICU added as an additive seeded department; existing department IDs and historical records untouched.
+- New regression tests: `test_v82_g2r_bed_stays.py`, `test_v82_g2r_bed_stays_ui.py`, `test_v82_g2r_upgrade.py` with frozen G2Q original schema. Test evidence: `QA_G2R_TEST_RESULTS.tsv` in release.
+
+Next work: clinical custody/fulfillment role, signed tariff/partial-day policy, shift/transfer boundaries and long-stay month end; operations/NICU consumables -> inventory/procurement/suppliers -> doctors' fees. Non-production release gate remains **NO-GO**.
+
+---
 ## 31 أكتوبر 2026 — تحديث Project Autopilot / G2Q
 
 **إغلاق محلي مع اختبارات مستقلة:** F-012 وF-013 وF-015 وF-016 على قدر نطاق كل بند الموضح في تقرير G2Q؛ لم تتحقق نسخة خارج الجهاز أو حماية تدقيق ضد مسؤول نظام يملك ملف SQLite. **F-014 تقدّم جزئي:** منع مزامنة السجلات الحساسة إلى Google Sheets دون موافقة إعداد صريحة مع استثناء المعاينة الصناعية المحصورة، لكن مراجعة المشاركة والاحتفاظ والامتثال بقيت مطلوبة. **F-017 تقدّم جزئي:** أُضيف CI workflow محلي إلى حزمة المصدر، لكن إنشاء repo خاص وتشغيل GitHub Actions عليه ما زالا مفتوحين. لا تغيير في P0 الثمانية أو قرار NO-GO.

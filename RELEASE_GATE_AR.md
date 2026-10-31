@@ -1,3 +1,25 @@
+# بوابة الإصدار G2R — 31 أكتوبر 2026 — NO GO للتشغيل الحقيقي
+
+- إشغال الأسرة وتسعير ليالٍ بالتاريخ أضيف للتجربة وربط بمسار خدمات المريض، مع قيود منع التكرار؛ **لم تعتمد المستشفى سياسة احتساب الليالي أو إشغال الأسرة سريريًا بعد**.
+- لا ترحيل إيراد أو تحصيل بمجرد حجز السرير؛ لا بد من إثبات الخدمة والفاتورة والتحصيل العادي.
+- لا يزال مخزون العمليات والحضانة والموردون والأطباء والصلاحيات والتشغيل متعدد الأجهزة وأرشيف V8.0 التاريخي غير مكتمل.
+- هذا إصدار مصدر محلي للاختبار فقط ولا يجوز إدخال بيانات مرضى حقيقية أو إجراء تسويات أموال حقيقية به.
+
+# V8.1E-G2R — Project Autopilot M4 / bed occupancy and priced nightly orders (31 Oct 2026)
+
+Development-only addition based on **G2Q**; neither installed in hospital nor approved for live patient/payment use.
+
+- New `bed_stays.py` + `schema.sql` structures for inpatient/NICU beds, period-scoped occupancy and immutable nightly service snapshots.
+- Owner creates beds and records administrative admission/release only with evidence; cashier/reviewer read solely their authorized patient cases. No clinical discharge approval is represented.
+- Date-effective room tariffs reuse the existing service price table; preview shows calendar nights **[start_date,end_date)**. This is a **provisional proposed rule**, NOT approved hospital billing policy; accountant and medical operations must confirm nights, partial days, transfers, payer, exemptions and month-end allocations.
+- The owner explicitly orders missing nights as **billing_case_lines in ordered state**. Separate service fulfillment and invoice issuance remain necessary; no cash or GL posted when recording a bed or selecting nights.
+- Concurrency constraints and SQL triggers prevent double occupancy, duplicate nights, cross-case snapshot links, unauthorized mutation of night evidence and re-opening financial cases. Financial case clearance blocks open bed stays and unrecorded nights. Same-day zero-night cancellation can still undergo independent no-charge review without fake invoices.
+- NICU added as an additive seeded department; existing department IDs and historical records untouched.
+- New regression tests: `test_v82_g2r_bed_stays.py`, `test_v82_g2r_bed_stays_ui.py`, `test_v82_g2r_upgrade.py` with frozen G2Q original schema. Test evidence: `QA_G2R_TEST_RESULTS.tsv` in release.
+
+Next work: clinical custody/fulfillment role, signed tariff/partial-day policy, shift/transfer boundaries and long-stay month end; operations/NICU consumables -> inventory/procurement/suppliers -> doctors' fees. Non-production release gate remains **NO-GO**.
+
+---
 # بوابة إصدار G2Q — 31 أكتوبر 2026 — NO-GO للاستخدام الحقيقي
 
 - اختبارات أمنية جديدة: `tests/test_v82_g2q_security.py`؛ دخول المصادر المختلفة، دليل الموظفين، سجل التدقيق غير القابل للتعديل، النسخ المشفر فقط.

@@ -1202,3 +1202,129 @@ CREATE TRIGGER IF NOT EXISTS billing_closed_no_payment_insert BEFORE INSERT ON b
  WHEN (SELECT b.status FROM billing_collections c
        JOIN billing_cases b ON b.id=c.case_id WHERE c.id=NEW.collection_id)='closed'
  BEGIN SELECT RAISE(ABORT,'Closed case collections are immutable'); END;
+
+-- G2R M4: physically occupied beds and priced calendar nights. This is NOT a
+-- clinical discharge, and recording an occupied night NEVER posts cash or GL.
+-- Only explicit invoice issuance posts revenue via the existing reviewed flow.
+CREATE TABLE IF NOT EXISTS bed_catalog (
+ id INTEGER PRIMARY KEY,
+ code TEXT NOT NULL UNIQUE,
+ name TEXT NOT NULL,
+ kind TEXT NOT NULL CHECK(kind IN ('inpatient','nicu')),
+ service_id INTEGER NOT NULL REFERENCES billing_services(id),
+ created_by INTEGER NOT NULL REFERENCES users(id),
+ created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS bed_stays (
+ id INTEGER PRIMARY KEY,
+ bed_id INTEGER NOT NULL REFERENCES bed_catalog(id),
+ case_id INTEGER NOT NULL REFERENCES billing_cases(id),
+ start_date TEXT NOT NULL,
+ end_date TEXT,
+ admission_evidence TEXT NOT NULL CHECK(length(trim(admission_evidence)) BETWEEN 8 AND 180),
+ release_evidence TEXT,
+ recorded_by INTEGER NOT NULL REFERENCES users(id),
+ recorded_at TEXT NOT NULL,
+ released_by INTEGER REFERENCES users(id),
+ released_at TEXT,
+ CHECK(end_date IS NULL OR end_date>=start_date)
+);
+CREATE INDEX IF NOT EXISTS idx_bed_stays_case ON bed_stays(case_id,start_date);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bed_one_open_stay ON bed_stays(bed_id) WHERE end_date IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_case_one_open_bed ON bed_stays(case_id) WHERE end_date IS NULL;
+CREATE TRIGGER IF NOT EXISTS bed_stays_no_overlap_insert BEFORE INSERT ON bed_stays
+ WHEN EXISTS (SELECT 1 FROM bed_stays s WHERE (s.bed_id=NEW.bed_id OR s.case_id=NEW.case_id)
+   AND NEW.start_date<COALESCE(s.end_date,'9999-12-31')
+   AND s.start_date<COALESCE(NEW.end_date,'9999-12-31'))
+ BEGIN SELECT RAISE(ABORT,'Overlapping bed/case occupancy'); END;
+CREATE TRIGGER IF NOT EXISTS bed_stays_no_overlap_update BEFORE UPDATE ON bed_stays
+ WHEN EXISTS (SELECT 1 FROM bed_stays s WHERE s.id!=OLD.id
+   AND (s.bed_id=NEW.bed_id OR s.case_id=NEW.case_id)
+   AND NEW.start_date<COALESCE(s.end_date,'9999-12-31')
+   AND s.start_date<COALESCE(NEW.end_date,'9999-12-31'))
+ BEGIN SELECT RAISE(ABORT,'Overlapping bed/case occupancy'); END;
+CREATE TRIGGER IF NOT EXISTS bed_stay_provenance_locked BEFORE UPDATE OF
+ bed_id,case_id,start_date,admission_evidence,recorded_by,recorded_at ON bed_stays
+ BEGIN SELECT RAISE(ABORT,'Bed admission provenance is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bed_stay_release_once BEFORE UPDATE ON bed_stays
+ WHEN OLD.end_date IS NOT NULL
+ BEGIN SELECT RAISE(ABORT,'Bed release is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bed_stay_no_delete BEFORE DELETE ON bed_stays
+ BEGIN SELECT RAISE(ABORT,'Bed occupancy history is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bed_stay_closed_case_insert BEFORE INSERT ON bed_stays
+ WHEN (SELECT status FROM billing_cases WHERE id=NEW.case_id)='closed'
+ BEGIN SELECT RAISE(ABORT,'Closed case cannot acquire a bed'); END;
+CREATE TRIGGER IF NOT EXISTS bed_catalog_no_update BEFORE UPDATE ON bed_catalog
+ BEGIN SELECT RAISE(ABORT,'Bed identity requires controlled replacement'); END;
+CREATE TRIGGER IF NOT EXISTS bed_catalog_no_delete BEFORE DELETE ON bed_catalog
+ BEGIN SELECT RAISE(ABORT,'Bed identity with pricing history is immutable'); END;
+CREATE TABLE IF NOT EXISTS bed_night_charges (
+ id INTEGER PRIMARY KEY,
+ stay_id INTEGER NOT NULL REFERENCES bed_stays(id),
+ night_date TEXT NOT NULL,
+ case_line_id INTEGER NOT NULL UNIQUE REFERENCES billing_case_lines(id),
+ price_version_id INTEGER NOT NULL REFERENCES billing_service_prices(id),
+ amount_piasters INTEGER NOT NULL CHECK(amount_piasters>0),
+ ordered_by INTEGER NOT NULL REFERENCES users(id),
+ ordered_at TEXT NOT NULL,
+ UNIQUE(stay_id,night_date)
+);
+CREATE INDEX IF NOT EXISTS idx_bed_charge_stay ON bed_night_charges(stay_id,night_date);
+CREATE TRIGGER IF NOT EXISTS bed_charge_no_update BEFORE UPDATE ON bed_night_charges
+ BEGIN SELECT RAISE(ABORT,'Night charge evidence is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bed_charge_no_delete BEFORE DELETE ON bed_night_charges
+ BEGIN SELECT RAISE(ABORT,'Night charge evidence is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bed_charge_no_closed_case BEFORE INSERT ON bed_night_charges
+ WHEN (SELECT b.status FROM bed_stays s JOIN billing_cases b ON b.id=s.case_id WHERE s.id=NEW.stay_id)='closed'
+ BEGIN SELECT RAISE(ABORT,'Closed case cannot receive bed charges'); END;
+CREATE TRIGGER IF NOT EXISTS bed_charge_line_no_cancel BEFORE UPDATE OF state ON billing_case_lines
+ WHEN NEW.state='cancelled' AND EXISTS (SELECT 1 FROM bed_night_charges ch WHERE ch.case_line_id=OLD.id)
+ BEGIN SELECT RAISE(ABORT,'Recorded bed night requires controlled financial correction'); END;
+CREATE TRIGGER IF NOT EXISTS bed_charge_line_core_immutable BEFORE UPDATE OF
+ case_id,service_id,price_version_id,service_name_snapshot,department_id,unit_price_piasters,quantity
+ ON billing_case_lines
+ WHEN EXISTS (SELECT 1 FROM bed_night_charges ch WHERE ch.case_line_id=OLD.id)
+ BEGIN SELECT RAISE(ABORT,'Recorded bed night financial snapshot is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS bed_charge_line_no_delete BEFORE DELETE ON billing_case_lines
+ WHEN EXISTS (SELECT 1 FROM bed_night_charges ch WHERE ch.case_line_id=OLD.id)
+ BEGIN SELECT RAISE(ABORT,'Recorded bed night line cannot be deleted'); END;
+CREATE TRIGGER IF NOT EXISTS bed_stay_case_kind_guard BEFORE INSERT ON bed_stays
+ WHEN NEW.start_date<(SELECT business_date FROM billing_cases WHERE id=NEW.case_id)
+ OR (SELECT kind FROM billing_cases WHERE id=NEW.case_id)='outpatient'
+ OR ((SELECT kind FROM billing_cases WHERE id=NEW.case_id)='nicu'
+     AND (SELECT kind FROM bed_catalog WHERE id=NEW.bed_id)!='nicu')
+ OR ((SELECT kind FROM billing_cases WHERE id=NEW.case_id)!='nicu'
+     AND (SELECT kind FROM bed_catalog WHERE id=NEW.bed_id)!='inpatient')
+ BEGIN SELECT RAISE(ABORT,'Bed kind/date does not match patient case'); END;
+CREATE TRIGGER IF NOT EXISTS bed_stay_release_evidence_guard BEFORE UPDATE OF end_date ON bed_stays
+ WHEN NEW.end_date IS NOT NULL AND
+      (NEW.release_evidence IS NULL OR length(trim(NEW.release_evidence))<8 OR
+       NEW.released_by IS NULL OR NEW.released_at IS NULL)
+ BEGIN SELECT RAISE(ABORT,'Bed release requires evidence and custodian'); END;
+CREATE TRIGGER IF NOT EXISTS bed_charge_case_and_price_guard BEFORE INSERT ON bed_night_charges
+ WHEN NOT EXISTS (
+    SELECT 1 FROM bed_stays st
+    JOIN bed_catalog b ON b.id=st.bed_id
+    JOIN billing_case_lines l ON l.id=NEW.case_line_id
+    JOIN billing_service_prices p ON p.id=NEW.price_version_id
+    WHERE st.id=NEW.stay_id
+      AND l.case_id=st.case_id AND l.service_id=b.service_id
+      AND l.price_version_id=NEW.price_version_id
+      AND p.service_id=b.service_id
+      AND p.valid_from<=NEW.night_date
+      AND p.price_piasters=NEW.amount_piasters
+      AND l.unit_price_piasters=NEW.amount_piasters
+      AND l.quantity=1 AND l.state='ordered'
+      AND NEW.night_date>=st.start_date
+      AND (st.end_date IS NULL OR NEW.night_date<st.end_date)
+  )
+ BEGIN SELECT RAISE(ABORT,'Bed night must match stay, patient, tariff and amount'); END;
+-- Defense in depth: direct status updates must not circumvent the G2R preflight.
+CREATE TRIGGER IF NOT EXISTS bed_stay_case_close_guard BEFORE UPDATE OF status ON billing_cases
+ WHEN OLD.status!='closed' AND NEW.status='closed' AND (
+   EXISTS (SELECT 1 FROM bed_stays s WHERE s.case_id=OLD.id AND s.end_date IS NULL)
+   OR EXISTS (SELECT 1 FROM bed_stays s WHERE s.case_id=OLD.id AND s.end_date IS NOT NULL
+       AND CAST(julianday(s.end_date)-julianday(s.start_date) AS INTEGER) !=
+         (SELECT COUNT(*) FROM bed_night_charges ch WHERE ch.stay_id=s.id))
+ )
+ BEGIN SELECT RAISE(ABORT,'Financial closure cannot skip occupied beds or missing nights'); END;

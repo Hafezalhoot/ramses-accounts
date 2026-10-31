@@ -37,7 +37,8 @@ async function renderBilling(){
  if(!points.some(x=>x.id===billingState.pointId))billingState.pointId=points[0].id;
  const point=points.find(x=>x.id===billingState.pointId);
  const list=await api(`/api/billing/cases?point_id=${point.id}`);
- let selected=null, finance=null, adjustments=null, settlement=null;
+ let selected=null, finance=null, adjustments=null, settlement=null, bedInfo=null,bedCatalog=null;
+ if(state.me.role==='owner')bedCatalog=await api('/api/beds/catalog');
  if(billingState.caseId){
    try{selected=await api(`/api/billing/cases/${billingState.caseId}`)}
    catch{billingState.caseId=null}
@@ -45,6 +46,7 @@ async function renderBilling(){
    if(selected)finance=await api(`/api/billing/cases/${billingState.caseId}/finance`);
    if(selected)adjustments=await api(`/api/billing/cases/${billingState.caseId}/adjustments`);
    if(selected&&['inpatient','nicu','operation'].includes(selected.case.kind))settlement=await api(`/api/case-settlement/cases/${billingState.caseId}`);
+   if(selected&&['inpatient','nicu','operation'].includes(selected.case.kind))bedInfo=await api(`/api/beds/cases/${billingState.caseId}`);
  }
  const owner=state.me.role==='owner';
  const cashier=['owner','clerk'].includes(state.me.role);
@@ -52,18 +54,19 @@ async function renderBilling(){
  const canReview=['owner','reviewer'].includes(state.me.role);
  const services=cfg.services||[];
  $('#content').innerHTML=head('الإدارة المالية للمرضى','الحالات والفواتير','نظام واحد بنقطتي تحصيل مستقلتين، والملف المالي يتبع الحالة وليس الدور الذي أُجريت فيه الخدمة.',
-      owner?`<button id="billingCatalog" class="btn btn-secondary">${ico('plus')} خدمة وسعر</button><button id="billingAssign" class="btn btn-secondary">${ico('users')} صلاحيات نقاط التحصيل</button><button id="billingFundsSetup" class="btn btn-secondary">${ico('wallet')} ربط خزنة</button><button id="billingChannelSetup" class="btn btn-secondary">${ico('settings')} إعداد طرق الدفع</button>`:'')+
-   `<div class="billing-alert" role="status">${ico('alert')}<div><strong>وضع التجربة G2P — ملفات حالات وفواتير وتسويات مالية وهمية</strong><span>تُرحّل الفواتير التجريبية إلى الذمم، والمدفوعات إلى خزنة الوردية أو حساب المقاصة. لا تستخدم بيانات مرضى حقيقية ولا تعتمد المستندات ضريبيًا قبل الموافقة النهائية.</span></div></div>`+
+      owner?`<button id="billingBedManage" class="btn btn-secondary">${ico('plus')} تسجيل سرير</button><button id="billingCatalog" class="btn btn-secondary">${ico('plus')} خدمة وسعر</button><button id="billingAssign" class="btn btn-secondary">${ico('users')} صلاحيات نقاط التحصيل</button><button id="billingFundsSetup" class="btn btn-secondary">${ico('wallet')} ربط خزنة</button><button id="billingChannelSetup" class="btn btn-secondary">${ico('settings')} إعداد طرق الدفع</button>`:'')+
+   `<div class="billing-alert" role="status">${ico('alert')}<div><strong>وضع التجربة G2R — ملفات حالات وفواتير وتسويات مالية وهمية</strong><span>تُرحّل الفواتير التجريبية إلى الذمم، والمدفوعات إلى خزنة الوردية أو حساب المقاصة. لا تستخدم بيانات مرضى حقيقية ولا تعتمد المستندات ضريبيًا قبل الموافقة النهائية.</span></div></div>`+
    `<div class="billing-points" role="group" aria-label="اختر نقطة التحصيل">${points.map(p=>`<button class="billing-point ${p.id===point.id?'selected':''}" data-billing-point="${p.id}" aria-pressed="${p.id===point.id}">${ico(p.kind==='external'?'wallet':'file')}<strong>${esc(p.name)}${p.active?'':' (موقوفة حاليًا)'}</strong><span>${p.kind==='external'?'العيادات والمعمل والأشعة والخدمات الخارجية':'الحالات الداخلية والعمليات والحضانة'}</span><small>${p.fund_id?'الخزنة محددة':'الخزنة غير مرتبطة'}</small></button>`).join('')}</div>`+
    `<div class="billing-shift-state"><span>${point.active_shift?`وردية ${esc(point.active_shift.shift)} — ${esc(point.active_shift.status)}${point.own_open_shift?' · عهدتك الحالية':''}`:'لا توجد وردية مفتوحة'}</span>${cashier&&point.fund_id&&!point.active_shift?`<button id="billingOpenShift" class="btn btn-small btn-outline">فتح وردية الكاشير</button>`:''}</div><div class="billing-two-col"><section class="panel billing-block"><div class="billing-block-head"><div><h2>ملفات الحالات</h2><p>${esc(point.name)} · حالات وخدمات وفواتير وذمم مالية</p></div>${cashier?`<div class="billing-actions"><button id="billingNewCase" class="btn btn-primary">${ico('plus')} حالة جديدة</button><button id="billingExistingCase" class="btn btn-secondary">مريض سابق</button><button id="billingCrossPoint" class="btn btn-secondary">تحصيل حالة من نقطة أخرى</button></div>`:''}</div>`+
    `<div class="billing-case-list">${(list.items||[]).length?list.items.map(k=>`<button type="button" class="billing-case-item ${billingState.caseId===k.id?'selected':''}" data-billing-open-case="${k.id}"><span><strong>${esc(k.case_no)}</strong><small>${esc(k.patient_name)} · ${esc(billingKinds[k.kind]||k.kind)}</small></span><span class="billing-amount">${fmt(k.unbilled_piasters)} ج.م <small>منفذ غير مفوتر</small></span></button>`).join(''):empty('لا توجد حالات في نقطة التحصيل هذه بعد.')}</div></section>`+
-   `<section class="panel billing-block" id="billingDetails">${selected?renderBillingCasePanel(selected,cfg,{cashier,canFulfill,canReview,owner},finance,adjustments,settlement):`<div class="billing-blank">${ico('file')}<h2>الملف المالي للحالة</h2><p>اختر حالة من القائمة لعرض خدماتها، ومراجعة السعر، وتجهيز مسودة الفاتورة.</p><small>يمكن إضافة نفس الخدمة إلى حالة داخلية حتى لو أُجريت في المعمل أو الأشعة.</small></div>`}</section></div>`+
+   `<section class="panel billing-block" id="billingDetails">${selected?renderBillingCasePanel(selected,cfg,{cashier,canFulfill,canReview,owner},finance,adjustments,settlement,bedInfo,bedCatalog):`<div class="billing-blank">${ico('file')}<h2>الملف المالي للحالة</h2><p>اختر حالة من القائمة لعرض خدماتها، ومراجعة السعر، وتجهيز مسودة الفاتورة.</p><small>يمكن إضافة نفس الخدمة إلى حالة داخلية حتى لو أُجريت في المعمل أو الأشعة.</small></div>`}</section></div>`+
    `${owner?`<section class="panel billing-block billing-catalog"><div class="billing-block-head"><div><h2>كتالوج الخدمات والأسعار</h2><p>الأسعار المعتمدة لا تتغير على الخدمات المسجلة سابقًا</p></div></div>${billingCatalog(services)}</section>`:''}`;
  bindBillingActions({point,cfg,selected,owner,cashier,canFulfill,canReview,finance,adjustments});
  bindBillingSettlementActions(selected,settlement,{cashier,canReview,owner,userId:state.me.id});
+ bindBillingBedActions(selected,bedInfo,bedCatalog,cfg,{owner});
 }
 
-function renderBillingCasePanel(info,cfg,perms,finance,adjustments,settlement){
+function renderBillingCasePanel(info,cfg,perms,finance,adjustments,settlement,bedInfo,bedCatalog){
  perms={...perms,cashier:perms.cashier&&info.case.status==='open',canFulfill:perms.canFulfill&&info.case.status==='open'};
  const c=info.case;
  const lines=info.services||[];
@@ -72,12 +75,82 @@ function renderBillingCasePanel(info,cfg,perms,finance,adjustments,settlement){
  return `<div class="billing-block-head"><div><span class="billing-eyebrow">الملف ${esc(c.case_no)}</span><h2>${esc(c.patient_name)}</h2><p>${esc(c.patient_code)} · ${esc(billingKinds[c.kind]||c.kind)} · ${esc(c.business_date)}</p></div>${perms.cashier?`<button id="billingAddLine" class="btn btn-primary">${ico('plus')} إضافة خدمة</button>`:''}</div>`+
    `<div class="billing-stats"><div><span>خدمات مسجلة</span><strong>${integer(lines.length)}</strong></div><div><span>خدمات منفذة</span><strong>${integer(ready)}</strong></div><div><span>منفذ غير مفوتر</span><strong>${fmt(info.unbilled_piasters)} ج.م</strong></div></div>`+
    `<div class="billing-divider"></div><div class="billing-section-title"><h3>خدمات الحالة</h3><small>الفاتورة بعد إثبات التنفيذ فقط</small></div>`+
-   (lines.length?`<div class="billing-services-list">${lines.map(x=>`<div class="billing-service-row"><div class="billing-service-main"><strong>${esc(x.service_name_snapshot)}</strong><span>${fmt(x.unit_price_piasters)} × ${integer(x.quantity)} = ${fmt(x.unit_price_piasters*x.quantity)} ج.م</span><small>${esc(billingLineStates[x.state]||x.state)}</small></div><div class="billing-service-actions">${x.state==='ordered'&&perms.canFulfill?`<button class="btn btn-small btn-outline" data-billing-fulfill="${x.id}">إثبات التنفيذ</button>`:''}${x.state==='ordered'&&perms.cashier?`<button class="btn btn-small btn-secondary" data-billing-cancel="${x.id}">إلغاء الطلب</button>`:''}</div></div>`).join('')}</div>`:empty('لم تُضاف خدمات بعد. أضف خدمة بسعرها المعتمد ثم سجّل تنفيذها قبل إعداد المسودة.'))+
+   (lines.length?`<div class="billing-services-list">${lines.map(x=>`<div class="billing-service-row"><div class="billing-service-main"><strong>${esc(x.service_name_snapshot)}</strong><span>${fmt(x.unit_price_piasters)} × ${integer(x.quantity)} = ${fmt(x.unit_price_piasters*x.quantity)} ج.م</span><small>${esc(billingLineStates[x.state]||x.state)}</small></div><div class="billing-service-actions">${x.state==='ordered'&&perms.canFulfill?`<button class="btn btn-small btn-outline" data-billing-fulfill="${x.id}">إثبات التنفيذ</button>`:''}${x.state==='ordered'&&perms.cashier&&!x.is_bed_night?`<button class="btn btn-small btn-secondary" data-billing-cancel="${x.id}">إلغاء الطلب</button>`:''}</div></div>`).join('')}</div>`:empty('لم تُضاف خدمات بعد. أضف خدمة بسعرها المعتمد ثم سجّل تنفيذها قبل إعداد المسودة.'))+
    `<div class="billing-divider"></div><div class="billing-section-title"><h3>مسودات الفواتير</h3>${perms.cashier?`<button class="btn btn-small btn-outline" id="billingDraft" ${info.unbilled_piasters<=0?'disabled':''}>${ico('file')} إنشاء مسودة</button>`:''}</div>`+
    (drafts.length?`<div class="billing-drafts">${drafts.map(d=>`<div class="billing-draft-row"><button class="billing-draft" data-billing-draft="${d.id}"><span>${esc(d.draft_no)}<small>${(info.invoices||[]).some(x=>x.draft_id===d.id)?'تم إصدارها وترحيلها':'مسودة غير مرحلة'}</small></span><strong>${fmt(d.total_piasters)} ج.م</strong></button>${perms.cashier&&!(info.invoices||[]).some(x=>x.draft_id===d.id)?`<button class="btn btn-small btn-primary" data-billing-issue="${d.id}">إصدار فاتورة</button>`:''}</div>`).join('')}</div>`:empty('لم تُنشأ مسودات.'))+
+   renderBillingBedSection(bedInfo,bedCatalog,perms,c)+
    renderBillingFinance(finance,perms)+renderBillingAdjustments(adjustments,finance,perms)+renderBillingSettlement(settlement,{...perms,userId:state.me.id});
 }
 
+
+
+function renderBillingBedSection(bedInfo,bedCatalog,perms,c){
+ if(!bedInfo)return '';
+ const active=bedInfo.active_stay,history=bedInfo.stays||[],pending=bedInfo.unbilled_preview||[];
+ const enoughRates=Number(bedInfo.missing_rate_nights||0)===0;
+ const available=(bedCatalog?.items||[]).filter(x=>x.kind===(c.kind==='nicu'?'nicu':'inpatient')&&!x.occupied);
+ const mayEdit=perms.owner&&c.status==='open';
+ const stayHeader=history.length?history.map(s=>`<div class="billing-invoice-card"><div><strong>${esc(s.bed_name)}</strong><small>${esc(s.start_date)} — ${s.end_date?esc(s.end_date):'مشغول حاليًا'} · مرجع ${esc(s.admission_evidence)}</small></div></div>`).join(''):
+  empty('لم يُسجل إشغال سرير لهذه الحالة.');
+ const nightItems=pending.slice(0,24).map(n=>`<div class="billing-draft-row"><span>${esc(n.night_date)} · ${esc(n.bed_name||'السرير')}</span><strong>${n.amount_piasters==null?'تعريفة مفقودة':fmt(n.amount_piasters)+' ج.م'}</strong></div>`).join('');
+ return `<section class="billing-bed-section"><div class="billing-divider"></div><div class="billing-section-title"><h3>إشغال السرير وليالي الإقامة</h3><small>سجل إداري — ليس إذن خروج طبي</small></div>`+
+ `<div class="billing-stats"><div><span>ليالٍ لم تُسجل بعد</span><strong>${integer(bedInfo.unbilled_nights)}</strong></div><div><span>تقدير أسعار الليالي</span><strong>${fmt(bedInfo.preview_total_piasters)} ج.م</strong></div><div><span>ليالٍ دون تعريفة</span><strong>${integer(bedInfo.missing_rate_nights)}</strong></div></div>`+
+ `<div class="info-box"><div>التعريفة حسب تاريخ كل ليلة. تقدير فقط: لا يُنشئ قبضًا أو إيرادًا إلا عبر إثبات تنفيذ الخدمة ثم إصدار فاتورة في المسار المعتاد.</div></div>`+
+ `<div class="billing-invoices">${stayHeader}</div>${pending.length?`<div class="billing-invoices">${nightItems}${pending.length>24?`<small>تظهر أول 24 ليلة فقط من أصل ${integer(pending.length)}.</small>`:''}</div>`:''}`+
+ (mayEdit?`<div class="billing-actions">${!active&&available.length?'<button id="bedAdmit" class="btn btn-small btn-outline">إثبات إشغال سرير</button>':''}${active?'<button id="bedRelease" class="btn btn-small btn-outline">تحرير الإشغال</button>':''}${pending.length&&enoughRates?'<button id="bedCharge" class="btn btn-small btn-primary">إضافة الليالي للخدمات</button>':''}</div>`:'')+
+ '</section>';
+}
+function bindBillingBedActions(selected,bedInfo,bedCatalog,cfg,perms){
+ if(!perms.owner)return;
+ $('#billingBedManage')?.addEventListener('click',async()=>{
+   const services=(cfg.services||[]).filter(x=>/داخلي|حضانة|IPD|NICU/i.test(x.department_name||''));
+   if(!services.length){toast('سجل خدمة إقامة في كتالوج الداخلي أو الحضانة أولًا',true);return;}
+   const form=await modal('إضافة سرير للسجل الإداري','السرير يحتاج خدمة إقامة مرتبطة بقسم الداخلي أو الحضانة، وأسعارًا بتاريخ السريان.',[
+     {name:'code',label:'كود السرير',required:true,placeholder:'IPD-001'},
+     {name:'name',label:'اسم السرير أو موقعه',required:true},
+     {name:'kind',label:'نوع السرير',type:'select',required:true,options:[['inpatient','سرير داخلي'],['nicu','سرير حضانة']]},
+     {name:'service_id',label:'خدمة الإقامة اليومية',type:'select',required:true,options:services.map(x=>[x.id,x.name])}
+   ]);
+   if(!form)return;
+   await billingAction($('#billingBedManage'),async()=>{await post('/api/beds/catalog',{
+      code:form.code,name:form.name,kind:form.kind,service_id:Number(form.service_id)});
+      toast('تم تسجيل السرير دون أي حركة مالية');navigate('billing');});
+ });
+ if(!selected||!bedInfo||selected.case.status!=='open')return;
+ const caseId=selected.case.id,active=bedInfo.active_stay;
+ $('#bedAdmit')?.addEventListener('click',async()=>{
+   const beds=(bedCatalog?.items||[]).filter(x=>x.kind===(selected.case.kind==='nicu'?'nicu':'inpatient')&&!x.occupied);
+   const form=await modal('إثبات بداية إشغال','الإجراء إداري تجريبي فقط، ولا يثبت الدخول أو الخروج طبيًا.',[
+      {name:'bed_id',label:'السرير المتاح',type:'select',required:true,options:beds.map(x=>[x.id,x.name+' ('+x.code+')'])},
+      {name:'start_date',label:'تاريخ بداية الإشغال',type:'date',required:true,value:selected.case.business_date},
+      {name:'evidence_reference',label:'مرجع محضر إشغال السرير',required:true}
+   ]);
+   if(!form)return;
+   await billingAction($('#bedAdmit'),async()=>{await billingMutation('bed-admit-'+caseId,
+      `/api/beds/cases/${caseId}/admit`,{bed_id:Number(form.bed_id),start_date:form.start_date,
+       evidence_reference:form.evidence_reference});toast('تم توثيق إشغال السرير');navigate('billing');});
+ });
+ $('#bedRelease')?.addEventListener('click',async()=>{
+    if(!active)return;
+    const form=await modal('تحرير إشغال السرير','تحرير إداري للإشغال، وليس موافقة طبية بخروج المريض. لا يمكن التراجع عنه مباشرة.',[
+       {name:'end_date',label:'تاريخ نهاية الإشغال',type:'date',required:true},
+       {name:'evidence_reference',label:'مرجع محضر تحرير الإشغال',required:true}]);
+    if(!form)return;
+    await billingAction($('#bedRelease'),async()=>{await post(`/api/beds/stays/${active.id}/release`,form);
+       toast('تم تحرير إشغال السرير دون إقفال الملف المالي');navigate('billing');});
+ });
+ $('#bedCharge')?.addEventListener('click',async()=>{
+    const preview=(bedInfo.unbilled_preview||[]);
+    const stayId=preview[0]?.stay_id;
+    if(!stayId)return;
+    const form=await modal('تجهيز ليالي الإقامة للتسعير','تُنشأ خدمات مطلوبة فقط. موظف آخر يثبت التنفيذ قبل إصدار الفاتورة. سياسة اليوم المحاسبي تحتاج اعتماد المستشفى.',[
+       {name:'through_date',label:'الحصر حتى تاريخ (حصري)',type:'date',required:true}]);
+    if(!form)return;
+    await billingAction($('#bedCharge'),async()=>{const data=await billingMutation('bed-charge-'+stayId,
+      `/api/beds/stays/${stayId}/charge`,{through_date:form.through_date});
+      toast(`تمت إضافة ${integer(data.created_nights)} ليلة للخدمات، دون ترحيل إيراد`);navigate('billing');});
+ });
+}
 
 function renderBillingSettlement(state,perms){
  if(!state)return '';

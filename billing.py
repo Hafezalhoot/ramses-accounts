@@ -319,7 +319,9 @@ def cases(point_id:int=0,limit:int=50,user=Depends(get_user),c:sqlite3.Connectio
 def case_detail(case_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     require(user,'owner','reviewer','clerk')
     case=case_scope(c,user,case_id)
-    lines=[dict(r) for r in c.execute('''SELECT l.*,s.code service_code FROM billing_case_lines l
+    lines=[dict(r) for r in c.execute('''SELECT l.*,s.code service_code,
+              EXISTS(SELECT 1 FROM bed_night_charges n WHERE n.case_line_id=l.id) is_bed_night
+              FROM billing_case_lines l
               JOIN billing_services s ON s.id=l.service_id WHERE l.case_id=? ORDER BY l.id''',(case_id,))]
     drafts=[dict(r) for r in c.execute('''SELECT id,draft_no,total_piasters,status,created_at
               FROM billing_invoice_drafts WHERE case_id=? ORDER BY id DESC''',(case_id,))]
@@ -388,6 +390,8 @@ def cancel_line(line_id:int,body:LineDecision,user=Depends(get_user),c:sqlite3.C
         case=case_scope(c,user,line['case_id'],write=True)
         if case['status']!='open' or line['state']!='ordered':
             fail('لا يمكن إلغاء خدمة منفذة أو مفوترة؛ استخدم إشعارًا دائنًا عند تفعيله',409)
+        if c.execute('SELECT 1 FROM bed_night_charges WHERE case_line_id=?',(line_id,)).fetchone():
+            fail('ليلة السرير موثقة بالفعل؛ لا تُلغى من شاشة الخدمات، بل بمسار تصحيح مالي مستقل',409)
         require_case_document_period(c,case)
         c.execute("UPDATE billing_case_lines SET state='cancelled',cancelled_by=?,cancelled_at=?,reason=? WHERE id=?",
                   (user['id'],stamp(),reason,line_id))

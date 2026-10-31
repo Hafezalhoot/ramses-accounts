@@ -550,7 +550,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G2Q Security Foundation - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G2R Bed-Stay Development - Test Only"}
 
 
 @app.post("/api/login")
@@ -3225,3 +3225,6 @@ from pos_settlements import router as pos_settlements_router
 app.include_router(pos_settlements_router)
 from case_settlement import router as case_settlement_router
 app.include_router(case_settlement_router)
+
+from bed_stays import router as bed_stays_router
+app.include_router(bed_stays_router)

@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import secrets
 import sqlite3
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends
@@ -64,6 +65,18 @@ def case_preflight(c, case):
     due = sum(invoice_due(c, i['id']) for i in invoices)
     advance = available_advance(c, case_id)
     credit = refundable_credit(c, case_id)
+    # Occupancy is distinct from billing. No financial close with a bed occupied,
+    # or with nights whose service orders have never been created.
+    stays=c.execute('SELECT id,start_date,end_date FROM bed_stays WHERE case_id=?',(case_id,)).fetchall()
+    open_bed_stays=sum(s['end_date'] is None for s in stays)
+    today=date.fromisoformat(cairo_today())
+    expected_nights=sum(max(0,((date.fromisoformat(stay['end_date']) if stay['end_date'] else today)
+                          -date.fromisoformat(stay['start_date'])).days) for stay in stays)
+    booked_nights=c.execute("""SELECT COUNT(*) FROM bed_night_charges ch
+        JOIN bed_stays st ON st.id=ch.stay_id
+        JOIN billing_case_lines l ON l.id=ch.case_line_id
+        WHERE st.case_id=? AND l.state!='cancelled'""",(case_id,)).fetchone()[0]
+    uncharged_bed_nights=max(0,expected_nights-booked_nights)
     original_collections = c.execute('SELECT count(*) FROM billing_collections WHERE case_id=?',
                                      (case_id,)).fetchone()[0]
     all_lines = c.execute("SELECT count(*) FROM billing_case_lines WHERE case_id=? AND state!='cancelled'",
@@ -74,7 +87,8 @@ def case_preflight(c, case):
                             (case_id,)).fetchone()[0]
     no_charge_ready=(case['kind'] in EXTENDED and case['status']=='open' and not invoices
          and not all_lines and not all_drafts and not original_collections and not all_refunds
-         and not correction_tickets and not late)
+         and not correction_tickets and not late and not open_bed_stays
+         and not expected_nights and not booked_nights)
     reasons = []
     if case['kind'] not in EXTENDED:
         reasons.append('التصفية الحالية للحالات الداخلية والحضانات والعمليات فقط')
@@ -82,6 +96,10 @@ def case_preflight(c, case):
         reasons.append('الحالة ليست مفتوحة للتصفية')
     if not invoices:
         reasons.append('لا توجد فاتورة صادرة؛ لا يمكن اعتبار الحالة مصفاة دون مستند مالي')
+    if open_bed_stays:
+        reasons.append('هناك سرير مشغول لهذه الحالة؛ يجب تحرير الإشغال قبل التصفية المالية')
+    if uncharged_bed_nights:
+        reasons.append('هناك ليالٍ إقامة منقضية لم تتحول إلى خدمات مسجلة للحالة')
     if open_lines:
         reasons.append('هناك خدمات مطلوبة لم يتم إثبات تنفيذها أو إلغائها')
     if fulfilled_unbilled:
@@ -108,7 +126,8 @@ def case_preflight(c, case):
             'credit_refundable_piasters':credit,
             'ordered_services':open_lines, 'fulfilled_unbilled':fulfilled_unbilled,
             'unissued_drafts':drafts, 'pending_credits':pending_credits,
-            'pending_refunds':unpaid_refunds, 'pending_corrections':correction_tickets,
+            'pending_refunds':unpaid_refunds, 'pending_corrections':correction_tickets, 'open_bed_stays':open_bed_stays,
+            'uncharged_bed_nights':uncharged_bed_nights, 'documented_bed_nights':booked_nights,
             'notice':'إغلاق مالي للذمم فقط؛ ليس خروجًا طبيًا ولا اعتمادًا لجرد النقدية أو كشف البنك.'}
 
 

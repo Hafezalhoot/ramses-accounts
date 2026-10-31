@@ -1,11 +1,9 @@
-# Ramses Project Autopilot — durable handoff
+# Ramses Project Autopilot — state after G2R
 
-- Current development version: `V8.1E-G2Q` — 31 Oct 2026 — no production deployment.
-- Source baseline: original G2P ZIP; official frozen-schema fixture under `tests/fixtures/schema_v8_1e_g2p_original.sql` (no private financial records).
-- Current state: M0 governance in progress; M1/M2 security partially mitigated; M3 cash and patient finance locally tested partial; M4-M8 medical/inventory/cost modules and financial close incomplete; M9 real network/UAT blocked; M10 not started.
-- Implemented this increment: F-012/F-013/F-014/F-015/F-016 targeted mitigations, F-026 keyboard skip link, GitHub Actions smoke workflow (authored only), local Git history with G2P baseline + G2Q changes.
-- Test evidence: `QA_G2Q_TEST_RESULTS.tsv` with 76 PASS, 3 SKIP, 1 historical V8.0 archive FAIL. Also `python3 scripts/ci_smoke.py` and static checks.
-- Constraints: not connected to a matching GitHub accounting repo; did not push/deploy; previous Ramses medical-contracting repository is a different project; no secrets or patient data in release.
-- Next unblocked work: full role/department/fund RBAC → bed stays and dated tariffs → inventory and clinical resources/doctor accruals.
-- Blocking dependency for historic upgrade: genuine `Ramses_Accounts_V8_0_Double_Entry_Decision_Foundation.zip`; place in `tests/fixtures/` or set `RAMSES_V80_ARCHIVE`. Never manufacture a mock ZIP.
-- Release sign-off remains NO GO: professional accountant, IT administrator, department operators and independent recovery/UAT required.
+- Base: G2Q frozen source ZIP. G2R extends `schema.sql` additively, `bed_stays.py`, `case_settlement.py`, `bootstrap.py`, `app.py`, `static/billing.js`, tests and trial labels.
+- M0/M1/M2: partial; repository/CI not deployed, comprehensive privileges and audit external anchoring remain open.
+- M4: **in progress**. Bed master, administrative occupancy intervals, date-effective quote, explicit ordered nights, SQL collision/immutability and patient case clearance gates **tested locally**. No approved bed tariff policy, medical discharge module or actual operating day-based invoice accrual.
+- M3: cashier/GL/POS still trial; M5-M8: inventory/suppliers, OR/NICU consumables and doctor fees remain unimplemented.
+- Test detail: `QA_G2R_TEST_RESULTS.tsv` and `RAMSES_V81E_G2R_BEDS_QA_AR.md`.
+- Genuine old V8.0 ZIP missing: historical upgrade test cannot pass; do not fabricate an archive.
+- NO GO for production. No deployment, no live bank connections, no hospital data. Safe next 3 slices: (1) clinical service verification and sign-off for tariffs; (2) bed transfer/long admission accrual across month close; (3) inventory receipts/issues and patient costing with subledger.
