@@ -11,3 +11,5 @@
 | Suppliers next | Purchase orders/receipts/invoices/credits/settlement matched to inventory/AP/GL | Matching reconciliations and independent approval | not started |
 | Operations / physician / insurance | Medical resource cost, doctor accruals, insurer cycles | End-to-end subledger -> GL -> close | not started |
 | Release | Offsite encrypted restore, actual hospital UAT, trial parallel operations | Signed approvals finance+clinical+IT+management | blocked |
+
+| G2Y | Pre-aggregation fund scope on financial reports, viewer cash-only, patient reconciliation denial, reviewer accounting UX, logout DOM isolation | HTTP TDD, Playwright role switching, full regression | local verification in progress; no production |

@@ -1,3 +1,9 @@
+- G2Y local CI smoke: **33/33 PASS**, `QA_G2Y_CI_RESULTS.txt`; historical V8.0 still BLOCKED, not green.
+# G2Y — Verified local test run, Oct 31, 2026
+
+105 scripts: 99 PASS, 3 SKIP historical source, 2 SKIP missing private workbook, 1 BLOCKED missing V8.0 original; 0 functional fails. Recorded in `QA_G2Y_TEST_RESULTS.tsv` and `RAMSES_V81E_G2Y_REPORT_SCOPE_QA_AR.md`. New API test demonstrated real fund leakage RED then GREEN; Chromium role-switch RED then GREEN. Not a hospital UAT or offsite restore.
+
+---
 # Ramses Accounts — G2X local synthetic verification, 31 October 2026
 
 - Branch: `fix/g2x-restricted-shift-authorization`, starting G2W `35f22cd`. NO-GO production; no deployment or real data.

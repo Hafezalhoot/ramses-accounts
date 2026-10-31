@@ -550,7 +550,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G2X Restricted Shift Scope Development - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G2Y Scoped Financial Reports Development - Test Only"}
 
 
 @app.post("/api/login")
@@ -2242,21 +2242,27 @@ def dashboard(month:str="",dept:int|None=None,user=Depends(get_user),c:sqlite3.C
 def reports(month:str="",user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     require(user,"owner","reviewer","viewer")
     month=valid_month(month or current_month())
+    # Fund permissions apply BEFORE aggregating or grouping; hiding rows later
+    # would still reveal restricted account values in department/category totals.
+    scope,scope_args=voucher_visible_sql(user)
+    voucher_period_where=f"substr(v.date,1,7)=? AND v.status IN ('approved','reversed') AND {scope}"
+    voucher_args=(month,*scope_args)
+    viewer_cash_only=user['role']=='viewer'
     by_dept=[dict(r) for r in c.execute(f"""SELECT coalesce(d.name,'غير موزع') department,
       coalesce(sum(CASE WHEN v.kind='receipt' AND ca.nature='revenue' THEN {signed_sql()} ELSE 0 END),0) earned_cash_in,
       coalesce(sum(CASE WHEN v.kind='payment' AND ca.nature='expense' THEN {signed_sql()} ELSE 0 END),0) operating_cash_out,
       coalesce(sum(CASE WHEN v.kind='payment' AND ca.nature IN ('asset','liability','equity','payroll_payment','advance') THEN {signed_sql()} ELSE 0 END),0) non_operating_cash_out
       FROM vouchers v LEFT JOIN departments d ON d.id=v.department_id LEFT JOIN categories ca ON ca.id=v.category_id
-      WHERE substr(v.date,1,7)=? AND v.status IN ('approved','reversed') GROUP BY coalesce(d.name,'غير موزع') ORDER BY earned_cash_in DESC""",(month,))]
+      WHERE {voucher_period_where} GROUP BY coalesce(d.name,'غير موزع') ORDER BY earned_cash_in DESC""",voucher_args)]
     categories=[dict(r) for r in c.execute(f"""SELECT ca.name category,ca.nature,coalesce(sum({signed_sql()}),0) amount_piasters
       FROM vouchers v JOIN categories ca ON ca.id=v.category_id
-      WHERE substr(v.date,1,7)=? AND v.status IN ('approved','reversed') AND v.kind='payment'
-      GROUP BY ca.id ORDER BY amount_piasters DESC""",(month,))]
-    accrued=c.execute("""SELECT coalesce(sum(net_piasters),0) FROM payroll_accruals
+      WHERE {voucher_period_where} AND v.kind='payment'
+      GROUP BY ca.id ORDER BY amount_piasters DESC""",voucher_args)]
+    accrued=None if viewer_cash_only else c.execute("""SELECT coalesce(sum(net_piasters),0) FROM payroll_accruals
          WHERE period=? AND signoff_status IN ('approved','legacy')""",(month,)).fetchone()[0]
     # GL is authoritative for posted revenues/expenses. Cash receipts, advances,
     # refunds and inter-fund transfers MUST NOT be counted twice as earned income.
-    gl_by_dept=[dict(r) for r in c.execute("""SELECT COALESCE(d.name,'غير موزع') department,
+    gl_by_dept=[] if viewer_cash_only else [dict(r) for r in c.execute("""SELECT COALESCE(d.name,'غير موزع') department,
       COALESCE(SUM(CASE WHEN a.class='revenue' THEN l.credit_piasters-l.debit_piasters ELSE 0 END),0) recognized_revenue_piasters,
       COALESCE(SUM(CASE WHEN a.class='expense' THEN l.debit_piasters-l.credit_piasters ELSE 0 END),0) recognized_expense_piasters
       FROM gl_lines l JOIN gl_journals j ON j.id=l.journal_id
@@ -2264,20 +2270,25 @@ def reports(month:str="",user=Depends(get_user),c:sqlite3.Connection=Depends(db)
       LEFT JOIN departments d ON d.id=l.department_id
       WHERE substr(j.entry_date,1,7)=? AND j.status='posted' AND a.class IN ('revenue','expense')
       GROUP BY COALESCE(d.name,'غير موزع') ORDER BY recognized_revenue_piasters DESC""",(month,))]
-    earned=sum(r['recognized_revenue_piasters'] for r in gl_by_dept)
-    costs=sum(r['recognized_expense_piasters'] for r in gl_by_dept)
+    earned=None if viewer_cash_only else sum(r['recognized_revenue_piasters'] for r in gl_by_dept)
+    costs=None if viewer_cash_only else sum(r['recognized_expense_piasters'] for r in gl_by_dept)
     receipts=sum(r["earned_cash_in"] for r in by_dept)
     direct_exp=sum(r["operating_cash_out"] for r in by_dept)
     return {"month":month,"departments":by_dept,"categories":categories,
+            "scope": "authorized_cash_only" if viewer_cash_only else
+                     ("hospital_full" if user['role']=='owner' else "hospital_gl_scoped_cash"),
             "gl_departments":gl_by_dept,
             "recognized_revenue_piasters":earned,
             "recognized_expenses_piasters":costs,
-            "provisional_gl_result_piasters":earned-costs,
+            "provisional_gl_result_piasters":None if viewer_cash_only else earned-costs,
             "recognized_cash_service_revenue_piasters":receipts,
             "cash_paid_operating_items_piasters":direct_exp,
             "approved_payroll_accruals_piasters":accrued,
-            "rough_margin_piasters":receipts-direct_exp-accrued,
-            "note":"الإيرادات والمصروفات المعروضة من قيود الأستاذ المُرحّلة فقط؛ نتيجة الأستاذ مبدئية وليست صافي ربح معتمدًا قبل إثبات المخزون والاستهلاك والذمم والتسويات. المقبوضات النقدية منفصلة عن الإيراد."}
+            "rough_margin_piasters":receipts-direct_exp-accrued if user['role']=='owner' else None,
+            "note":("تقرير نقدية مقيد بالسندات المسموح بالاطلاع عليها فقط؛ لا يعرض كامل دفتر الأستاذ أو الرواتب أو الربحية."
+                    if viewer_cash_only else
+                    "الإيرادات والمصروفات المعروضة من قيود الأستاذ المُرحّلة فقط؛ نتيجة الأستاذ مبدئية وليست صافي ربح معتمدًا قبل إثبات المخزون والاستهلاك والذمم والتسويات. "
+                    + ("المراجع يرى نقدية التفويض فقط مع أستاذ عام للمستشفى كلها؛ لا يصلح جمعهما كهامش محاسبي." if user['role']=='reviewer' else "المقبوضات النقدية منفصلة عن الإيراد."))}
 
 
 @app.get("/api/employees")
@@ -3170,7 +3181,7 @@ def treasury_reconciliation_csv(period:str='',user=Depends(get_user),c:sqlite3.C
 
 @app.get('/api/accounting/patient-reconciliation')
 def patient_reconciliation(period:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    require(user,'owner','reviewer','viewer')
+    require(user,'owner','reviewer')
     return financial_integrity.patient_reconciliation(c,valid_month(period or current_month()))
 
 @app.get('/api/periods/preflight')
