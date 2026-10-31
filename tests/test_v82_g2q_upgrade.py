@@ -20,6 +20,8 @@ def run():
     actual = hashlib.sha256(FROZEN_SCHEMA.read_bytes()).hexdigest()
     assert actual == FROZEN_SHA256, (actual, FROZEN_SHA256)
     with tempfile.TemporaryDirectory() as td:
+        from fixture_backup_key import configure as test_backup_key
+        test_backup_key(td)
         os.environ['RAMSES_DB_PATH'] = str(Path(td) / 'old-g2p.sqlite3')
         os.environ['RAMSES_ADMIN_USER'] = 'owner'
         os.environ['RAMSES_ADMIN_PASSWORD'] = 'synthetic_only_g2p_migration_pwd'

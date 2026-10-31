@@ -12,6 +12,8 @@ sys.path.insert(0,str(ROOT))
 
 def run():
     with tempfile.TemporaryDirectory() as td:
+        from fixture_backup_key import configure as test_backup_key
+        test_backup_key(td)
         p=Path(td)
         dbfile=p/'db.sqlite3'
         os.environ['RAMSES_DB_PATH']=str(dbfile)
@@ -43,9 +45,12 @@ def run():
         else:raise AssertionError(f'Original V8.0 ZIP not found: put it at {ROOT / "tests" / "fixtures" / fixture_name} or set RAMSES_V80_ARCHIVE. Historical migration untested.')
         from bootstrap import initialize,connect
         initialize()
-        backup=list((p/'pre_billing_upgrade_backups').glob('*.sqlite3'))
+        backup=list((p/'pre_billing_upgrade_backups').glob('*.rbe'))
         assert len(backup)==1
-        with sqlite3.connect(backup[0]) as c:
+        from scripts.secure_backup import verify_or_restore
+        restored=p/'restored_v8.sqlite3'
+        verify_or_restore(backup[0],restored)
+        with sqlite3.connect(restored) as c:
             assert c.execute("SELECT count(*) FROM sqlite_master WHERE name='billing_points'").fetchone()[0]==0
             assert c.execute("SELECT amount_piasters FROM vouchers WHERE id=1").fetchone()[0]==500
         with connect() as c:
@@ -55,7 +60,7 @@ def run():
             assert c.execute("SELECT count(*) FROM billing_points").fetchone()[0]==2
             assert not c.execute('PRAGMA foreign_key_check').fetchall()
         initialize()
-        assert len(list((p/'pre_billing_upgrade_backups').glob('*.sqlite3')))==1
+        assert len(list((p/'pre_billing_upgrade_backups').glob('*.rbe')))==1
         print('PASS V8.1A migration from V8.0: voucher/GL intact, consistent pre-upgrade backup, two points, idempotent')
 
 if __name__=='__main__':run()

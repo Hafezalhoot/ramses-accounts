@@ -15,6 +15,8 @@ FROZEN_SHA256='ba776adfba1ce0dcef282e76b764f05695af84bcb50f522fbdfe3fc9fba4aa9a'
 def run():
     assert hashlib.sha256(FROZEN.read_bytes()).hexdigest()==FROZEN_SHA256,'Frozen G2T schema changed'
     with tempfile.TemporaryDirectory() as folder:
+        from fixture_backup_key import configure as test_backup_key
+        test_backup_key(folder)
         os.environ.update(RAMSES_DB_PATH=str(Path(folder)/'g2t_upgrade.sqlite3'),
                           RAMSES_ADMIN_USER='owner',
                           RAMSES_ADMIN_PASSWORD='synthetic_g2u_upgrade_owner_password')

@@ -13,6 +13,8 @@ sys.path.insert(0,str(ROOT))
 
 def run():
     with tempfile.TemporaryDirectory() as temp:
+        from fixture_backup_key import configure as test_backup_key
+        test_backup_key(temp)
         db_path=Path(temp)/'original_g2o.sqlite3'
         os.environ.update(RAMSES_DB_PATH=str(db_path),RAMSES_ADMIN_USER='owner',
                           RAMSES_ADMIN_PASSWORD='test_2026_g2p_upgrade_secure_pass')

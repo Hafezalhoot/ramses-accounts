@@ -14,6 +14,8 @@ FROZEN_SHA256='ee231c9753ecb9045616e84d440e5428766fde2fa3410cbc9aa1c0077af587b2'
 def run():
     assert hashlib.sha256(FROZEN.read_bytes()).hexdigest()==FROZEN_SHA256,'Source schema must remain immutable'
     with tempfile.TemporaryDirectory() as td:
+        from fixture_backup_key import configure as test_backup_key
+        test_backup_key(td)
         os.environ.update(RAMSES_DB_PATH=str(Path(td)/'historical-g2s.sqlite3'),
                           RAMSES_ADMIN_USER='owner',RAMSES_ADMIN_PASSWORD='synthetic_upgrade_g2s_owner_password')
         os.environ.pop('GOOGLE_SHEET_ID',None)

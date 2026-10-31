@@ -10,6 +10,8 @@ sys.path.insert(0,str(ROOT))
 
 def run():
     with tempfile.TemporaryDirectory() as tmp:
+        from fixture_backup_key import configure as test_backup_key
+        test_backup_key(tmp)
         path=Path(tmp)/'oldledger.sqlite3'
         os.environ['RAMSES_DB_PATH']=str(path)
         os.environ['RAMSES_ADMIN_USER']='owner'

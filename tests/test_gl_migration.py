@@ -10,6 +10,8 @@ sys.path.insert(0,str(ROOT))
 
 def run():
     with tempfile.TemporaryDirectory() as tmp:
+        from fixture_backup_key import configure as test_backup_key
+        test_backup_key(tmp)
         path=Path(tmp)/'prior-version.sqlite3'
         os.environ['RAMSES_DB_PATH']=str(path)
         os.environ['RAMSES_ADMIN_USER']='owner'
@@ -32,9 +34,12 @@ def run():
                 c.execute('SELECT sum(amount_piasters) FROM fund_movements').fetchone()[0])
         c.close()
         initialize()  # V8 additive migration
-        snapshots=list((path.parent/'pre_gl_upgrade_backups').glob('before_v8_*.sqlite3'))
+        snapshots=list((path.parent/'pre_gl_upgrade_backups').glob('before_v8_*.rbe'))
         assert len(snapshots)==1
-        with sqlite3.connect(snapshots[0]) as snap:
+        from scripts.secure_backup import verify_or_restore
+        restored=path.parent/'restored_old_v7.sqlite3'
+        verify_or_restore(snapshots[0],restored)
+        with sqlite3.connect(restored) as snap:
             assert snap.execute("SELECT count(*) FROM sqlite_master WHERE name='gl_journals'").fetchone()[0]==0
             assert snap.execute('SELECT count(*) FROM vouchers').fetchone()[0]==before[0]
         assert (snapshots[0].stat().st_mode & 0o777)==0o600

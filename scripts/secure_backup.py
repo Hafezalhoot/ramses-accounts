@@ -69,7 +69,7 @@ def _sql_uri(path):
     return path.resolve().as_uri() + '?mode=ro'
 
 
-def _verify_sqlite(path):
+def _verify_sqlite(path, *, legacy=False):
     if not path.is_file() or path.stat().st_size < 100:
         raise ValueError('Missing or empty SQLite snapshot')
     with sqlite3.connect(_sql_uri(path), uri=True, timeout=15) as db:
@@ -79,10 +79,12 @@ def _verify_sqlite(path):
         if fk is not None:
             raise ValueError('SQLite foreign_key_check failed')
         tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        required = {'users', 'vouchers', 'fund_movements', 'gl_journals', 'gl_lines', 'audit_log'}
+        required = {'users', 'vouchers', 'fund_movements'}
+        if not legacy:
+            required.update({'gl_journals', 'gl_lines', 'audit_log'})
         if not required.issubset(tables):
             raise ValueError('This is not a complete Ramses accounting database')
-        return {table: db.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0]
+        return {table: db.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0] if table in tables else 0
                 for table in ('users', 'vouchers', 'fund_movements', 'gl_journals')}
 
 
@@ -93,13 +95,13 @@ def _private_dir(path):
     return path
 
 
-def _write_encrypted(snapshot, encrypted_path, password):
+def _write_encrypted(snapshot, encrypted_path, password, *, purpose="database"):
     salt, nonce = secrets.token_bytes(16), secrets.token_bytes(12)
     checksum = hashlib.sha256()
     with snapshot.open('rb') as src:
         for chunk in iter(lambda: src.read(CHUNK_BYTES), b''):
             checksum.update(chunk)
-    hdr = {'version': 1, 'created_utc': datetime.now(timezone.utc).isoformat(),
+    hdr = {'version': 1, 'purpose': purpose, 'created_utc': datetime.now(timezone.utc).isoformat(),
            'algorithm': 'AES-256-GCM', 'kdf': 'scrypt', 'kdf_n': KDF_N,
            'kdf_r': KDF_R, 'kdf_p': KDF_P, 'salt': salt.hex(),
            'nonce': nonce.hex(), 'sha256': checksum.hexdigest()}
@@ -134,7 +136,8 @@ def _read_header(src):
         raise ValueError('Backup header truncated')
     hdr = json.loads(data)
     if (hdr.get('version') != 1 or hdr.get('algorithm') != 'AES-256-GCM'
-        or hdr.get('kdf') != 'scrypt' or (hdr.get('kdf_n'), hdr.get('kdf_r'), hdr.get('kdf_p')) != (KDF_N,KDF_R,KDF_P)):
+        or hdr.get('kdf') != 'scrypt' or hdr.get('purpose', 'database') not in ('database', 'pre_upgrade')
+        or (hdr.get('kdf_n'), hdr.get('kdf_r'), hdr.get('kdf_p')) != (KDF_N,KDF_R,KDF_P)):
         raise ValueError('Unsupported encrypted backup parameters')
     salt, nonce = bytes.fromhex(hdr['salt']), bytes.fromhex(hdr['nonce'])
     if len(salt) != 16 or len(nonce) != 12 or len(hdr['sha256']) != 64:
@@ -174,6 +177,37 @@ def _decrypt(archive, snapshot, password):
             os.fsync(dest.fileno())
         if not secrets.compare_digest(checksum.hexdigest(), hdr['sha256']):
             raise ValueError('SQLite snapshot checksum mismatch')
+        return hdr.get('purpose', 'database')
+
+
+def create_preupgrade(connection, output_dir, name):
+    """Create and verify a one-time encrypted rollback for a *connected* old schema.
+
+    A temporary plaintext SQLite snapshot is confined to a private directory,
+    then removed. Operators must use an encrypted volume for real hospital data.
+    No migration may proceed if encryption or verification fails.
+    """
+    if Path(name).name != name or not name.endswith('.rbe'):
+        raise ValueError('Invalid encrypted backup filename')
+    password = _password()  # Before creating any durable file; fail closed.
+    output_dir = _private_dir(Path(output_dir).expanduser().resolve())
+    with tempfile.TemporaryDirectory(prefix='.ramses-upgrade-', dir=output_dir) as work:
+        snapshot = Path(work)/'snapshot.sqlite3'
+        with sqlite3.connect(snapshot) as copy:
+            connection.backup(copy)  # Consistent also when source uses WAL.
+        os.chmod(snapshot, 0o600)
+        before = _verify_sqlite(snapshot, legacy=True)
+        archive = Path(work)/'backup.rbe'
+        _write_encrypted(snapshot, archive, password, purpose='pre_upgrade')
+        check = Path(work)/'verified.sqlite3'
+        if _decrypt(archive, check, password) != 'pre_upgrade':
+            raise ValueError('Invalid upgrade archive purpose')
+        if _verify_sqlite(check, legacy=True) != before:
+            raise ValueError('Upgrade backup content mismatch')
+        target = output_dir/name
+        os.link(archive, target)  # O_EXCL-like publication; cannot clobber.
+        os.chmod(target, 0o600)
+        return target
 
 
 def create(source, output_dir):
@@ -212,8 +246,8 @@ def verify_or_restore(archive, output_file=None):
         raise ValueError('Restore destination directory does not exist')
     with tempfile.TemporaryDirectory(prefix='.ramses-restore-',dir=parent) as work:
         snapshot = Path(work)/'restored.sqlite3'
-        _decrypt(archive,snapshot,password)
-        summary = _verify_sqlite(snapshot)
+        purpose = _decrypt(archive,snapshot,password)
+        summary = _verify_sqlite(snapshot, legacy=(purpose == 'pre_upgrade'))
         if target:
             # Atomic, no-clobber publish. Never replace a live or historical DB.
             os.link(snapshot,target)

@@ -28,16 +28,15 @@ def upgrade_shift_table(c: sqlite3.Connection, db_path: Path):
         return False
     if c.in_transaction:
         raise RuntimeError('Shift migration must run outside an active transaction')
-    folder = db_path.parent / 'pre_v81e_shift_backups'
-    folder.mkdir(parents=True, exist_ok=True, mode=0o700)
-    folder.chmod(0o700)
+    from scripts.secure_backup import create_preupgrade
     from datetime import timezone
     import secrets
-    name = 'before_v81e_' + datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S') + '_' + secrets.token_hex(3) + '.sqlite3'
-    target = folder / name
-    with sqlite3.connect(target) as dest:
-        c.backup(dest)
-    target.chmod(0o600)
+    folder = db_path.parent / 'pre_v81e_shift_backups'
+    name = ('before_v81e_' + datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+            + '_' + secrets.token_hex(4) + '.rbe')
+    # Table rebuild is destructive DDL. Independently preserve its exact input
+    # state with the same authenticated archive format as bootstrap preflight.
+    create_preupgrade(c, folder, name)
     # Keep the existing SQL definition (including any additive old columns),
     # except the shift-name CHECK; avoid dropping future schema fields.
     old = sqlrow[0]

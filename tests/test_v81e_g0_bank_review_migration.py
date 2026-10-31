@@ -5,6 +5,8 @@ ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 
 def run():
  with tempfile.TemporaryDirectory() as tmp:
+  from fixture_backup_key import configure as test_backup_key
+  test_backup_key(tmp)
   os.environ['RAMSES_DB_PATH']=str(Path(tmp)/'upgrade.sqlite3')
   os.environ['RAMSES_ADMIN_USER']='owner'
   os.environ['RAMSES_ADMIN_PASSWORD']='strong_migration_test_password_2026'

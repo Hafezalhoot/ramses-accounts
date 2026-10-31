@@ -13,6 +13,8 @@ FROZEN_SHA256='5a35b7dd0a5781464d5206fbfb046b6f8ef7a454bce506de7e7e71c416c942dd'
 def run():
     assert hashlib.sha256(FROZEN.read_bytes()).hexdigest()==FROZEN_SHA256
     with tempfile.TemporaryDirectory() as td:
+        from fixture_backup_key import configure as test_backup_key
+        test_backup_key(td)
         os.environ.update(RAMSES_DB_PATH=str(Path(td)/'frozen-g2r.sqlite3'),
                           RAMSES_ADMIN_USER='owner',RAMSES_ADMIN_PASSWORD='synthetic_g2r_to_g2s_password')
         with sqlite3.connect(os.environ['RAMSES_DB_PATH']) as c:

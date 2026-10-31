@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import os
+import re
 import secrets
 import sqlite3
 from datetime import date, datetime, timezone
@@ -142,99 +143,69 @@ def import_employee_roster(c,path):
     return created
 
 
-def backup_before_gl_upgrade(c):
-    """One-time consistent SQLite snapshot before any V8 schema migration.
+def backup_before_schema_upgrade(c):
+    """Fail closed with one encrypted, verifiable pre-DDL snapshot when needed.
 
-    Backups are same-machine rollback protection, NOT off-device disaster recovery.
+    Both old migrations and new tables must be backed up before executescript().
+    The passphrase is never invented or stored in application source.
     """
     if not DB.exists() or not DB.stat().st_size:
         return None
-    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gl_journals'").fetchone():
-        return None
-    backup_dir=DB.parent/'pre_gl_upgrade_backups'
-    backup_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
-    backup_dir.chmod(0o700)
-    name='before_v8_'+datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')+'_'+secrets.token_hex(3)+'.sqlite3'
-    target=backup_dir/name
-    fd=os.open(target,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
-    os.close(fd)
-    try:
-        with sqlite3.connect(target) as dest:
-            c.backup(dest)
-        os.chmod(target,0o600)
-    except Exception:
-        target.unlink(missing_ok=True)
-        raise
-    return target
-
-
-def backup_before_billing_upgrade(c):
-    """Create a consistent on-device rollback point before upgrading a V8 database.
-
-    This is not an off-machine encrypted backup. Existing V7 upgrades still use
-    backup_before_gl_upgrade first; new databases need no snapshot.
-    """
-    if (not DB.exists() or not DB.stat().st_size or
-        not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gl_journals'").fetchone() or
-        c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='billing_points'").fetchone()):
-        return None
-    backup_dir=DB.parent/'pre_billing_upgrade_backups'
-    backup_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
-    backup_dir.chmod(0o700)
-    name='before_v81_'+datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')+'_'+secrets.token_hex(3)+'.sqlite3'
-    target=backup_dir/name
-    fd=os.open(target,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
-    os.close(fd)
-    try:
-        with sqlite3.connect(target) as dest:
-            c.backup(dest)
-        os.chmod(target,0o600)
-    except Exception:
-        target.unlink(missing_ok=True)
-        raise
-    return target
-
-
-def backup_before_billing_v81b(c):
-    """Conservative one-time snapshot before adding issued billing documents to V8.1A."""
-    if (not DB.exists() or not DB.stat().st_size or
-        not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='billing_points'").fetchone() or
-        c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='billing_invoices'").fetchone()):
-        return None
-    backup_dir=DB.parent/'pre_billing_v81b_backups'
-    backup_dir.mkdir(parents=True,exist_ok=True,mode=0o700)
-    backup_dir.chmod(0o700)
-    target=backup_dir/('before_v81b_'+datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')+
-                       '_'+secrets.token_hex(3)+'.sqlite3')
-    fd=os.open(target,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
-    try:
-        with sqlite3.connect(target) as dst:c.backup(dst)
-        os.chmod(target,0o600)
-    except Exception:
-        target.unlink(missing_ok=True)
-        raise
-    return target
-
-
-def backup_before_v81c(c):
-    """Keep a consistent rollback snapshot before changing shift accounting."""
-    if (not DB.exists() or not DB.stat().st_size or
-        not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='billing_invoices'").fetchone() or
-        c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='shift_templates'").fetchone()):
-        return None
-    folder=DB.parent/'pre_billing_v81c_backups'
-    folder.mkdir(parents=True,exist_ok=True,mode=0o700)
-    folder.chmod(0o700)
-    target=folder/('before_v81c_'+datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')+
-                   '_'+secrets.token_hex(3)+'.sqlite3')
-    fd=os.open(target,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
-    try:
-        with sqlite3.connect(target) as dest:c.backup(dest)
-        os.chmod(target,0o600)
-    except Exception:
-        target.unlink(missing_ok=True)
-        raise
-    return target
+    objects={(row['type'],row['name']) for row in c.execute(
+        "SELECT type,name FROM sqlite_master WHERE type IN ('table','index','trigger')")}
+    tables={name for kind,name in objects if kind=='table'}
+    if not {'users', 'vouchers', 'fund_movements'}.issubset(tables):
+        raise ValueError('Existing database is not recognized as a Ramses database; migration refused')
+    if 'gl_journals' not in tables:
+        folder, prefix = 'pre_gl_upgrade_backups', 'before_v8'
+    elif 'billing_points' not in tables:
+        folder, prefix = 'pre_billing_upgrade_backups', 'before_v81'
+    elif 'billing_invoices' not in tables:
+        folder, prefix = 'pre_billing_v81b_backups', 'before_v81b'
+    elif 'shift_templates' not in tables:
+        folder, prefix = 'pre_billing_v81c_backups', 'before_v81c'
+    elif ('billing_case_lines' in tables and
+          'service_date' not in {r['name'] for r in c.execute('PRAGMA table_info(billing_case_lines)')}):
+        folder, prefix = 'pre_g2u_upgrade_backups', 'before_g2u'
+    else:
+        # Other version additions use CREATE ... IF NOT EXISTS. Detect the
+        # objects before the SQL script writes them, not just four old stages.
+        source = (ROOT/'schema.sql').read_text(encoding='utf8')
+        expected = re.findall(
+            r'CREATE\s+(TABLE|TRIGGER|(?:UNIQUE\s+)?INDEX)\s+IF\s+NOT\s+EXISTS\s+(\w+)',
+            source, flags=re.IGNORECASE)
+        missing = any((kind.split()[-1].lower(), name) not in objects for kind,name in expected)
+        # Some historical ALTER TABLE migrations live in bootstrap rather than
+        # schema.sql. A partial upgrade must also have a safe rollback point.
+        columns = {
+            'funds': ('cash_restricted',),
+            'user_fund_grants': ('can_approve',),
+            'fund_movements': ('shift_session_id',),
+            'shift_sessions': ('scheduled_start_at', 'scheduled_end_at',
+                               'count_version', 'point_id', 'envelope_present'),
+            'cashier_schedule_versions': ('operating_days',),
+            'salary_terms': ('pay_type', 'hourly_piasters'),
+            'payroll_accruals': ('pay_type', 'hourly_rate_piasters',
+                                 'worked_minutes', 'work_entries_count',
+                                 'adjustment_additions_piasters', 'adjustment_deductions_piasters',
+                                 'signoff_status', 'signed_off_by', 'signed_off_at', 'signoff_note'),
+        }
+        for table, fields in columns.items():
+            if table not in tables:
+                missing = True
+                continue
+            known = {r['name'] for r in c.execute(f'PRAGMA table_info("{table}")')}
+            if any(column not in known for column in fields):
+                missing = True
+        if not {('trigger', 'billing_fulfilled_line_no_update'),
+                ('trigger', 'billing_fulfilled_line_no_delete')}.issubset(objects):
+            missing = True
+        if not missing:
+            return None
+        folder, prefix = 'pre_schema_upgrade_backups', 'before_schema'
+    from scripts.secure_backup import create_preupgrade
+    name=prefix+'_'+datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')+'_'+secrets.token_hex(4)+'.rbe'
+    return create_preupgrade(c, DB.parent/folder, name)
 
 
 def initialize(legacy_path=None):
@@ -248,18 +219,9 @@ def initialize(legacy_path=None):
     c=connect()
     try:
         if prior_database:
-            backup=backup_before_gl_upgrade(c)
+            backup = backup_before_schema_upgrade(c)
             if backup:
-                print('Pre-V8 consistent SQLite upgrade backup:',backup)
-            billing_backup=backup_before_billing_upgrade(c)
-            if billing_backup:
-                print('Pre-V8.1 consistent SQLite upgrade backup:',billing_backup)
-            invoicing_backup=backup_before_billing_v81b(c)
-            if invoicing_backup:
-                print('Pre-V8.1B consistent SQLite upgrade backup:',invoicing_backup)
-            v81c_backup=backup_before_v81c(c)
-            if v81c_backup:
-                print('Pre-V8.1C consistent SQLite upgrade backup:',v81c_backup)
+                print('Verified encrypted pre-upgrade rollback:', backup)
         with c:
             c.executescript((ROOT / "schema.sql").read_text(encoding="utf8"))
             # G2U additive, preservation-first migration: old dates stay unknown.
@@ -351,7 +313,7 @@ def initialize(legacy_path=None):
         from cashier_ops import upgrade_shift_table, seed_schedules
         upgraded=upgrade_shift_table(c,DB)
         if upgraded:
-            print('Upgraded legacy shift names with a verified SQLite snapshot')
+            print('Upgraded legacy shift names after an encrypted rollback snapshot')
         with c:
             c.execute('BEGIN IMMEDIATE')
             cols={r['name'] for r in c.execute('PRAGMA table_info(shift_sessions)')}

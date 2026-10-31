@@ -10,6 +10,8 @@ sys.path.insert(0,str(ROOT))
 
 def run():
     with tempfile.TemporaryDirectory() as tmp:
+        from fixture_backup_key import configure as test_backup_key
+        test_backup_key(tmp)
         dbpath=Path(tmp)/'v73.sqlite3'
         os.environ.update(RAMSES_DB_PATH=str(dbpath),RAMSES_ADMIN_USER='owner',RAMSES_ADMIN_PASSWORD='owner_long_test_password_for_migration')
         with sqlite3.connect(dbpath) as db:

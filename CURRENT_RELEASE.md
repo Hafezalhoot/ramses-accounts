@@ -1,3 +1,17 @@
+# Ramses Accounts V8.1E-G2V — Encrypted upgrade rollback / TEST ONLY (31 Oct 2026)
+
+**Current local development branch:** `fix/g2v-encrypted-upgrade`; derived from G2U. **NO-GO** for patient or monetary production use. No deployment or connection to hospital database.
+
+- Encryption before schema upgrade: existing older or partially upgraded SQLite databases require an authenticated `.rbe` preflight archive; no secure key means the DDL operation stops without altering historic records.
+- Destructive shift-table migration creates an independent encrypted `.rbe` rollback, not a persistent plaintext SQLite file.
+- Uses established AES-256-GCM/scrypt G2M backup tooling, with isolated authenticated restore; no silent downgrade or overwrite.
+- Only synthetic historical and frozen G2T schema scenarios verified. Full G2V QA and CI outcome recorded separately after a fresh completed run, not assumed from G2U.
+- Transient sensitive SQLite snapshots may touch local disk during creation; use full-disk encryption in real operation. Existing plaintext pre-upgrade backups remain on user devices until inventoried and safely handled by IT.
+- Still NO-GO: signed clinical attestation, full finance/HR report permissions, real offsite restore/UAT, missing V8.0 source, supplier/doctor/insurance subledgers and approved month close.
+
+**G2V references:** `RAMSES_V81E_G2V_ENCRYPTED_UPGRADE_QA_AR.md`, `README_G2V_AR.md`, `RAMSES_G2V_FINDINGS_TRACKER.json`.
+
+---
 # Ramses Accounts V8.1E-G2U — Stabilization / TEST ONLY (31 Oct 2026)
 
 **Current development source:** G2U is an additive fix based on the exact G2T source archive. **NO-GO for patient or monetary production use; no deployment.**
