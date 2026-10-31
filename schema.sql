@@ -1328,3 +1328,53 @@ CREATE TRIGGER IF NOT EXISTS bed_stay_case_close_guard BEFORE UPDATE OF status O
          (SELECT COUNT(*) FROM bed_night_charges ch WHERE ch.stay_id=s.id))
  )
  BEGIN SELECT RAISE(ABORT,'Financial closure cannot skip occupied beds or missing nights'); END;
+
+-- G2S physical bed transfer evidence. No cash, revenue, or medical discharge.
+CREATE TABLE IF NOT EXISTS bed_transfers (
+ id INTEGER PRIMARY KEY,
+ from_stay_id INTEGER NOT NULL UNIQUE REFERENCES bed_stays(id),
+ to_stay_id INTEGER NOT NULL UNIQUE REFERENCES bed_stays(id),
+ transfer_date TEXT NOT NULL,
+ evidence_reference TEXT NOT NULL CHECK(length(trim(evidence_reference)) BETWEEN 8 AND 180),
+ transferred_by INTEGER NOT NULL REFERENCES users(id),
+ transferred_at TEXT NOT NULL,
+ CHECK(from_stay_id!=to_stay_id)
+);
+CREATE TRIGGER IF NOT EXISTS bed_transfer_history_locked BEFORE UPDATE ON bed_transfers
+ BEGIN SELECT RAISE(ABORT,'Bed transfer history cannot be changed'); END;
+CREATE TRIGGER IF NOT EXISTS bed_transfer_history_no_delete BEFORE DELETE ON bed_transfers
+ BEGIN SELECT RAISE(ABORT,'Bed transfer history cannot be deleted'); END;
+CREATE TRIGGER IF NOT EXISTS bed_transfer_consistency BEFORE INSERT ON bed_transfers
+ WHEN NOT EXISTS (SELECT 1 FROM bed_stays source JOIN bed_stays target
+    ON source.case_id=target.case_id WHERE source.id=NEW.from_stay_id
+    AND target.id=NEW.to_stay_id AND source.bed_id!=target.bed_id
+    AND source.end_date=NEW.transfer_date AND target.start_date=NEW.transfer_date
+    AND source.release_evidence=NEW.evidence_reference
+    AND target.admission_evidence=NEW.evidence_reference)
+ BEGIN SELECT RAISE(ABORT,'Bed transfer source/destination evidence mismatch'); END;
+
+-- G2S period controls below the API: sealed nights and custody cannot be backdated.
+CREATE TRIGGER IF NOT EXISTS bed_admission_sealed_month BEFORE INSERT ON bed_stays
+ WHEN EXISTS (SELECT 1 FROM periods WHERE period=substr(NEW.start_date,1,7))
+ BEGIN SELECT RAISE(ABORT,'Sealed month cannot receive a bed admission'); END;
+CREATE TRIGGER IF NOT EXISTS bed_release_sealed_month BEFORE UPDATE OF end_date ON bed_stays
+ WHEN NEW.end_date IS NOT NULL AND EXISTS
+      (SELECT 1 FROM periods WHERE period=substr(NEW.end_date,1,7))
+ BEGIN SELECT RAISE(ABORT,'Sealed month cannot receive a bed release'); END;
+CREATE TRIGGER IF NOT EXISTS bed_release_after_charged_nights BEFORE UPDATE OF end_date ON bed_stays
+ WHEN NEW.end_date IS NOT NULL AND EXISTS
+      (SELECT 1 FROM bed_night_charges WHERE stay_id=OLD.id AND night_date>=NEW.end_date)
+ BEGIN SELECT RAISE(ABORT,'Bed release date conflicts with booked nights'); END;
+CREATE TRIGGER IF NOT EXISTS bed_charge_sealed_month BEFORE INSERT ON bed_night_charges
+ WHEN EXISTS (SELECT 1 FROM periods WHERE period=substr(NEW.night_date,1,7))
+ BEGIN SELECT RAISE(ABORT,'Sealed month cannot receive bed night charges'); END;
+
+-- G2S: the historical service price used on a night must be the LATEST
+-- effective date for that service, not any earlier valid-but-superseded tariff.
+CREATE TRIGGER IF NOT EXISTS bed_night_latest_tariff BEFORE INSERT ON bed_night_charges
+ WHEN NEW.price_version_id != (SELECT p.id FROM billing_service_prices p
+    JOIN bed_stays s ON s.id=NEW.stay_id
+    JOIN bed_catalog b ON b.id=s.bed_id
+    WHERE p.service_id=b.service_id AND p.valid_from<=NEW.night_date
+    ORDER BY p.valid_from DESC,p.id DESC LIMIT 1)
+ BEGIN SELECT RAISE(ABORT,'Night charge must use latest effective-dated tariff'); END;

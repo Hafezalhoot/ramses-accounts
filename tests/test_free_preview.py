@@ -10,6 +10,9 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 
 
 def run():
+    if not (ROOT/'imports'/'REDACTED_JUNE_2026_PREVIEW.xlsx').is_file():
+        print('SKIP: private June historical workbook intentionally excluded from development ZIP')
+        return
     from google_sync import verify_preview_sheet, PREVIEW_STAGING_SHEET_ID
     from free_preview import preview_environment
     with tempfile.TemporaryDirectory() as folder:

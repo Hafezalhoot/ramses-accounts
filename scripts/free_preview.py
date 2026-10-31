@@ -122,6 +122,10 @@ def main(argv=None):
             parser.error('An exact --email is required for the protected Cloudflare URL')
         if not shutil.which('cloudflared'):
             parser.error('cloudflared is not installed. See FREE_PREVIEW_AR.md or use --local-only')
+    # Development ZIP intentionally excludes the real 618-row historic workbook.
+    # Never start an empty preview and suggest that the archive was imported.
+    if args.archive and not (ROOT/'imports'/'REDACTED_JUNE_2026_PREVIEW.xlsx').is_file():
+        parser.error('Historical archive workbook is not bundled in this development ZIP; use --demo, or provide a private --legacy file')
     env = preview_environment(local_only=args.local_only, archive_mode=bool(args.archive or args.legacy))
     archive = ROOT/'imports'/'REDACTED_JUNE_2026_PREVIEW.xlsx' if args.archive else args.legacy
     first = init_database(env, archive)

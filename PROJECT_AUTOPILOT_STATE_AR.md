@@ -1,3 +1,15 @@
+# Ramses Accounts V8.1E-G2S — Development and testing only
+
+## G2S — Project Autopilot M4b (2026-10-31)
+
+- Based on frozen G2R ZIP; new `bed_transfers` immutably links atomic old and new physical stays with one owner-authorized dated transfer document; retry-safe, no financial journal or clinical discharge.
+- Month-close now evaluates bed nights by **night_date** even for patients admitted in a previous month. Missing nights and unposted/uninvoiced nights block closure, including closed-period SQLite guards.
+- SQL refuses a stale price version when a later tariff was effective at night date. Both transfer and latest tariff requirements have negative regression tests.
+- A deliberately excluded private June Excel workbook is not fabricated. `--archive` fails closed; two historical-preview tests will SKIP when the fixture is absent.
+- Frozen original G2R SQL schema migration verified twice. See `RAMSES_V81E_G2S_TRANSFERS_QA.md` and `QA_G2S_TEST_RESULTS.tsv`.
+- **NO GO for production**: tariffs/month-end accounting and clinical transfer custody await approval. M4c/M6/M5/M7 remain open.
+
+---
 # Ramses Project Autopilot — state after G2R
 
 - Base: G2Q frozen source ZIP. G2R extends `schema.sql` additively, `bed_stays.py`, `case_settlement.py`, `bootstrap.py`, `app.py`, `static/billing.js`, tests and trial labels.

@@ -550,7 +550,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G2R Bed-Stay Development - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G2S Bed-Stay Development - Test Only"}
 
 
 @app.post("/api/login")
@@ -2952,6 +2952,13 @@ def check_period_close_ready(c,period,user):
     if c.execute("""SELECT 1 FROM gl_journals WHERE substr(entry_date,1,7)=? AND status='pending' LIMIT 1""",
                 (period,)).fetchone():
         fail("لا يمكن إقفال شهر فيه قيود محاسبية تنتظر الاعتماد",409)
+    # Bed nights belong to their service month, not the case admission month.
+    # Do not close a month with missing nights or unrealized invoicing.
+    issue=month_close_bed_issue(c,period)
+    if issue:
+        if issue['kind']=='missing_nights':
+            fail(f"\u0644\u064a\u0627\u0644\u064a \u0625\u0642\u0627\u0645\u0629 \u063a\u064a\u0631 \u0645\u0633\u062c\u0644\u0629 \u0644\u0644\u062d\u0627\u0644\u0629 #{issue['case_id']}: {issue['missing']} \u0644\u064a\u0627\u0644\u064d \u0641\u064a {period}",409)
+        fail(f"\u0644\u064a\u0644\u0629 {issue['night_date']} \u0644\u0644\u062d\u0627\u0644\u0629 #{issue['case_id']} \u0644\u0645 \u062a\u064f\u0641\u0648\u062a\u0631 \u0642\u0628\u0644 \u0646\u0647\u0627\u064a\u0629 {period}",409)
     # Patients may remain admitted for several months: an open CASE is not
     # an unposted invoice. Only actual billable evidence may block closure.
     if c.execute("""SELECT 1 FROM billing_invoice_drafts d
@@ -3226,5 +3233,5 @@ app.include_router(pos_settlements_router)
 from case_settlement import router as case_settlement_router
 app.include_router(case_settlement_router)
 
-from bed_stays import router as bed_stays_router
+from bed_stays import router as bed_stays_router, month_close_bed_issue
 app.include_router(bed_stays_router)

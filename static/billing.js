@@ -55,7 +55,7 @@ async function renderBilling(){
  const services=cfg.services||[];
  $('#content').innerHTML=head('الإدارة المالية للمرضى','الحالات والفواتير','نظام واحد بنقطتي تحصيل مستقلتين، والملف المالي يتبع الحالة وليس الدور الذي أُجريت فيه الخدمة.',
       owner?`<button id="billingBedManage" class="btn btn-secondary">${ico('plus')} تسجيل سرير</button><button id="billingCatalog" class="btn btn-secondary">${ico('plus')} خدمة وسعر</button><button id="billingAssign" class="btn btn-secondary">${ico('users')} صلاحيات نقاط التحصيل</button><button id="billingFundsSetup" class="btn btn-secondary">${ico('wallet')} ربط خزنة</button><button id="billingChannelSetup" class="btn btn-secondary">${ico('settings')} إعداد طرق الدفع</button>`:'')+
-   `<div class="billing-alert" role="status">${ico('alert')}<div><strong>وضع التجربة G2R — ملفات حالات وفواتير وتسويات مالية وهمية</strong><span>تُرحّل الفواتير التجريبية إلى الذمم، والمدفوعات إلى خزنة الوردية أو حساب المقاصة. لا تستخدم بيانات مرضى حقيقية ولا تعتمد المستندات ضريبيًا قبل الموافقة النهائية.</span></div></div>`+
+   `<div class="billing-alert" role="status">${ico('alert')}<div><strong>وضع التجربة G2S — ملفات حالات وفواتير وتسويات مالية وهمية</strong><span>تُرحّل الفواتير التجريبية إلى الذمم، والمدفوعات إلى خزنة الوردية أو حساب المقاصة. لا تستخدم بيانات مرضى حقيقية ولا تعتمد المستندات ضريبيًا قبل الموافقة النهائية.</span></div></div>`+
    `<div class="billing-points" role="group" aria-label="اختر نقطة التحصيل">${points.map(p=>`<button class="billing-point ${p.id===point.id?'selected':''}" data-billing-point="${p.id}" aria-pressed="${p.id===point.id}">${ico(p.kind==='external'?'wallet':'file')}<strong>${esc(p.name)}${p.active?'':' (موقوفة حاليًا)'}</strong><span>${p.kind==='external'?'العيادات والمعمل والأشعة والخدمات الخارجية':'الحالات الداخلية والعمليات والحضانة'}</span><small>${p.fund_id?'الخزنة محددة':'الخزنة غير مرتبطة'}</small></button>`).join('')}</div>`+
    `<div class="billing-shift-state"><span>${point.active_shift?`وردية ${esc(point.active_shift.shift)} — ${esc(point.active_shift.status)}${point.own_open_shift?' · عهدتك الحالية':''}`:'لا توجد وردية مفتوحة'}</span>${cashier&&point.fund_id&&!point.active_shift?`<button id="billingOpenShift" class="btn btn-small btn-outline">فتح وردية الكاشير</button>`:''}</div><div class="billing-two-col"><section class="panel billing-block"><div class="billing-block-head"><div><h2>ملفات الحالات</h2><p>${esc(point.name)} · حالات وخدمات وفواتير وذمم مالية</p></div>${cashier?`<div class="billing-actions"><button id="billingNewCase" class="btn btn-primary">${ico('plus')} حالة جديدة</button><button id="billingExistingCase" class="btn btn-secondary">مريض سابق</button><button id="billingCrossPoint" class="btn btn-secondary">تحصيل حالة من نقطة أخرى</button></div>`:''}</div>`+
    `<div class="billing-case-list">${(list.items||[]).length?list.items.map(k=>`<button type="button" class="billing-case-item ${billingState.caseId===k.id?'selected':''}" data-billing-open-case="${k.id}"><span><strong>${esc(k.case_no)}</strong><small>${esc(k.patient_name)} · ${esc(billingKinds[k.kind]||k.kind)}</small></span><span class="billing-amount">${fmt(k.unbilled_piasters)} ج.م <small>منفذ غير مفوتر</small></span></button>`).join(''):empty('لا توجد حالات في نقطة التحصيل هذه بعد.')}</div></section>`+
@@ -92,12 +92,13 @@ function renderBillingBedSection(bedInfo,bedCatalog,perms,c){
  const mayEdit=perms.owner&&c.status==='open';
  const stayHeader=history.length?history.map(s=>`<div class="billing-invoice-card"><div><strong>${esc(s.bed_name)}</strong><small>${esc(s.start_date)} — ${s.end_date?esc(s.end_date):'مشغول حاليًا'} · مرجع ${esc(s.admission_evidence)}</small></div></div>`).join(''):
   empty('لم يُسجل إشغال سرير لهذه الحالة.');
+ const transferItems=(bedInfo.transfers||[]).map(t=>`<div class="billing-invoice-card"><div><strong>\u0646\u0642\u0644 \u0633\u0631\u064a\u0631: ${esc(t.from_bed_name)} → ${esc(t.to_bed_name)}</strong><small>\u062a\u0627\u0631\u064a\u062e ${esc(t.transfer_date)} · \u0645\u0631\u062c\u0639 ${esc(t.evidence_reference)}</small></div></div>`).join('');
  const nightItems=pending.slice(0,24).map(n=>`<div class="billing-draft-row"><span>${esc(n.night_date)} · ${esc(n.bed_name||'السرير')}</span><strong>${n.amount_piasters==null?'تعريفة مفقودة':fmt(n.amount_piasters)+' ج.م'}</strong></div>`).join('');
  return `<section class="billing-bed-section"><div class="billing-divider"></div><div class="billing-section-title"><h3>إشغال السرير وليالي الإقامة</h3><small>سجل إداري — ليس إذن خروج طبي</small></div>`+
  `<div class="billing-stats"><div><span>ليالٍ لم تُسجل بعد</span><strong>${integer(bedInfo.unbilled_nights)}</strong></div><div><span>تقدير أسعار الليالي</span><strong>${fmt(bedInfo.preview_total_piasters)} ج.م</strong></div><div><span>ليالٍ دون تعريفة</span><strong>${integer(bedInfo.missing_rate_nights)}</strong></div></div>`+
  `<div class="info-box"><div>التعريفة حسب تاريخ كل ليلة. تقدير فقط: لا يُنشئ قبضًا أو إيرادًا إلا عبر إثبات تنفيذ الخدمة ثم إصدار فاتورة في المسار المعتاد.</div></div>`+
- `<div class="billing-invoices">${stayHeader}</div>${pending.length?`<div class="billing-invoices">${nightItems}${pending.length>24?`<small>تظهر أول 24 ليلة فقط من أصل ${integer(pending.length)}.</small>`:''}</div>`:''}`+
- (mayEdit?`<div class="billing-actions">${!active&&available.length?'<button id="bedAdmit" class="btn btn-small btn-outline">إثبات إشغال سرير</button>':''}${active?'<button id="bedRelease" class="btn btn-small btn-outline">تحرير الإشغال</button>':''}${pending.length&&enoughRates?'<button id="bedCharge" class="btn btn-small btn-primary">إضافة الليالي للخدمات</button>':''}</div>`:'')+
+ `<div class="billing-invoices">${stayHeader}${transferItems}</div>${pending.length?`<div class="billing-invoices">${nightItems}${pending.length>24?`<small>تظهر أول 24 ليلة فقط من أصل ${integer(pending.length)}.</small>`:''}</div>`:''}`+
+ (mayEdit?`<div class="billing-actions">${!active&&available.length?'<button id="bedAdmit" class="btn btn-small btn-outline">إثبات إشغال سرير</button>':''}${active&&available.length?'<button id="bedTransfer" class="btn btn-small btn-outline">\u0646\u0642\u0644 \u0627\u0644\u0633\u0631\u064a\u0631</button>':''}${active?'<button id="bedRelease" class="btn btn-small btn-outline">تحرير الإشغال</button>':''}${pending.length&&enoughRates?'<button id="bedCharge" class="btn btn-small btn-primary">إضافة الليالي للخدمات</button>':''}</div>`:'')+
  '</section>';
 }
 function bindBillingBedActions(selected,bedInfo,bedCatalog,cfg,perms){
@@ -129,6 +130,23 @@ function bindBillingBedActions(selected,bedInfo,bedCatalog,cfg,perms){
    await billingAction($('#bedAdmit'),async()=>{await billingMutation('bed-admit-'+caseId,
       `/api/beds/cases/${caseId}/admit`,{bed_id:Number(form.bed_id),start_date:form.start_date,
        evidence_reference:form.evidence_reference});toast('تم توثيق إشغال السرير');navigate('billing');});
+ });
+ $('#bedTransfer')?.addEventListener('click',async()=>{
+    if(!active)return;
+    const beds=(bedCatalog?.items||[]).filter(x=>x.kind===(selected.case.kind==='nicu'?'nicu':'inpatient')&&!x.occupied&&x.id!==active.bed_id);
+    if(!beds.length){toast('\u0644\u0627 \u064a\u0648\u062c\u062f \u0633\u0631\u064a\u0631 \u0622\u062e\u0631 \u0645\u062a\u0627\u062d',true);return;}
+    const form=await modal('\u0646\u0642\u0644 \u0627\u0644\u0645\u0631\u064a\u0636 \u0628\u064a\u0646 \u0627\u0644\u0623\u0633\u0631\u0651\u0629','\u062d\u0641\u0638 \u0625\u0634\u063a\u0627\u0644 \u0642\u062f\u064a\u0645 \u0648\u0628\u062f\u0621 \u062c\u062f\u064a\u062f \u0641\u064a \u0645\u0639\u0627\u0645\u0644\u0629 \u0648\u0627\u062d\u062f\u0629. \u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0646\u0642\u0644 \u064a\u062d\u062a\u0633\u0628 \u0644\u064a\u0644\u062a\u0647 \u0639\u0644\u0649 \u0627\u0644\u0633\u0631\u064a\u0631 \u0627\u0644\u062c\u062f\u064a\u062f. \u0644\u064a\u0633 \u062e\u0631\u0648\u062c\u064b\u0627 \u0637\u0628\u064a\u064b\u0627.',[
+      {name:'to_bed_id',label:'\u0627\u0644\u0633\u0631\u064a\u0631 \u0627\u0644\u062c\u062f\u064a\u062f',type:'select',required:true,options:beds.map(x=>[x.id,x.name+' ('+x.code+')'])},
+      {name:'transfer_date',label:'\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0646\u0642\u0644',type:'date',required:true,value:new Date().toLocaleDateString('sv-SE')},
+      {name:'evidence_reference',label:'\u0645\u0631\u062c\u0639 \u0645\u062d\u0636\u0631 \u0627\u0644\u0646\u0642\u0644',required:true}
+    ]);
+    if(!form)return;
+    await billingAction($('#bedTransfer'),async()=>{
+       await billingMutation('bed-transfer-'+active.id,`/api/beds/stays/${active.id}/transfer`,{
+         to_bed_id:Number(form.to_bed_id),transfer_date:form.transfer_date,
+         evidence_reference:form.evidence_reference});
+       toast('\u062a\u0645 \u062a\u0648\u062b\u064a\u0642 \u0646\u0642\u0644 \u0627\u0644\u0633\u0631\u064a\u0631 \u0628\u062f\u0648\u0646 \u0642\u064a\u062f \u0645\u0627\u0644\u064a');navigate('billing');
+    });
  });
  $('#bedRelease')?.addEventListener('click',async()=>{
     if(!active)return;

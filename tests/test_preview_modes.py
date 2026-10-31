@@ -46,6 +46,9 @@ def stop(p):
 
 
 def run():
+    if not (ROOT/'imports'/'REDACTED_JUNE_2026_PREVIEW.xlsx').is_file():
+        print('SKIP: private June historical workbook intentionally excluded from development ZIP')
+        return
     with tempfile.TemporaryDirectory() as temp:
         root=Path(temp)/'ramses_accounts';root.mkdir()
         for f in (*[item.name for item in ROOT.glob('*.py')], 'schema.sql'):

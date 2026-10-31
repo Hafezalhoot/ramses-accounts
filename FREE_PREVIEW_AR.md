@@ -1,3 +1,8 @@
+# G2S preview archive safety note
+
+The original June historical Excel workbook is deliberately excluded from portable development ZIPs. `--archive` now exits with an explicit error if that private file is missing, rather than pretending an empty import succeeded. `--demo` remains available for fabricated local transactions. Never put actual patient, employee or monetary historical records in a public repository or downloadable test archive.
+
+---
 # V8.1B — الفواتير والتحصيل التجريبي
 
 **ابدأ بالملفات `RAMSES_MASTER_PLAN_AR.md` و`V8_1B_PROGRESS_AR.md` و`CASHIER_BILLING_V8_1B_AR.md`.** أصبح إصدار الفواتير التجريبية وربطها بذمم المرضى، والتحصيل المختلط والمقدمات، وربط المقبوضات بورديات الكاشير متاحًا. **لا تدخل معاملات مستشفى حقيقية ولا تعتمد الإيصال أو الفاتورة ضريبيًا**؛ المرتجعات والتسليم النهائي للعهدة لم تكتمل بعد. احتفظ بالإصدار السابق V8.1A منفصلًا.
