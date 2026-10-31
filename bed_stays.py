@@ -220,11 +220,11 @@ def charge_nights(stay_id:int,body:ChargeForm,user=Depends(get_user),c:sqlite3.C
             tariff=c.execute('SELECT * FROM billing_service_prices WHERE id=?',(item['price_version_id'],)).fetchone()
             line=c.execute('''INSERT INTO billing_case_lines
                 (case_id,service_id,price_version_id,service_name_snapshot,department_id,
-                 unit_price_piasters,quantity,added_by,added_at)
-                SELECT ?,s.id,?,?,s.department_id,?,1,?,?
+                 unit_price_piasters,quantity,added_by,added_at,service_date)
+                SELECT ?,s.id,?,?,s.department_id,?,1,?,?,?
                 FROM billing_services s WHERE s.id=?''',
                 (stay['case_id'],tariff['id'],bed['name']+' - ليلة '+item['night_date'],
-                 item['amount_piasters'],user['id'],stamp(),bed['service_id']))
+                 item['amount_piasters'],user['id'],stamp(),item['night_date'],bed['service_id']))
             c.execute('''INSERT INTO bed_night_charges
                 (stay_id,night_date,case_line_id,price_version_id,amount_piasters,ordered_by,ordered_at)
                 VALUES (?,?,?,?,?,?,?)''',

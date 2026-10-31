@@ -1,3 +1,14 @@
+# Ramses Accounts V8.1E-G2U — Stabilization / TEST ONLY (31 Oct 2026)
+
+**Current development source:** G2U is an additive fix based on the exact G2T source archive. **NO-GO for patient or monetary production use; no deployment.**
+
+- Accounting: bed-night service date and fee period no longer follow admission month; current-period draft/invoice/GL and current-period close preflight are checked with isolated FastAPI+SQLite. Approved G2B historical catch-up retains original price/date and books GL only now.
+- Database: additive `billing_case_lines.service_date`; a fulfilled record is immutable (UPDATE/DELETE blocked) without silently backdating legacy facts. Genuine frozen G2T schema initialized twice, preserved old draft and financial period attribution.
+- Privacy: staff, fund balance and reviewer bank queue protections plus protected voucher lists, export, dashboard and attachment read gates; current fund grant revocation takes effect immediately. Still NOT a full RBAC audit.
+- Evidence: `RAMSES_V81E_G2U_STABILIZATION_QA_AR.md`, `QA_G2U_TEST_RESULTS.tsv` (96 PASS, 3 SKIP, 1 BLOCKED/100; no functional FAIL), `QA_G2U_CI_RESULTS.txt` (28/28 PASS), `tests/test_v82_g2u_*.py`. Historical V8.0 migration needs the genuine archive and remains blocked.
+- Unresolved P0: independent clinical attestation; unresolved P1: plaintext pre-upgrade SQLite rollback copies, broad reporting authorization and payment evidence defaults.
+
+---
 # Ramses Accounts V8.1E-G2T — Development / TEST ONLY
 
 **Current tested source:** G2T based on frozen G2S; no live installation. New central non-drug inventory supplier receipt and FIFO issue with independent approval and linked balanced GL. See `RAMSES_V81E_G2T_INVENTORY_QA_AR.md`. Tests: 93/97 PASS, 3 historical SKIP, 1 blocked V8.0; CI smoke 25/25 PASS locally (separate run). No producer supplier settlement or pharmacy, **NO GO**.

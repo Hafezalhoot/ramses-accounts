@@ -727,6 +727,30 @@ def clerk_voucher_scope(alias="v"):
             f"WHERE original.id={alias}.reversal_of_id AND original.created_by=?))")
 
 
+def voucher_visible_sql(user, ability='read'):
+    """Scope restricted-bank/wallet vouchers before list, count or export.
+
+    The same current grant check applies across both ends of transfers. Owner
+    sees everything; reviewers need fund grant, viewer never sees protected
+    accounts. A clerk's own immutable audit history is scoped separately.
+    """
+    if user['role'] in ('owner','clerk'):
+        return '1=1',[]
+    protected="f.kind IN ('bank','wallet') OR f.cash_restricted=1"
+    if user['role']=='viewer':
+        return (f"""NOT EXISTS (SELECT 1 FROM funds f WHERE
+            f.id IN (v.from_fund_id,CASE WHEN v.kind='transfer' THEN v.to_fund_id END)
+            AND ({protected}))""",[])
+    if user['role']!='reviewer':
+        return '0=1',[]
+    grant='g.can_approve=1' if ability=='review' else '(g.can_submit=1 OR g.can_approve=1)'
+    return (f"""NOT EXISTS (SELECT 1 FROM funds f WHERE
+        f.id IN (v.from_fund_id,CASE WHEN v.kind='transfer' THEN v.to_fund_id END)
+        AND ({protected})
+        AND NOT EXISTS (SELECT 1 FROM user_fund_grants g JOIN users u ON u.id=g.user_id
+          WHERE g.fund_id=f.id AND g.user_id=? AND u.active=1 AND {grant}))""",[user['id']])
+
+
 def voucher_filter(c, user, month, department, kind, status, q):
     where=["1=1"];args=[]
     if month:
@@ -744,6 +768,9 @@ def voucher_filter(c, user, month, department, kind, status, q):
         args.extend(["%"+q[:80]+"%"]*3)
     if user["role"]=="clerk":
         where.append(clerk_voucher_scope());args.extend((user["id"],user["id"]))
+    else:
+        scoped,scope_args=voucher_visible_sql(user)
+        where.append(scoped);args.extend(scope_args)
     return " AND ".join(where),args
 
 
@@ -772,6 +799,13 @@ def attachment_access(c, voucher_id, user):
         original=c.execute("SELECT created_by FROM vouchers WHERE id=?",(v["reversal_of_id"],)).fetchone() if v["reversal_of_id"] else None
         if not original or original["created_by"]!=user["id"]:
             fail("ليس لك حق الاطلاع على هذا المستند", 403)
+    if user['role']=='reviewer':
+        for fid in (v['from_fund_id'],v['to_fund_id'] if v['kind']=='transfer' else None):
+            if fid is not None:
+                fund=c.execute('SELECT kind,cash_restricted FROM funds WHERE id=?',(fid,)).fetchone()
+                if fund and (fund['kind'] in ('bank','wallet') or fund['cash_restricted']) and not any(
+                        fund_grant_rights(c,user,fid).values()):
+                    fail('غير مفوض للاطلاع على مستندات هذا الحساب',403)
     return v
 
 
@@ -848,7 +882,18 @@ def reviews(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
                  d.name department,ca.name category,u.username created_user, (SELECT COUNT(*) FROM voucher_attachments a WHERE a.voucher_id=v.id) attachment_count
                  FROM vouchers v LEFT JOIN departments d ON d.id=v.department_id
                  LEFT JOIN categories ca ON ca.id=v.category_id JOIN users u ON u.id=v.created_by
-                 WHERE v.status='pending' ORDER BY v.created_at,v.id LIMIT 250""").fetchall()
+                 WHERE v.status='pending' AND
+                 (?='owner' OR NOT EXISTS (
+                   SELECT 1 FROM funds f WHERE
+                   f.id IN (v.from_fund_id, CASE WHEN v.kind='transfer' THEN v.to_fund_id END)
+                   AND (f.kind IN ('bank','wallet') OR f.cash_restricted=1)
+                   AND NOT EXISTS (
+                     SELECT 1 FROM user_fund_grants g JOIN users gu ON gu.id=g.user_id
+                     WHERE g.user_id=? AND g.fund_id=f.id
+                     AND gu.active=1 AND g.can_approve=1
+                   )
+                 ))
+                 ORDER BY v.created_at,v.id LIMIT 250""",(user['role'],user['id'])).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -1897,8 +1942,16 @@ def funds(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
                f.opening_piasters+coalesce(sum(m.amount_piasters),0) balance_piasters,
                count(m.id) transaction_count FROM funds f LEFT JOIN fund_movements m ON m.fund_id=f.id
                GROUP BY f.id ORDER BY f.id""").fetchall()
-    if user["role"]=="clerk":
-        return [{k:v for k,v in dict(r).items() if k not in ("balance_piasters","opening_piasters","movements_piasters")} for r in rows]
+    if user['role'] in ('clerk','viewer'):
+        # Unscoped roles may select fund labels, but never read balances.
+        return [{k:v for k,v in dict(r).items() if k not in (
+            'balance_piasters','opening_piasters','movements_piasters')}
+                for r in rows]
+    if user['role']=='reviewer':
+        # Bank/wallet and restricted-cash balances require CURRENT account grant.
+        return [dict(r) for r in rows if (
+            r['kind'] not in ('bank','wallet') and not r['cash_restricted']) or
+            any(fund_grant_rights(c,user,r['id']).values())]
     return [dict(r) for r in rows]
 
 
@@ -1980,9 +2033,14 @@ def opening_timeline_guard(c:sqlite3.Connection,fund_id:int,effective_date:str):
 
 @app.get('/api/accounting/opening-reviews')
 def fund_opening_reviews(period:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    require(user,'owner','reviewer','viewer')
+    require(user,'owner','reviewer')
     month=valid_month(period or current_month())
     reviews=opening_balances.detail(c,month)
+    if user['role']=='reviewer':
+        reviews=[r for r in reviews if (
+            r['kind'] not in ('bank','wallet') and not
+            c.execute('SELECT cash_restricted FROM funds WHERE id=?',(r['id'],)).fetchone()[0])
+            or any(fund_grant_rights(c,user,r['id']).values())]
     for r in reviews:
         r['can_review']=bool(r['review_status']=='pending' and r['created_by']!=user['id'] and (
             user['role']=='owner' or (user['role']=='reviewer' and c.execute(
@@ -2094,20 +2152,29 @@ def dashboard(month:str="",dept:int|None=None,user=Depends(get_user),c:sqlite3.C
     condition="substr(v.date,1,7)=? AND v.status IN ('approved','reversed')"
     if user["role"]=="clerk":
         condition+=" AND "+clerk_voucher_scope();args.extend((user["id"],user["id"]))
+    elif user['role'] in ('reviewer','viewer'):
+        scope,scope_args=voucher_visible_sql(user)
+        condition+=' AND '+scope;args.extend(scope_args)
     if dept:
         condition+=" AND v.department_id=?";args.append(dept)
     sums=c.execute(f"""SELECT v.kind,coalesce(sum({signed_sql()}),0) amt
          FROM vouchers v WHERE {condition} GROUP BY v.kind""",args).fetchall()
     amounts={r["kind"]:r["amt"] for r in sums}
-    pending_where="substr(date,1,7)=? AND status='pending'";p_args=[month]
-    if dept: pending_where+=" AND department_id=?";p_args.append(dept)
-    if user["role"]=="clerk":pending_where+=" AND created_by=?";p_args.append(user["id"])
-    pending=c.execute("SELECT count(*) FROM vouchers WHERE "+pending_where,p_args).fetchone()[0]
+    pending_where="substr(v.date,1,7)=? AND v.status='pending'";p_args=[month]
+    if dept: pending_where+=" AND v.department_id=?";p_args.append(dept)
+    if user["role"]=="clerk":pending_where+=" AND v.created_by=?";p_args.append(user["id"])
+    elif user['role'] in ('reviewer','viewer'):
+        scope,scope_args=voucher_visible_sql(user)
+        pending_where+=' AND '+scope;p_args.extend(scope_args)
+    pending=c.execute("SELECT count(*) FROM vouchers v WHERE "+pending_where,p_args).fetchone()[0]
     daily=[dict(r) for r in c.execute(f"""SELECT v.date,v.kind,coalesce(sum({signed_sql()}),0) amount
              FROM vouchers v WHERE {condition} AND v.kind IN ('receipt','payment') GROUP BY v.date,v.kind ORDER BY v.date""",args)]
     latest_where="substr(v.date,1,7)=? AND v.status IN ('approved','reversed','pending')"
     latest_args=[month]
     if user["role"]=="clerk":latest_where+=" AND "+clerk_voucher_scope();latest_args.extend((user["id"],user["id"]))
+    elif user['role'] in ('reviewer','viewer'):
+        scope,scope_args=voucher_visible_sql(user)
+        latest_where+=' AND '+scope;latest_args.extend(scope_args)
     latest=[dict(r) for r in c.execute("""SELECT v.id,v.voucher_no,v.date,v.kind,v.amount_piasters,v.status,
                       v.description,d.name department,ca.name category FROM vouchers v
                       LEFT JOIN departments d ON d.id=v.department_id LEFT JOIN categories ca ON ca.id=v.category_id WHERE """+
@@ -2163,7 +2230,7 @@ def reports(month:str="",user=Depends(get_user),c:sqlite3.Connection=Depends(db)
 
 @app.get("/api/employees")
 def employees(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    require(user,"owner","reviewer","viewer")
+    require(user,"owner","reviewer")
     return [dict(r) for r in c.execute("""SELECT e.id,e.code,e.name,e.job_title,e.department_id,d.name department,e.active
               FROM employees e LEFT JOIN departments d ON d.id=e.department_id ORDER BY e.name""")]
 
@@ -2965,14 +3032,23 @@ def check_period_close_ready(c,period,user):
         fail(f"\u0644\u064a\u0644\u0629 {issue['night_date']} \u0644\u0644\u062d\u0627\u0644\u0629 #{issue['case_id']} \u0644\u0645 \u062a\u064f\u0641\u0648\u062a\u0631 \u0642\u0628\u0644 \u0646\u0647\u0627\u064a\u0629 {period}",409)
     # Patients may remain admitted for several months: an open CASE is not
     # an unposted invoice. Only actual billable evidence may block closure.
+    # Admission is provenance, not an accounting period. Dated bed evidence
+    # takes precedence; legacy fulfilled lines without a known service date
+    # retain their historical case-date classification pending review.
     if c.execute("""SELECT 1 FROM billing_invoice_drafts d
-       JOIN billing_cases b ON b.id=d.case_id
-       WHERE substr(b.business_date,1,7)=? AND NOT EXISTS
-       (SELECT 1 FROM billing_invoices i WHERE i.draft_id=d.id) LIMIT 1""",(period,)).fetchone():
+       JOIN billing_invoice_draft_lines dl ON dl.draft_id=d.id
+       JOIN billing_case_lines l ON l.id=dl.case_line_id
+       JOIN billing_cases b ON b.id=l.case_id
+       LEFT JOIN bed_night_charges n ON n.case_line_id=l.id
+       WHERE substr(COALESCE(n.night_date,l.service_date,b.business_date),1,7)=?
+       AND NOT EXISTS (SELECT 1 FROM billing_invoices i WHERE i.draft_id=d.id)
+       LIMIT 1""",(period,)).fetchone():
         fail("توجد مسودات فواتير لم تُصدر بعد؛ راجع حالات المرضى",409)
     if c.execute("""SELECT 1 FROM billing_case_lines l
        JOIN billing_cases b ON b.id=l.case_id
-       WHERE substr(b.business_date,1,7)=? AND l.state='fulfilled'
+       LEFT JOIN bed_night_charges n ON n.case_line_id=l.id
+       WHERE substr(COALESCE(n.night_date,l.service_date,b.business_date),1,7)=?
+       AND l.state='fulfilled'
        AND NOT EXISTS (SELECT 1 FROM billing_invoice_draft_lines dl
           JOIN billing_invoices i ON i.draft_id=dl.draft_id WHERE dl.case_line_id=l.id)
        LIMIT 1""",(period,)).fetchone():
@@ -3009,13 +3085,15 @@ def check_period_close_ready(c,period,user):
 
 @app.get('/api/accounting/treasury-reconciliation')
 def treasury_reconciliation(period:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    require(user,'owner','reviewer','viewer')
+    # A hospital-wide reconciliation contains every fund and is owner-only
+    # until an independent, globally-scoped chief-accountant grant exists.
+    require(user,'owner')
     return treasury_integrity.treasury_reconciliation(c,valid_month(period or current_month()))
 
 
 @app.get('/api/accounting/treasury-reconciliation.csv')
 def treasury_reconciliation_csv(period:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    require(user,'owner','reviewer','viewer')
+    require(user,'owner')
     result=treasury_integrity.treasury_reconciliation(c,valid_month(period or current_month()))
     out=io.StringIO()
     writer=csv.writer(out)
@@ -3138,9 +3216,10 @@ def export_vouchers(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     require(user,"owner","reviewer")
     output=io.StringIO();writer=csv.writer(output)
     writer.writerow(["رقم السند","التاريخ","النوع","القسم","التصنيف","الخزنة","المبلغ بالقروش","الحالة","الملاحظات"])
+    scope,args=voucher_visible_sql(user)
     for r in c.execute("""SELECT v.voucher_no,v.date,v.kind,d.name,ca.name,f.name,v.amount_piasters,v.status,v.description
            FROM vouchers v LEFT JOIN departments d ON d.id=v.department_id LEFT JOIN categories ca ON ca.id=v.category_id
-           JOIN funds f ON f.id=v.from_fund_id ORDER BY v.id"""):
+           JOIN funds f ON f.id=v.from_fund_id WHERE """+scope+" ORDER BY v.id",args):
         writer.writerow([safe_csv_cell(v) for v in r])
     return Response(content="\ufeff"+output.getvalue(),media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition":"attachment; filename=ramses_vouchers.csv"})

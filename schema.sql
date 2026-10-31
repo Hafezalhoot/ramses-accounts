@@ -404,6 +404,7 @@ CREATE TABLE IF NOT EXISTS billing_case_lines (
  quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 10000),
  state TEXT NOT NULL DEFAULT 'ordered' CHECK(state IN ('ordered','fulfilled','cancelled')),
  added_by INTEGER NOT NULL REFERENCES users(id), added_at TEXT NOT NULL,
+ service_date TEXT,
  fulfilled_by INTEGER REFERENCES users(id), fulfilled_at TEXT, cancelled_by INTEGER REFERENCES users(id),
  cancelled_at TEXT, reason TEXT NOT NULL DEFAULT ''
 );

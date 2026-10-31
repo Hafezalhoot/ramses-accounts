@@ -262,6 +262,17 @@ def initialize(legacy_path=None):
                 print('Pre-V8.1C consistent SQLite upgrade backup:',v81c_backup)
         with c:
             c.executescript((ROOT / "schema.sql").read_text(encoding="utf8"))
+            # G2U additive, preservation-first migration: old dates stay unknown.
+            if 'service_date' not in {r['name'] for r in c.execute('PRAGMA table_info(billing_case_lines)')}:
+                c.execute('ALTER TABLE billing_case_lines ADD COLUMN service_date TEXT')
+            # Fulfilled evidence and its tariff cannot be rewritten, including
+            # through direct SQLite access, after the dated service is attested.
+            c.execute('''CREATE TRIGGER IF NOT EXISTS billing_fulfilled_line_no_update
+                BEFORE UPDATE ON billing_case_lines WHEN OLD.state='fulfilled'
+                BEGIN SELECT RAISE(ABORT,'Fulfilled service evidence is immutable'); END''')
+            c.execute('''CREATE TRIGGER IF NOT EXISTS billing_fulfilled_line_no_delete
+                BEFORE DELETE ON billing_case_lines WHEN OLD.state='fulfilled'
+                BEGIN SELECT RAISE(ABORT,'Fulfilled service evidence is immutable'); END''')
             # Existing cash funds retain their historical configuration until the owner
             # explicitly activates restricted cash operations; newly created tills start restricted.
             fund_columns={r[1] for r in c.execute('PRAGMA table_info(funds)')}

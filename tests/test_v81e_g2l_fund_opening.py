@@ -151,7 +151,8 @@ def run():
                 pass
             else:
                 raise AssertionError('Fund movement before signed opening was accepted')
-        assert viewer.get('/api/accounting/opening-reviews').status_code==200
+        # G2U: opening evidence includes private accounts; viewer gets no global read.
+        assert viewer.get('/api/accounting/opening-reviews').status_code==403
         assert owner.get('/api/accounting/treasury-reconciliation.csv',params={'period':'2026-08'}).status_code==200
         with connect() as c:
             assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'

@@ -178,7 +178,15 @@ def coverage(c,period):
     values['historical_unverified']=c.execute("SELECT count(*) FROM legacy_entries WHERE import_status='archive_unverified'").fetchone()[0]
     values['issued_billing_invoices']=c.execute('SELECT COUNT(*) FROM billing_invoices WHERE substr(issued_date,1,7)<=?',(period,)).fetchone()[0]
     values['unposted_billing_invoices']=c.execute('SELECT COUNT(*) FROM billing_invoices i LEFT JOIN gl_journals j ON j.id=i.journal_id WHERE substr(i.issued_date,1,7)<=? AND (j.id IS NULL OR j.status!="posted")',(period,)).fetchone()[0]
-    values['unissued_drafts']=c.execute('SELECT COUNT(*) FROM billing_invoice_drafts d JOIN billing_cases b ON b.id=d.case_id WHERE substr(b.business_date,1,7)<=? AND NOT EXISTS (SELECT 1 FROM billing_invoices i WHERE i.draft_id=d.id)',(period,)).fetchone()[0]
+    values['unissued_drafts']=c.execute('''SELECT COUNT(*) FROM billing_invoice_drafts d
+      WHERE NOT EXISTS (SELECT 1 FROM billing_invoices i WHERE i.draft_id=d.id)
+      AND EXISTS (SELECT 1 FROM billing_invoice_draft_lines dl
+        JOIN billing_case_lines l ON l.id=dl.case_line_id
+        JOIN billing_cases b ON b.id=l.case_id
+        LEFT JOIN bed_night_charges n ON n.case_line_id=l.id
+        WHERE dl.draft_id=d.id
+          AND substr(COALESCE(n.night_date,l.service_date,b.business_date),1,7)<=?)''',
+          (period,)).fetchone()[0]
     values['approved_patient_credits']=c.execute("SELECT COUNT(*) FROM billing_credit_requests WHERE status='approved' AND substr(decided_at,1,7)<=?",(period,)).fetchone()[0]
     values['pending_patient_refunds']=c.execute("SELECT COUNT(*) FROM billing_refund_requests WHERE status IN ('pending','approved')").fetchone()[0]
     values['not_final']=True

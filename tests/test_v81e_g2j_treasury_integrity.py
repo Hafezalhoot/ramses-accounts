@@ -55,7 +55,8 @@ def run():
         r=ok(owner.get('/api/accounting/treasury-reconciliation',params={'period':month}))
         assert r['matched'] and r['issue_count']==0,r
         assert clerk.get('/api/accounting/treasury-reconciliation',params={'period':month}).status_code==403
-        assert viewer.get('/api/accounting/treasury-reconciliation',params={'period':month}).status_code==200
+        # G2U: global multi-account balances are no longer available to a viewer.
+        assert viewer.get('/api/accounting/treasury-reconciliation',params={'period':month}).status_code==403
         assert clerk.get('/api/accounting/treasury-reconciliation.csv',params={'period':month}).status_code==403
         assert owner.get('/api/accounting/treasury-reconciliation.csv',params={'period':month}).status_code==200
         assert owner.get('/api/accounting/treasury-reconciliation',params={'period':'2026-13'}).status_code==400

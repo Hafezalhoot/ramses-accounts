@@ -344,12 +344,17 @@ def add_case_service(case_id:int,body:LineForm,user=Depends(get_user),c:sqlite3.
         if previous:return {'id':previous,'replayed':True}
         case=case_scope(c,user,case_id,write=True)
         if case['status']!='open':fail('الحالة مقفلة',409)
-        require_case_document_period(c,case)
+        # A triaged historical paper receipt must retain its original price date.
+        # Entry and GL remain in the currently open period; no old cash is rebooked.
+        late=c.execute('SELECT original_business_date FROM billing_late_cases WHERE case_id=?',
+                       (case_id,)).fetchone()
+        service_day=late['original_business_date'] if late else cairo_today()
+        require_case_document_period(c,case,cairo_today())
         service=c.execute('SELECT * FROM billing_services WHERE id=? AND active=1',(body.service_id,)).fetchone()
         if not service:fail('الخدمة غير موجودة أو غير نشطة',404)
         price=c.execute('''SELECT * FROM billing_service_prices WHERE service_id=? AND valid_from<=?
-                 ORDER BY valid_from DESC LIMIT 1''',(service['id'],case['business_date'])).fetchone()
-        if not price:fail('لا يوجد سعر معتمد لهذه الخدمة وقت فتح الحالة',409)
+                 ORDER BY valid_from DESC LIMIT 1''',(service['id'],service_day)).fetchone()
+        if not price:fail('لا يوجد سعر معتمد لهذه الخدمة في تاريخ الطلب',409)
         cur=c.execute('''INSERT INTO billing_case_lines(case_id,service_id,price_version_id,
             service_name_snapshot,department_id,unit_price_piasters,quantity,added_by,added_at)
             VALUES (?,?,?,?,?,?,?,?,?)''',(case_id,service['id'],price['id'],service['name'],
@@ -372,10 +377,25 @@ def fulfill_line(line_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends
         if not line:fail('الخدمة غير موجودة',404)
         case=case_scope(c,user,line['case_id'])
         if case['status']!='open' or line['state']!='ordered':fail('الخدمة ليست قيد الانتظار',409)
-        month_open(c,cairo_today()[:7])
-        c.execute("UPDATE billing_case_lines SET state='fulfilled',fulfilled_by=?,fulfilled_at=? WHERE id=?",
-                  (user['id'],stamp(),line_id))
-        audit(c,user['id'],'billing_fulfill_service','billing_case',line['case_id'],{'line_id':line_id})
+        night=c.execute('SELECT night_date FROM bed_night_charges WHERE case_line_id=?',(line_id,)).fetchone()
+        late=c.execute('SELECT original_business_date FROM billing_late_cases WHERE case_id=?',
+                       (line['case_id'],)).fetchone()
+        service_day=(night['night_date'] if night else
+                     (late['original_business_date'] if late else cairo_today()))
+        month_open(c,(cairo_today() if late else service_day)[:7])
+        if night:
+            # The bed's dated tariff is already immutable in its night evidence.
+            c.execute("UPDATE billing_case_lines SET state='fulfilled',service_date=?,fulfilled_by=?,fulfilled_at=? WHERE id=?",
+                      (service_day,user['id'],stamp(),line_id))
+        else:
+            price=c.execute('''SELECT * FROM billing_service_prices WHERE service_id=? AND valid_from<=?
+                   ORDER BY valid_from DESC LIMIT 1''',(line['service_id'],service_day)).fetchone()
+            if not price:fail('لا توجد تعريفة معتمدة بتاريخ تنفيذ الخدمة',409)
+            c.execute('''UPDATE billing_case_lines SET state='fulfilled',service_date=?,price_version_id=?,
+                 unit_price_piasters=?,fulfilled_by=?,fulfilled_at=? WHERE id=?''',
+                 (service_day,price['id'],price['price_piasters'],user['id'],stamp(),line_id))
+        audit(c,user['id'],'billing_fulfill_service','billing_case',line['case_id'],
+              {'line_id':line_id,'service_date':service_day})
     return {'id':line_id,'state':'fulfilled'}
 
 
@@ -409,17 +429,29 @@ def create_draft(case_id:int,body:DraftForm,user=Depends(get_user),c:sqlite3.Con
         if previous:return {'id':previous,'replayed':True}
         case=case_scope(c,user,case_id,write=True)
         if case['status']!='open':fail('الحالة مقفلة',409)
-        require_case_document_period(c,case)
-        rows=c.execute('''SELECT l.* FROM billing_case_lines l WHERE l.case_id=?
-              AND l.state='fulfilled' AND NOT EXISTS
-              (SELECT 1 FROM billing_invoice_draft_lines d WHERE d.case_line_id=l.id) ORDER BY l.id''',(case_id,)).fetchall()
+        day=cairo_today()
+        require_case_document_period(c,case,day)
+        late=c.execute('SELECT original_business_date FROM billing_late_cases WHERE case_id=?',
+                       (case_id,)).fetchone()
+        # Only independently triaged historical cases may carry an old service
+        # date into a new-period invoice. Normal admissions are period-scoped.
+        allowed_periods=[day[:7]]
+        if late:allowed_periods.append(late['original_business_date'][:7])
+        rows=c.execute('''SELECT l.* FROM billing_case_lines l
+              LEFT JOIN bed_night_charges n ON n.case_line_id=l.id
+              WHERE l.case_id=? AND l.state='fulfilled'
+              AND substr(COALESCE(n.night_date,l.service_date,?),1,7) IN ('''+
+              ','.join('?' for _ in allowed_periods)+''')
+              AND NOT EXISTS (SELECT 1 FROM billing_invoice_draft_lines d
+                              WHERE d.case_line_id=l.id) ORDER BY l.id''',
+              (case_id,case['business_date'],*allowed_periods)).fetchall()
         if not rows:fail('لا توجد خدمات منفذة غير مضافة لمسودة سابقة',409)
         total=sum(int(r['unit_price_piasters'])*int(r['quantity']) for r in rows)
         cur=c.execute('''INSERT INTO billing_invoice_drafts(draft_no,case_id,point_id,total_piasters,
                       created_by,created_at) VALUES (?,?,?,?,?,?)''',
                       ('DRAFT-'+secrets.token_hex(6),case_id,case['default_point_id'],total,user['id'],stamp()))
         draft_id=cur.lastrowid
-        num=f'DRAFT-{case["business_date"][:4]}-{draft_id:06d}'
+        num=f'DRAFT-{day[:4]}-{draft_id:06d}'
         c.execute('UPDATE billing_invoice_drafts SET draft_no=? WHERE id=?',(num,draft_id))
         for row in rows:
             c.execute('''INSERT INTO billing_invoice_draft_lines(draft_id,case_line_id,
@@ -513,12 +545,10 @@ def invoice_due(c,invoice_id):
     return max(0,invoice['total_piasters']-credit-paid-allocated-late_settled)
 
 
-def require_case_document_period(c, case):
-    """Old, independently triaged visits may be documented now, NEVER posted to old periods.
+def require_case_document_period(c,case,day=None):
+    """Authorize the service/document period; admission month is immutable history.
 
-    The ordinary case flow stays locked by its original month. Only a case
-    created from a triaged G2B incident can create non-posting service lines
-    and drafts after that month closes. Issuance still checks TODAY's period.
+    Triaged G2B late cases retain independent approval and current-period posting.
     """
     link=c.execute("""SELECT l.incident_id,i.status,i.business_date
         FROM billing_late_cases l JOIN late_entry_incidents i ON i.id=l.incident_id
@@ -526,9 +556,9 @@ def require_case_document_period(c, case):
     if link:
         if link['status'] not in ('triaged','resolved') or link['business_date']!=case['business_date']:
             fail('بلاغ الاستدراك ليس معتمدًا لتسجيل خدمات قديمة',409)
-        month_open(c,cairo_today()[:7])
+        month_open(c,(day or cairo_today())[:7])
     else:
-        month_open(c,case['business_date'][:7])
+        month_open(c,(day or cairo_today())[:7])
 
 
 def available_advance(c,case_id):
@@ -638,21 +668,27 @@ def issue_invoice(draft_id:int,body:IssueInvoice,user=Depends(get_user),c:sqlite
         if c.execute('SELECT 1 FROM billing_invoices WHERE draft_id=?',(draft_id,)).fetchone():
             fail('هذه المسودة أُصدرت بالفعل؛ لا يمكن إصدارها مرة ثانية',409)
         day=cairo_today();month_open(c,day[:7])
-        rows=c.execute('''SELECT dl.*,l.service_name_snapshot,l.department_id,l.state
+        rows=c.execute('''SELECT dl.*,l.service_name_snapshot,l.department_id,l.state,
+              substr(COALESCE(n.night_date,l.service_date,bc.business_date),1,7) service_period
           FROM billing_invoice_draft_lines dl JOIN billing_case_lines l ON l.id=dl.case_line_id
+          JOIN billing_cases bc ON bc.id=l.case_id
+          LEFT JOIN bed_night_charges n ON n.case_line_id=l.id
           WHERE dl.draft_id=? ORDER BY dl.id''',(draft_id,)).fetchall()
         if not rows or any(r['state']!='fulfilled' for r in rows) or sum(r['total_piasters'] for r in rows)!=draft['total_piasters']:
             fail('المسودة تغيرت أو تحتوي على خدمة غير منفذة',409)
+        late_origin=c.execute('''SELECT incident_id,original_business_date
+            FROM billing_late_cases WHERE case_id=?''',(case['id'],)).fetchone()
+        allowed_periods={day[:7]}
+        if late_origin:
+            # Clearance may be withdrawn after draft creation; recheck first.
+            require_case_document_period(c,case,day)
+            allowed_periods.add(late_origin['original_business_date'][:7])
+        if any(r['service_period'] not in allowed_periods for r in rows):
+            fail('المسودة تشمل خدمات من فترة مختلفة؛ يلزم تصحيح مستندي قبل الإصدار',409)
         # Revenue is posted once at invoicing after service fulfillment verification;
         # long admissions spanning periods need a separately approved accrual policy.
         gl_lines=[(ledger.account_by_code(c,'1200'),draft['total_piasters'],0,None)]
         gl_lines += [(ledger.account_by_code(c,'4100'),0,r['total_piasters'],r['department_id']) for r in rows]
-        late_origin=c.execute('''SELECT incident_id,original_business_date
-            FROM billing_late_cases WHERE case_id=?''',(case['id'],)).fetchone()
-        if late_origin:
-            # A reviewer may retract clearance after the draft was saved.
-            # Re-check independent triage before creating any GL journal.
-            require_case_document_period(c,case)
         memo=('فاتورة استدراك خدمات يوم '+late_origin['original_business_date']+
               ' / بلاغ #'+str(late_origin['incident_id'])+' / '+case['case_no']) if late_origin else (
               'إثبات إيراد خدمات الحالة '+case['case_no'])
