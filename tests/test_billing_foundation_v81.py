@@ -3,7 +3,8 @@ import os
 import sqlite3
 import sys
 import tempfile
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -53,7 +54,7 @@ def run():
         assert stranger.get('/api/billing/cases').json()['items']==[]
         # A cashier cannot assign itself nor open a financial case for another station.
         assert clerk.post(f'/api/billing/points/{internal}/assign',json={'user_id':clerkid},headers=ch).status_code==403
-        day=date.today().isoformat()
+        day=datetime.now(ZoneInfo('Africa/Cairo')).date().isoformat()
         depts=owner.get('/api/lookups').json()['departments']
         lab=next(x['id'] for x in depts if x['code']=='LAB')
         s=owner.post('/api/billing/services',json={'code':'T_LAB_PANEL','name':'تحاليل مختبر وهمية','department_id':lab,'suggested_point':'external'},headers=oh)
@@ -107,7 +108,7 @@ def run():
           'service_id':service_id,'quantity':2,'request_id':'order_internal_1234567890'}).json()['id']==line
         assert owner.post(f'/api/billing/cases/{inpatient}/drafts',headers=oh,json={'request_id':'draft_before_fulfilled_123'}).status_code==409
         from datetime import timedelta
-        tomorrow=(date.today()+timedelta(days=1)).isoformat()
+        tomorrow=(date.fromisoformat(day)+timedelta(days=1)).isoformat()
         newer=owner.post(f'/api/billing/services/{service_id}/prices',headers=oh,json={
             'valid_from':tomorrow,'amount':'600'})
         assert newer.status_code==200,newer.text

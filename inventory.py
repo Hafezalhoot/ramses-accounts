@@ -70,6 +70,19 @@ class IssueForm(BaseModel):
     lines:list[IssueLineForm]=Field(min_length=1,max_length=50)
 
 
+class ReturnLineForm(BaseModel):
+    issue_allocation_id:int=Field(gt=0)
+    quantity:int=Field(ge=1,le=1000000)
+
+
+class ReturnForm(BaseModel):
+    issue_id:int=Field(gt=0)
+    returned_on:str
+    evidence_ref:str=Field(min_length=8,max_length=180)
+    request_id:str
+    lines:list[ReturnLineForm]=Field(min_length=1,max_length=50)
+
+
 class ReviewForm(BaseModel):
     decision:Literal['approve','reject']
     note:str=Field(min_length=8,max_length=300)
@@ -161,16 +174,26 @@ def stock_asof(c,period=None):
       COALESCE((SELECT SUM(a.quantity) FROM inventory_issue_allocations a
          JOIN inventory_issues i ON i.id=a.issue_id AND i.status='approved'
          JOIN inventory_receipt_lines k ON k.id=a.receipt_line_id
-         WHERE k.item_id=it.id AND i.used_on<=?),0) AS quantity_on_hand,
+         WHERE k.item_id=it.id AND i.used_on<=?),0)+
+      COALESCE((SELECT SUM(rl.quantity) FROM inventory_return_lines rl
+         JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+         JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+         JOIN inventory_receipt_lines k ON k.id=a.receipt_line_id
+         WHERE k.item_id=it.id AND ret.returned_on<=?),0) AS quantity_on_hand,
       COALESCE(SUM(CASE WHEN r.status='approved' AND r.received_on<=? THEN l.quantity*l.unit_cost_piasters ELSE 0 END),0)-
       COALESCE((SELECT SUM(a.cost_piasters) FROM inventory_issue_allocations a
          JOIN inventory_issues i ON i.id=a.issue_id AND i.status='approved'
          JOIN inventory_receipt_lines k ON k.id=a.receipt_line_id
-         WHERE k.item_id=it.id AND i.used_on<=?),0) AS value_piasters
+         WHERE k.item_id=it.id AND i.used_on<=?),0)+
+      COALESCE((SELECT SUM(rl.quantity*k.unit_cost_piasters) FROM inventory_return_lines rl
+         JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+         JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+         JOIN inventory_receipt_lines k ON k.id=a.receipt_line_id
+         WHERE k.item_id=it.id AND ret.returned_on<=?),0) AS value_piasters
       FROM inventory_items it
       LEFT JOIN inventory_receipt_lines l ON l.item_id=it.id
       LEFT JOIN inventory_receipts r ON r.id=l.receipt_id
-      GROUP BY it.id ORDER BY it.id''',(upto,upto,upto,upto))]
+      GROUP BY it.id ORDER BY it.id''',(upto,upto,upto,upto,upto,upto))]
 
 
 @router.get('/overview')
@@ -182,6 +205,12 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
                (SELECT COALESCE(SUM(quantity*unit_cost_piasters),0) FROM inventory_receipt_lines l WHERE l.receipt_id=r.id) total_piasters
                FROM inventory_receipts r JOIN inventory_vendors v ON v.id=r.vendor_id ORDER BY r.id DESC LIMIT 60''')],
             'issues':[dict(i) for i in c.execute('SELECT * FROM inventory_issues ORDER BY id DESC LIMIT 60')],
+            'returns':[dict(r) for r in c.execute('''SELECT ret.id,ret.issue_id,ret.returned_on,ret.evidence_ref,ret.status,ret.created_by,ret.cost_piasters FROM inventory_issue_returns ret
+                WHERE ret.issue_id IN (SELECT id FROM inventory_issues WHERE case_id IS NULL)
+                   OR ?='owner'
+                   OR ret.issue_id IN (SELECT i.id FROM inventory_issues i JOIN billing_cases b ON b.id=i.case_id
+                      JOIN billing_point_access g ON g.point_id=b.default_point_id AND g.user_id=? AND g.active=1)
+                ORDER BY ret.id DESC LIMIT 60''',(user['role'],user['id']))],
             'grants':dict(c.execute('SELECT can_prepare,can_approve FROM inventory_access WHERE user_id=?',(user['id'],)).fetchone() or {'can_prepare':0,'can_approve':0}),
             'role':user['role'],
             'notice':'مخزن مستلزمات تجريبي واحد؛ لا يعادل صرف دواء، ولا يسدد فاتورة المورد نقدًا.'}
@@ -239,6 +268,13 @@ def ensure_fifo_date_order(c,kind,document_id,entry_day):
           AND later_issue.used_on>? LIMIT 1''',(document_id,entry_day)).fetchone()
     if later:
         fail('اعتماد المستند بأثر رجعي سيغير ترتيب FIFO بعد صرف مخزون معتمد؛ يلزم تسوية مستقلة',409)
+    if kind=='issue' and c.execute('''SELECT 1 FROM inventory_issue_lines line
+          JOIN inventory_issue_lines source ON source.item_id=line.item_id
+          JOIN inventory_issue_allocations a ON a.issue_line_id=source.id
+          JOIN inventory_return_lines retline ON retline.issue_allocation_id=a.id
+          JOIN inventory_issue_returns ret ON ret.id=retline.return_id AND ret.status='approved'
+          WHERE line.issue_id=? AND ret.returned_on>? LIMIT 1''',(document_id,entry_day)).fetchone():
+        fail('لا يجوز صرف كمية بأثر رجعي قبل تاريخ إرجاع دفعتها للمخزن',409)
 
 
 
@@ -311,11 +347,15 @@ def fifo_allocate(c,issue):
     for line in c.execute('SELECT * FROM inventory_issue_lines WHERE issue_id=? ORDER BY id',(issue['id'],)).fetchall():
         remaining=line['quantity']
         lots=c.execute('''SELECT l.id,l.quantity,l.unit_cost_piasters,
-           COALESCE((SELECT SUM(a.quantity) FROM inventory_issue_allocations a WHERE a.receipt_line_id=l.id),0) used
+           COALESCE((SELECT SUM(a.quantity) FROM inventory_issue_allocations a WHERE a.receipt_line_id=l.id),0)-
+           COALESCE((SELECT SUM(rl.quantity) FROM inventory_return_lines rl
+             JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+             JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+             WHERE a.receipt_line_id=l.id AND ret.returned_on<=?),0) used
            FROM inventory_receipt_lines l JOIN inventory_receipts r ON r.id=l.receipt_id
            WHERE l.item_id=? AND r.status='approved' AND r.received_on<=?
              AND (l.expiry_date IS NULL OR l.expiry_date>=?)
-           ORDER BY r.received_on,l.id''',(line['item_id'],issue['used_on'],issue['used_on'])).fetchall()
+           ORDER BY r.received_on,l.id''',(issue['used_on'],line['item_id'],issue['used_on'],issue['used_on'])).fetchall()
         for lot in lots:
             available=lot['quantity']-lot['used']
             take=min(remaining,available)
@@ -361,6 +401,133 @@ def decide_issue(issue_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.C
     return {'id':issue_id,'status':status,'cost_piasters':cost,'journal_id':jid}
 
 
+
+@router.get('/issues/{issue_id}/returnable')
+def issue_returnable(issue_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user)
+    issue=c.execute('SELECT * FROM inventory_issues WHERE id=?',(issue_id,)).fetchone()
+    if not issue:fail('إذن الصرف غير موجود',404)
+    if issue['case_id'] is not None:case_scope(c,user,issue['case_id'])
+    if issue['status']!='approved':fail('يمكن رد مستلزمات إذن صرف معتمد فقط',409)
+    allocations=c.execute('''SELECT a.id issue_allocation_id,a.quantity quantity_issued,
+       a.quantity-COALESCE((SELECT SUM(rl.quantity) FROM inventory_return_lines rl
+           JOIN inventory_issue_returns ret ON ret.id=rl.return_id
+           WHERE rl.issue_allocation_id=a.id AND ret.status IN ('pending','approved')),0) returnable_quantity,
+       rl.item_id,it.code item_code,it.name item_name,rl.unit_cost_piasters,rl.expiry_date
+       FROM inventory_issue_allocations a
+       JOIN inventory_receipt_lines rl ON rl.id=a.receipt_line_id
+       JOIN inventory_items it ON it.id=rl.item_id
+       WHERE a.issue_id=? ORDER BY a.id''',(issue_id,)).fetchall()
+    return {'issue_id':issue_id,'case_id':issue['case_id'],'used_on':issue['used_on'],
+            'allocations':[dict(a) for a in allocations]}
+
+
+def return_cost(c,return_id):
+    return c.execute('''SELECT COALESCE(SUM(l.quantity*lot.unit_cost_piasters),0)
+      FROM inventory_return_lines l
+      JOIN inventory_issue_allocations a ON a.id=l.issue_allocation_id
+      JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+      WHERE l.return_id=?''',(return_id,)).fetchone()[0]
+
+
+def ensure_return_day(c,issue_id,day):
+    """No retroactive return that would change valuation of later-day issues."""
+    if c.execute('''SELECT 1 FROM inventory_issue_allocations a
+          JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+          JOIN inventory_issue_lines later ON later.item_id=lot.item_id
+          JOIN inventory_issues later_issue ON later_issue.id=later.issue_id
+          WHERE a.issue_id=? AND later_issue.status='approved'
+          AND later_issue.used_on>? LIMIT 1''',(issue_id,day)).fetchone():
+        fail('مرتجع بأثر رجعي يغير ترتيب FIFO لصرف معتمد لاحق؛ يلزم تسوية منفصلة',409)
+
+
+@router.post('/returns')
+def prepare_return(body:ReturnForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'prepare')
+    day=business_day(body.returned_on)
+    evidence=trim(body.evidence_ref,'محضر الاسترجاع المادي',8,180)
+    key=request_key(body.request_id)
+    seen=set()
+    lines=[]
+    for line in body.lines:
+        if line.issue_allocation_id in seen:fail('لا تكرر نفس دفعة الصرف في المرتجع',409)
+        seen.add(line.issue_allocation_id)
+        lines.append({'issue_allocation_id':line.issue_allocation_id,'quantity':line.quantity})
+    payload={'issue_id':body.issue_id,'returned_on':day,'evidence_ref':evidence,'lines':lines}
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'prepare')
+        issue=c.execute('SELECT * FROM inventory_issues WHERE id=?',(body.issue_id,)).fetchone()
+        if not issue or issue['status']!='approved':fail('إذن الصرف غير معتمد أو غير موجود',409)
+        if issue['used_on']>day:fail('تاريخ الرد يسبق الصرف الأصلي',409)
+        if issue['case_id'] is not None:
+            case=case_scope(c,user,issue['case_id'])
+            if case['status']!='open':fail('ملف الحالة مغلق ويحتاج تسوية محاسبية منفصلة',409)
+        # Idempotent replay must not outlive the user's current patient grant.
+        prior,digest=repeat(c,key,'inventory_return',user['id'],payload)
+        if prior:return {'id':prior,'replayed':True}
+        month_open(c,day[:7])
+        ensure_return_day(c,body.issue_id,day)
+        current={r['id']:r for r in c.execute('''SELECT a.id,a.quantity,lot.expiry_date,
+            COALESCE((SELECT SUM(rl.quantity) FROM inventory_return_lines rl
+                JOIN inventory_issue_returns ret ON ret.id=rl.return_id
+                WHERE rl.issue_allocation_id=a.id AND ret.status IN ('pending','approved')),0) already
+            FROM inventory_issue_allocations a
+            JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id WHERE a.issue_id=?''',(body.issue_id,))}
+        for line in lines:
+            a=current.get(line['issue_allocation_id'])
+            if not a or a['already']+line['quantity']>a['quantity']:
+                fail('الكمية المرتجعة تجاوزت الوحدات المصروفة من الدفعة الأصلية',409)
+            if a['expiry_date'] and a['expiry_date']<day:
+                fail('لا يجوز إعادة مستلزمات منتهية الصلاحية للمخزون القابل للصرف',409)
+        cur=c.execute('''INSERT INTO inventory_issue_returns
+            (issue_id,returned_on,evidence_ref,created_by,created_at) VALUES(?,?,?,?,?)''',
+            (body.issue_id,day,evidence,user['id'],stamp()))
+        return_id=cur.lastrowid
+        for line in lines:
+            c.execute('''INSERT INTO inventory_return_lines(return_id,issue_allocation_id,quantity)
+               VALUES(?,?,?)''',(return_id,line['issue_allocation_id'],line['quantity']))
+        remember(c,key,'inventory_return',user['id'],digest,return_id)
+        audit(c,user['id'],'inventory_return_requested','inventory_issue_return',return_id,
+              {'issue_id':body.issue_id,'case_id':issue['case_id']})
+    return {'id':return_id,'status':'pending'}
+
+
+@router.post('/returns/{return_id}/decision')
+def decide_return(return_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'approve')
+    note=trim(body.note,'مراجعة المرتجع',8,300)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'approve')
+        ret=c.execute('''SELECT ret.*,i.department_id,i.case_id,i.used_on
+            FROM inventory_issue_returns ret JOIN inventory_issues i ON i.id=ret.issue_id
+            WHERE ret.id=?''',(return_id,)).fetchone()
+        if not ret:fail('محضر المرتجع غير موجود',404)
+        if ret['status']!='pending':fail('تم البت في محضر المرتجع بالفعل',409)
+        if ret['created_by']==user['id']:fail('لا يجوز اعتماد محضر مرتجع أعددته بنفسك',403)
+        month_open(c,ret['returned_on'][:7])
+        if ret['case_id'] is not None:
+            case=case_scope(c,user,ret['case_id'])
+            if case['status']!='open':fail('ملف الحالة أُغلق أثناء انتظار اعتماد المرتجع',409)
+        if body.decision=='approve':
+            ensure_return_day(c,ret['issue_id'],ret['returned_on'])
+            cost=return_cost(c,return_id)
+            jid=ledger_post(c,ret['returned_on'],'RETURN',return_id,ret['created_by'],user['id'],
+                            '1100','5100',cost,ret['department_id'])
+            status='approved'
+        else:
+            cost=0
+            jid=None
+            status='rejected'
+        c.execute('''UPDATE inventory_issue_returns SET status=?,reviewed_by=?,reviewed_at=?,
+            review_note=?,cost_piasters=?,journal_id=? WHERE id=?''',
+            (status,user['id'],stamp(),note,cost,jid,return_id))
+        audit(c,user['id'],'inventory_return_'+status,'inventory_issue_return',return_id,
+              {'journal_id':jid,'cost_piasters':cost,'issue_id':ret['issue_id']})
+    return {'id':return_id,'status':status,'cost_piasters':cost,'journal_id':jid}
+
+
 @router.get('/cases/{case_id}/cost')
 def case_consumables_cost(case_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     """Trace already-posted FIFO cost per authorized patient case; never infer profit."""
@@ -368,22 +535,36 @@ def case_consumables_cost(case_id:int,user=Depends(get_user),c:sqlite3.Connectio
     case=case_scope(c,user,case_id)  # Warehouse access alone must not reveal a patient case.
     rows=c.execute('''SELECT i.id issue_id,i.used_on,i.department_id,l.item_id,
              it.code item_code,it.name item_name,
-             SUM(a.quantity) quantity,SUM(a.cost_piasters) cost_piasters
+             SUM(a.quantity)-COALESCE((SELECT SUM(rl.quantity) FROM inventory_return_lines rl
+               JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+               JOIN inventory_issue_allocations allocation ON allocation.id=rl.issue_allocation_id
+               WHERE allocation.issue_line_id=l.id),0) AS quantity,
+             SUM(a.cost_piasters)-COALESCE((SELECT SUM(rl.quantity*lot.unit_cost_piasters) FROM inventory_return_lines rl
+               JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+               JOIN inventory_issue_allocations allocation ON allocation.id=rl.issue_allocation_id
+               JOIN inventory_receipt_lines lot ON lot.id=allocation.receipt_line_id
+               WHERE allocation.issue_line_id=l.id),0) AS cost_piasters,
+             SUM(a.quantity) gross_quantity,SUM(a.cost_piasters) gross_cost_piasters,
+             COALESCE((SELECT SUM(rl.quantity) FROM inventory_return_lines rl
+               JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+               JOIN inventory_issue_allocations allocation ON allocation.id=rl.issue_allocation_id
+               WHERE allocation.issue_line_id=l.id),0) returned_quantity
         FROM inventory_issues i
         JOIN inventory_issue_lines l ON l.issue_id=i.id
         JOIN inventory_items it ON it.id=l.item_id
         JOIN inventory_issue_allocations a ON a.issue_line_id=l.id AND a.issue_id=i.id
         WHERE i.case_id=? AND i.status='approved'
         GROUP BY i.id,l.id ORDER BY i.used_on,i.id,l.id''',(case_id,)).fetchall()
-    lines=[dict(row) for row in rows]
+    lines=[{**dict(row), 'net_quantity':row['quantity']} for row in rows]
     pending=c.execute("SELECT COUNT(*) FROM inventory_issues WHERE case_id=? AND status='pending'",
                       (case_id,)).fetchone()[0]
     return {'case_id':case_id,'case_no':case['case_no'],
             'total_cost_piasters':sum(x['cost_piasters'] for x in lines),
+            'total_returned_piasters':sum(x['gross_cost_piasters']-x['cost_piasters'] for x in lines),
             'approved_issue_count':len({x['issue_id'] for x in lines}),
             'pending_issue_count':pending,'lines':lines,
             'source':'approved_fifo_consumables_only',
-            'scope':'This partial cost excludes unlinked stock issues, drugs, doctor fees and historical opening inventory; no profit or patient invoice is calculated.'}
+            'scope':'NET approved FIFO issues less physically approved original-lot returns. Excludes unlinked stock, drugs, doctor fees and opening inventory. No profit or patient invoice.'}
 
 
 
@@ -396,9 +577,11 @@ def reconciliation(c,period):
       WHERE r.status='approved' AND substr(r.received_on,1,7)<=? GROUP BY r.id""",(period,)).fetchall()
     issues=c.execute('''SELECT id,journal_id,cost_piasters total FROM inventory_issues
        WHERE status='approved' AND substr(used_on,1,7)<=?''',(period,)).fetchall()
-    expected_balance=sum(int(r['total']) for r in receipts)-sum(int(i['total']) for i in issues)
+    returns=c.execute('''SELECT id,journal_id,cost_piasters total FROM inventory_issue_returns
+       WHERE status='approved' AND substr(returned_on,1,7)<=?''',(period,)).fetchall()
+    expected_balance=sum(int(r['total']) for r in receipts)-sum(int(i['total']) for i in issues)+sum(int(r['total']) for r in returns)
     actual_balance=0
-    for group,debit,credit in ((receipts,'1100','2200'),(issues,'5100','1100')):
+    for group,debit,credit in ((receipts,'1100','2200'),(issues,'5100','1100'),(returns,'1100','5100')):
         for item in group:
             if not item['journal_id']:
                 errors.append('Missing GL for inventory document #'+str(item['id']))
@@ -418,6 +601,7 @@ def reconciliation(c,period):
     return {'period':period,'matched':not errors,'errors':errors[:20],
             'quantity_on_hand':physical_qty,'value_piasters':physical_value,
             'inventory_gl_piasters':actual_balance,'approved_receipts':len(receipts),'approved_issues':len(issues),
+            'approved_returns':len(returns),
             'scope':'مستلزمات تجريبية مرتبطة بمستندات G2T فقط؛ لا تشمل رصيد مخزون افتتاحي قديم أو مشتريات سندات V8 أو دواء أو تسويات الموردين.'}
 
 
@@ -433,6 +617,8 @@ def month_close_inventory_issue(c,period):
         return 'محاضر توريد مستلزمات تنتظر اعتماد مراجع مستقل'
     if c.execute("SELECT 1 FROM inventory_issues WHERE substr(used_on,1,7)=? AND status='pending' LIMIT 1",(period,)).fetchone():
         return 'أذون صرف مستلزمات تنتظر اعتماد مراجع مستقل'
+    if c.execute("SELECT 1 FROM inventory_issue_returns WHERE substr(returned_on,1,7)=? AND status='pending' LIMIT 1",(period,)).fetchone():
+        return 'محاضر مرتجع مستلزمات تنتظر اعتماد مراجع مستقل'
     # Before period closure, compare all approved inventory documents up to the month.
     report=reconciliation(c,period)
     return 'مخزون المستلزمات لا يطابق قيوده ومستنداته؛ راجع تقرير المطابقة' if not report['matched'] else None

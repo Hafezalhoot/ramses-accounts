@@ -291,6 +291,10 @@ def initialize(legacy_path=None):
                     if col not in known:
                         c.execute(f'ALTER TABLE billing_clinical_attestations ADD COLUMN {col} '+
                                   ('INTEGER' if col=='document_size' else 'TEXT'))
+            # G3D: the G2T lot guard used gross issues only; recreate it once,
+            # under the verified encrypted pre-upgrade backup, for return-aware FIFO.
+            if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_issue_returns'").fetchone():
+                c.execute('DROP TRIGGER IF EXISTS inv_issue_allocation_guard')
             c.executescript((ROOT / "schema.sql").read_text(encoding="utf8"))
             # G2U additive, preservation-first migration: old dates stay unknown.
             if 'service_date' not in {r['name'] for r in c.execute('PRAGMA table_info(billing_case_lines)')}:

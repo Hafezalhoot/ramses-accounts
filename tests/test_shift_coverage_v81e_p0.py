@@ -2,7 +2,7 @@
 import os
 import sys
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -43,7 +43,8 @@ def run():
         assigned_user = owner.get('/api/users').json()
         cid = next(u['id'] for u in assigned_user if u['username'] == 'cashier_qa')
         assert owner.post(f'/api/billing/points/{p}/assign', headers=oh, json={'user_id':cid}).status_code == 200
-        yesterday = datetime.now(ZoneInfo('Africa/Cairo')).date() - timedelta(days=1)
+        # Use a fully completed day: the just-ended evening shift may still be in its grace window.
+        yesterday = datetime.now(ZoneInfo('Africa/Cairo')).date() - timedelta(days=2)
         with connect() as c:
             for shift, status in [('night','closed'),('morning','submitted')]:
                 start, end = shift_schedule.planned_interval(c, yesterday.isoformat(), shift)
@@ -78,11 +79,10 @@ def run():
         assert all(r['status']=='not_monitored' for r in earlier), earlier
         # Early clock never marks an upcoming shift as missing.
         with connect() as c:
-            fixed = datetime(2026, 10, 29, 10, 0, tzinfo=ZoneInfo('Africa/Cairo'))
+            fixed = datetime.combine(yesterday, time(10, 0), tzinfo=ZoneInfo('Africa/Cairo'))
             fixed_result = shift_coverage.report(c,month,{'role':'owner','id':1},at=fixed)
             later = [r for r in fixed_result['items'] if r['business_date']==yesterday.isoformat() and r['point_id']==p]
-            if yesterday.isoformat() == '2026-10-29':
-                assert {r['shift']:r['status'] for r in later}['evening']=='upcoming'
+            assert {r['shift']:r['status'] for r in later}['evening']=='upcoming', later
             after_count = c.execute('SELECT count(*) FROM fund_movements').fetchone()[0]
             after_sessions = c.execute('SELECT count(*) FROM shift_sessions').fetchone()[0]
         assert (before_count,before_sessions)==(after_count,after_sessions)

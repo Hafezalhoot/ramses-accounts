@@ -20,13 +20,13 @@ def run():
         client = TestClient(app)
         health = client.get('/health')
         assert health.status_code == 200
-        assert 'G3C' in health.json()['name'] and 'Test Only' in health.json()['name']
+        assert 'G3D' in health.json()['name'] and 'Test Only' in health.json()['name']
         html = client.get('/')
-        assert html.status_code == 200 and 'V8.1E-G3C' in html.text
+        assert html.status_code == 200 and 'V8.1E-G3D' in html.text
         js = client.get('/static/app.js')
-        assert js.status_code == 200 and 'V8.1E-G3C' in js.text
-        assert 'V8.1E-G3C' in (ROOT/'START_Ramses_Mac.command').read_text()
-        print('PASS G3C development-only version label across HTTP, UI and Mac startup')
+        assert js.status_code == 200 and 'V8.1E-G3D' in js.text
+        assert 'V8.1E-G3D' in (ROOT/'START_Ramses_Mac.command').read_text()
+        print('PASS G3D development-only version label across HTTP, UI and Mac startup')
 
 
 if __name__ == '__main__':

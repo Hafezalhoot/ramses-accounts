@@ -51,6 +51,10 @@ def case_preflight(c, case):
         (case_id,)).fetchone()[0]
     pending_credits = c.execute('''SELECT count(*) FROM billing_credit_requests
         WHERE case_id=? AND status='pending' ''', (case_id,)).fetchone()[0]
+    pending_inventory_returns = c.execute('''SELECT COUNT(*)
+        FROM inventory_issue_returns ret
+        JOIN inventory_issues issue ON issue.id=ret.issue_id
+        WHERE issue.case_id=? AND ret.status='pending' ''', (case_id,)).fetchone()[0]
     unpaid_refunds = c.execute("""SELECT count(*) FROM billing_refund_requests
         WHERE case_id=? AND status IN ('pending','approved')""", (case_id,)).fetchone()[0]
     correction_tickets = c.execute('''SELECT count(*) FROM financial_correction_tickets t
@@ -87,7 +91,7 @@ def case_preflight(c, case):
                             (case_id,)).fetchone()[0]
     no_charge_ready=(case['kind'] in EXTENDED and case['status']=='open' and not invoices
          and not all_lines and not all_drafts and not original_collections and not all_refunds
-         and not correction_tickets and not late and not open_bed_stays
+         and not correction_tickets and not pending_inventory_returns and not late and not open_bed_stays
          and not expected_nights and not booked_nights)
     reasons = []
     if case['kind'] not in EXTENDED:
@@ -116,6 +120,8 @@ def case_preflight(c, case):
         reasons.append('هناك طلب إشعار دائن أو استرداد لم يحسم')
     if correction_tickets:
         reasons.append('هناك بلاغات تصحيح مالية مفتوحة للحالة')
+    if pending_inventory_returns:
+        reasons.append('هناك مرتجع مستلزمات للحالة لم يتم اعتماد استلامه أو رفضه')
     if late:
         reasons.append('الحالات المستدركة تحتاج مسار تصفية مستقل قبل الإغلاق')
     return {'case_id':case_id, 'case_no':case['case_no'], 'case_kind':case['kind'],
@@ -126,6 +132,7 @@ def case_preflight(c, case):
             'credit_refundable_piasters':credit,
             'ordered_services':open_lines, 'fulfilled_unbilled':fulfilled_unbilled,
             'unissued_drafts':drafts, 'pending_credits':pending_credits,
+            'pending_inventory_returns':pending_inventory_returns,
             'pending_refunds':unpaid_refunds, 'pending_corrections':correction_tickets, 'open_bed_stays':open_bed_stays,
             'uncharged_bed_nights':uncharged_bed_nights, 'documented_bed_nights':booked_nights,
             'notice':'إغلاق مالي للذمم فقط؛ ليس خروجًا طبيًا ولا اعتمادًا لجرد النقدية أو كشف البنك.'}

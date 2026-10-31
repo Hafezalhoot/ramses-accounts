@@ -4,6 +4,7 @@ import sqlite3
 import sys
 import tempfile
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -38,7 +39,7 @@ def run():
         dept=look['departments'][0]['id']
         cat_receipt=next(x['id'] for x in look['categories'] if x['code']=='medical_revenue')
         cat_payment=next(x['id'] for x in look['categories'] if x['code']=='utilities')
-        day=datetime.now().astimezone().date().isoformat()
+        day=datetime.now(ZoneInfo('Africa/Cairo')).date().isoformat()
         assert owner.post(f'/api/funds/{f}/opening',json={'amount':'1000'},headers=oh).status_code==200
         opened=clerk.post('/api/shifts/open',json={'business_date':day,'shift':'morning','fund_id':f},headers=ch)
         assert opened.status_code==200,opened.text

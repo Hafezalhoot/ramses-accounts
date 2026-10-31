@@ -1497,7 +1497,11 @@ CREATE TRIGGER IF NOT EXISTS inv_issue_allocation_guard BEFORE INSERT ON invento
       AND (rl.expiry_date IS NULL OR rl.expiry_date>=i.used_on)
       AND NEW.cost_piasters=NEW.quantity*rl.unit_cost_piasters
       AND NEW.quantity + COALESCE((SELECT SUM(a.quantity) FROM inventory_issue_allocations a
-          WHERE a.receipt_line_id=rl.id),0)<=rl.quantity
+          WHERE a.receipt_line_id=rl.id),0)-
+        COALESCE((SELECT SUM(rt.quantity) FROM inventory_return_lines rt
+          JOIN inventory_issue_returns ret ON ret.id=rt.return_id AND ret.status='approved'
+          JOIN inventory_issue_allocations a ON a.id=rt.issue_allocation_id
+          WHERE a.receipt_line_id=rl.id AND ret.returned_on<=i.used_on),0)<=rl.quantity
  ) BEGIN SELECT RAISE(ABORT,'Invalid or insufficient FIFO lot allocation'); END;
 CREATE TRIGGER IF NOT EXISTS inv_allocation_no_update BEFORE UPDATE ON inventory_issue_allocations
  BEGIN SELECT RAISE(ABORT,'Stock allocations immutable'); END;
@@ -1638,3 +1642,101 @@ CREATE TRIGGER IF NOT EXISTS inv_issue_fifo_date_guard BEFORE UPDATE OF status O
   WHERE il.issue_id=OLD.id AND later_issue.status='approved'
     AND later_issue.used_on>OLD.used_on
  ) BEGIN SELECT RAISE(ABORT,'Backdated issue would invalidate approved FIFO issue'); END;
+
+
+-- G3D: physical, non-drug unused supplies returned to their exact original FIFO allocations.
+-- The old issue/allocation and cost journal are never mutated; the return is separately signed.
+CREATE TABLE IF NOT EXISTS inventory_issue_returns (
+ id INTEGER PRIMARY KEY, issue_id INTEGER NOT NULL REFERENCES inventory_issues(id),
+ returned_on TEXT NOT NULL, evidence_ref TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_by INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL,
+ reviewed_by INTEGER REFERENCES users(id), reviewed_at TEXT, review_note TEXT,
+ cost_piasters INTEGER NOT NULL DEFAULT 0 CHECK(cost_piasters>=0),
+ journal_id INTEGER UNIQUE REFERENCES gl_journals(id),
+ CHECK(status!='approved' OR (reviewed_by IS NOT NULL AND reviewed_by!=created_by AND journal_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_returns_day ON inventory_issue_returns(returned_on,status);
+CREATE TABLE IF NOT EXISTS inventory_return_lines (
+ id INTEGER PRIMARY KEY,
+ return_id INTEGER NOT NULL REFERENCES inventory_issue_returns(id),
+ issue_allocation_id INTEGER NOT NULL REFERENCES inventory_issue_allocations(id),
+ quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 1000000),
+ UNIQUE(return_id,issue_allocation_id)
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_returns_alloc ON inventory_return_lines(issue_allocation_id);
+CREATE TRIGGER IF NOT EXISTS inv_return_pending_only BEFORE INSERT ON inventory_issue_returns
+ WHEN NEW.status!='pending' OR NOT EXISTS (
+  SELECT 1 FROM inventory_issues i WHERE i.id=NEW.issue_id AND i.status='approved'
+    AND i.used_on<=NEW.returned_on AND (i.case_id IS NULL OR EXISTS (
+     SELECT 1 FROM billing_cases b WHERE b.id=i.case_id AND b.status='open'))
+ ) OR EXISTS (SELECT 1 FROM periods p WHERE p.period=substr(NEW.returned_on,1,7))
+ BEGIN SELECT RAISE(ABORT,'Return must begin pending on open case and month after approved issue'); END;
+CREATE TRIGGER IF NOT EXISTS inv_return_header_immutable BEFORE UPDATE OF
+ issue_id,returned_on,evidence_ref,created_by,created_at ON inventory_issue_returns
+ BEGIN SELECT RAISE(ABORT,'Original return evidence immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_return_final_immutable BEFORE UPDATE ON inventory_issue_returns
+ WHEN OLD.status!='pending' BEGIN SELECT RAISE(ABORT,'Final inventory return immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_return_no_delete BEFORE DELETE ON inventory_issue_returns
+ BEGIN SELECT RAISE(ABORT,'Inventory return immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_return_line_valid BEFORE INSERT ON inventory_return_lines
+ WHEN NOT EXISTS (
+   SELECT 1 FROM inventory_issue_returns ret
+   JOIN inventory_issues i ON i.id=ret.issue_id AND i.status='approved'
+   JOIN inventory_issue_allocations a ON a.id=NEW.issue_allocation_id AND a.issue_id=i.id
+   JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+   WHERE ret.id=NEW.return_id AND ret.status='pending' AND i.used_on<=ret.returned_on
+     AND (lot.expiry_date IS NULL OR lot.expiry_date>=ret.returned_on)
+     AND (i.case_id IS NULL OR EXISTS (SELECT 1 FROM billing_cases b
+           WHERE b.id=i.case_id AND b.status='open'))
+     AND NEW.quantity + COALESCE((SELECT SUM(rl.quantity) FROM inventory_return_lines rl
+         JOIN inventory_issue_returns prev ON prev.id=rl.return_id
+         WHERE rl.issue_allocation_id=a.id AND prev.status IN ('pending','approved')),0)<=a.quantity
+ ) BEGIN SELECT RAISE(ABORT,'Invalid or excess physical return allocation'); END;
+CREATE TRIGGER IF NOT EXISTS inv_return_line_no_update BEFORE UPDATE ON inventory_return_lines
+ BEGIN SELECT RAISE(ABORT,'Inventory return lines immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_return_line_no_delete BEFORE DELETE ON inventory_return_lines
+ BEGIN SELECT RAISE(ABORT,'Inventory return lines immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_return_approval_guard BEFORE UPDATE OF status ON inventory_issue_returns
+ WHEN EXISTS(SELECT 1 FROM periods WHERE period=substr(OLD.returned_on,1,7))
+ OR (NEW.status='approved' AND (
+   NEW.reviewed_by IS NULL OR NEW.reviewed_by=NEW.created_by OR NEW.journal_id IS NULL OR
+   NOT EXISTS(SELECT 1 FROM gl_journals j WHERE j.id=NEW.journal_id AND j.status='posted') OR
+   NOT EXISTS(SELECT 1 FROM inventory_return_lines rl WHERE rl.return_id=OLD.id) OR
+   NEW.cost_piasters<=0 OR NEW.cost_piasters != (
+      SELECT COALESCE(SUM(rl.quantity*lot.unit_cost_piasters),0)
+      FROM inventory_return_lines rl
+      JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+      JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+      WHERE rl.return_id=OLD.id) OR
+   EXISTS (SELECT 1 FROM inventory_issues i WHERE i.id=OLD.issue_id
+      AND i.case_id IS NOT NULL AND EXISTS(
+        SELECT 1 FROM billing_cases b WHERE b.id=i.case_id AND b.status!='open')) OR
+   EXISTS (SELECT 1 FROM inventory_return_lines rl
+      JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+      JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+      JOIN inventory_issue_lines later_line ON later_line.item_id=lot.item_id
+      JOIN inventory_issues later_issue ON later_issue.id=later_line.issue_id
+      WHERE rl.return_id=OLD.id AND later_issue.status='approved'
+        AND later_issue.used_on>OLD.returned_on)
+ )) BEGIN SELECT RAISE(ABORT,'Return approval requires current period, signed original lot costs and valid FIFO date'); END;
+
+-- G3D chronological guard: a return cannot be a source of stock for
+-- a subsequently approved, backdated issue before that physical return date.
+CREATE TRIGGER IF NOT EXISTS inv_issue_postreturn_date_guard BEFORE UPDATE OF status ON inventory_issues
+ WHEN NEW.status='approved' AND EXISTS (
+    SELECT 1 FROM inventory_issue_lines il
+    JOIN inventory_issue_lines source ON source.item_id=il.item_id
+    JOIN inventory_issue_allocations a ON a.issue_line_id=source.id
+    JOIN inventory_return_lines rl ON rl.issue_allocation_id=a.id
+    JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+    WHERE il.issue_id=OLD.id AND ret.returned_on>OLD.used_on
+ ) BEGIN SELECT RAISE(ABORT,'Backdated issue predates a physical inventory return'); END;
+
+-- G3D: a pending physical return is a financial-close blocker, even for direct SQL.
+CREATE TRIGGER IF NOT EXISTS inv_return_case_close_pending_guard BEFORE UPDATE OF status ON billing_cases
+ WHEN NEW.status='closed' AND OLD.status!='closed' AND EXISTS (
+   SELECT 1 FROM inventory_issue_returns ret
+   JOIN inventory_issues issue ON issue.id=ret.issue_id
+   WHERE issue.case_id=OLD.id AND ret.status='pending'
+ ) BEGIN SELECT RAISE(ABORT,'Pending inventory return prevents case financial closure'); END;
