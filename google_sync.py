@@ -111,6 +111,11 @@ def cell(value):
 
 def sync_to_google(db):
     verify_preview_sheet()
+    # Payroll, audit details, voucher references and employee names can be PII.
+    # A configured Google Sheet alone is NOT a privacy approval. Free preview
+    # is restricted by verify_preview_sheet() to its isolated synthetic demo.
+    if os.getenv('RAMSES_ENVIRONMENT') != 'free-preview' and os.getenv('RAMSES_GOOGLE_SYNC_SENSITIVE_APPROVED') != '1':
+        raise ValueError('Sensitive Google mirror disabled: requires documented consent and RAMSES_GOOGLE_SYNC_SENSITIVE_APPROVED=1')
     session = get_session()
     spreadsheet_id = os.environ["GOOGLE_SHEET_ID"].strip()
     base = BASE + "/" + quote(spreadsheet_id, safe="")

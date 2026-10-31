@@ -1,12 +1,23 @@
-# Ramses Accounts — Current Development Release
+# Ramses Accounts — source release ledger (31 October 2026)
 
-- Version: `V8.1E-G2P` — 31 October 2026
-- Baseline: G2O; previous sources, audits and schema migrations preserved.
-- Status: **DEVELOPMENT / TEST ONLY — NO GO for real patient data or cash**.
-- Scope: preflight, request, two-person approval, final financial close and zero-charge cancellation for inpatient, NICU and operation cases; no clinical discharge.
-- Integrity: SQLite transactional approval, idempotent request, historical audit snapshot and closed-case DB mutation guards.
-- Tests: 76 scripts — **72 PASS, 3 SKIP due historical fixtures, 1 BLOCKED (V8.0 ZIP absent)**; synthetic Chromium UI at 1440/375/320.
-- Read: `RAMSES_V81E_G2P_CASE_CLEARANCE_QA_AR.md`, `QA_G2P_TEST_RESULTS.tsv`, `RAMSES_MASTER_PLAN_AR.md`.
-- Not delivered: bed occupancy / per-day pricing, operation/NICU resource charging, complete inventory/suppliers/physician payables, full RBAC, clinical discharge integration, historical migration verification, real hospital rollout or accountant sign-off.
+**Current source:** `V8.1E-G2Q` — Project Autopilot security-foundation increment based on G2P.
+**Environment:** local source archive only. DEVELOPMENT / TEST ONLY — **NO-GO for real money or patient data.**
 
-To reproduce the blocked test, place the genuine V8.0 archive in `tests/fixtures/` or use the `RAMSES_V80_ARCHIVE` environment variable. Never use a fake source ZIP.
+## Implemented (synthetic-data verified)
+- F-012: `login_rate_events` per observed socket source and username; separate 40/15-minute per-source cap; failures only, owner on another source not locked out.
+- F-013: employee directory hidden from clerk and viewer in `/api/lookups`; owner/reviewer retain payroll review directory.
+- F-015: `backup.py` and systemd-compatible `backup_local.sh` now use authenticated encrypted `.rbe` backups or fail closed.
+- F-016: SQL triggers deny update/delete of `audit_log` in an ordinary connected SQLite session.
+- F-014 (partial): non-demo Google Sheets mirror now requires explicit privacy approval before any remote request; free preview remains bound to isolated synthetic staging sheet.
+- F-026: keyboard skip navigation to main content, verified with offline Chromium at 375px.
+- G2P -> G2Q genuine frozen-schema fixture tested twice with preserved records.
+- M0: local CI smoke command `python3 scripts/ci_smoke.py` and GitHub Actions workflow authored **but remote CI not yet executed**.
+
+## Constraints
+- Auth source address depends on trusted ASGI proxy configuration; remote distributed abuse and shared-network throttling require additional controls/MFA.
+- SQL triggers do not stop privileged SQLite file owners from tampering; independently stored append-only audit trails required.
+- Existing plaintext backups require inventory/secure treatment; script change does not encrypt old files or set up off-device storage.
+- Live Git repository/CI, V8.0 migration fixture, real browsers/devices and accountants' production sign-off remain unverified.
+- Missing hospital modules: bed occupancy, operations/NICU costing, procurement/inventory/suppliers, physician fees, annual close, full RBAC.
+
+**Evidence:** `RAMSES_V81E_G2Q_AUTOPILOT_QA_AR.md`, `QA_G2Q_TEST_RESULTS.tsv` and the 32-item register updated as `RAMSES_G2Q_FINDINGS_REGISTER.json`.

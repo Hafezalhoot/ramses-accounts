@@ -489,3 +489,7 @@ input::placeholder,textarea::placeholder{color:#556e77}
 .billing-clearance-status{display:block;font-size:13px;color:var(--ink,#263a40);padding:10px;
  background:var(--canvas,#f5f8f9);border-radius:8px}
 @media(max-width:620px){.billing-clearance .billing-actions{display:grid;grid-template-columns:1fr;gap:8px}}
+
+/* G2Q / F-026: skip the long RTL navigation with the first keyboard Tab. */
+.skip-link{position:fixed;top:8px;right:10px;z-index:9999;max-width:calc(100vw - 20px);padding:12px 17px;border-radius:10px;background:#142f35;color:#fff;font-size:15px;font-weight:700;line-height:1.5;transform:translateY(-160%);transition:none}
+.skip-link:focus-visible{transform:none;outline:3px solid #f1c661;outline-offset:3px}

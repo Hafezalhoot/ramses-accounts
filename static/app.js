@@ -66,7 +66,7 @@ async function bootstrapUI(){
  const eLabel=$(".environment-label");
  eLabel.textContent="بيئة اختبار • لا تسجل بيانات مالية فعلية";
  eLabel.classList.toggle("test-mode",trial);
- $(".site-footer span:last-child").textContent="V8.1E-G2P • غير معتمد للتشغيل الحقيقي";
+ $(".site-footer span:last-child").textContent="V8.1E-G2Q • غير معتمد للتشغيل الحقيقي";
  const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],reports:["viewer","reviewer","owner"],owner:["owner"]};
  $$('[data-permission]').forEach(el=>{el.hidden=!(allowed[el.dataset.permission]||[]).includes(state.me.role)});
  if((state.me.role==="clerk")&&["reviews","legacy","payroll","reports","bank","accounting","admin"].includes(state.view))state.view="dashboard";

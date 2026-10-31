@@ -1,5 +1,5 @@
 [Unit]
-Description=Ramses Accounts - Consistent daily SQLite backup
+Description=Ramses Accounts - Encrypted verified daily SQLite backup
 Requires=docker.service
 After=docker.service
 

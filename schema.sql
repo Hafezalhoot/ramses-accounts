@@ -8,6 +8,15 @@ CREATE TABLE IF NOT EXISTS sessions (
  token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id), csrf TEXT NOT NULL, expires_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY, username TEXT NOT NULL, occurred_at TEXT NOT NULL);
+-- G2Q: only failed attempts from the same observed source may throttle a user;
+-- do not apply an attacker-controlled username-only lock across the hospital.
+CREATE TABLE IF NOT EXISTS login_rate_events (
+ id INTEGER PRIMARY KEY, username TEXT NOT NULL, source_key TEXT NOT NULL,
+ occurred_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_login_rate_source_time ON login_rate_events(source_key, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_login_rate_source_user ON login_rate_events(source_key, username, occurred_at);
+
 CREATE TABLE IF NOT EXISTS departments (
  id INTEGER PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL UNIQUE, active INTEGER NOT NULL DEFAULT 1
 );
@@ -268,6 +277,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
  id INTEGER PRIMARY KEY, actor_id INTEGER REFERENCES users(id), action TEXT NOT NULL,
  entity TEXT NOT NULL, entity_id TEXT NOT NULL, details TEXT DEFAULT '{}', created_at TEXT NOT NULL
 );
+-- G2Q: app-level SQL immutability. A privileged OS/DB administrator could
+-- still replace the database or drop triggers: use off-device tamper-evident
+-- archival audit storage for production-grade forensic protection.
+CREATE TRIGGER IF NOT EXISTS audit_log_no_update BEFORE UPDATE ON audit_log
+ BEGIN SELECT RAISE(ABORT,'Approved audit events are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS audit_log_no_delete BEFORE DELETE ON audit_log
+ BEGIN SELECT RAISE(ABORT,'Approved audit events are append-only'); END;
 CREATE TABLE IF NOT EXISTS sync_status (
  id INTEGER PRIMARY KEY CHECK(id=1), dirty INTEGER NOT NULL DEFAULT 1, revision INTEGER NOT NULL DEFAULT 0, synced_revision INTEGER NOT NULL DEFAULT 0, last_synced_at TEXT, last_error TEXT
 );

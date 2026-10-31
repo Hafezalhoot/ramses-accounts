@@ -550,22 +550,31 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G2P Financial Case Clearance - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G2Q Security Foundation - Test Only"}
 
 
 @app.post("/api/login")
-def login(body: LoginForm, response: Response, c: sqlite3.Connection = Depends(db)):
+def login(body: LoginForm, response: Response, request: Request, c: sqlite3.Connection = Depends(db)):
     username = body.username.strip().lower()
+    # Source is the *socket peer* assigned by ASGI. Never trust a user-provided
+    # X-Forwarded-For header; production proxy trust must be configured explicitly.
+    source = request.client.host if request.client else "unknown"
+    source_key = hashlib.sha256(source.encode("utf-8")).hexdigest()
     cutoff = (datetime.now(timezone.utc)-timedelta(minutes=15)).isoformat()
-    c.execute("DELETE FROM login_attempts WHERE occurred_at<?",(cutoff,))
-    cnt = c.execute("SELECT count(*) FROM login_attempts WHERE username=?",(username,)).fetchone()[0]
-    if cnt>=5:
-        fail("محاولات كثيرة؛ حاول بعد 15 دقيقة",429)
-    c.execute("INSERT INTO login_attempts(username,occurred_at) VALUES (?,?)",(username,stamp()))
-    row = c.execute("SELECT * FROM users WHERE username=? AND active=1",(username,)).fetchone()
+    c.execute("DELETE FROM login_rate_events WHERE occurred_at<?", (cutoff,))
+    total = c.execute("SELECT COUNT(*) FROM login_rate_events WHERE source_key=?",
+                      (source_key,)).fetchone()[0]
+    targeted = c.execute("SELECT COUNT(*) FROM login_rate_events WHERE source_key=? AND username=?",
+                         (source_key, username)).fetchone()[0]
+    if total >= 40 or targeted >= 5:
+        fail("محاولات كثيرة من هذا الاتصال؛ حاول بعد 15 دقيقة", 429)
+    row = c.execute("SELECT * FROM users WHERE username=? AND active=1", (username,)).fetchone()
     if not row or not verify_password(body.password, row["password_hash"]):
-        fail("اسم المستخدم أو كلمة المرور غير صحيحة",401)
-    c.execute("DELETE FROM login_attempts WHERE username=?",(username,))
+        c.execute("INSERT INTO login_rate_events(username,source_key,occurred_at) VALUES (?,?,?)",
+                  (username, source_key, stamp()))
+        fail("اسم المستخدم أو كلمة المرور غير صحيحة", 401)
+    c.execute("DELETE FROM login_rate_events WHERE source_key=? AND username=?",
+              (source_key, username))
     token = secrets.token_urlsafe(36)
     csrf = secrets.token_urlsafe(28)
     exp = (datetime.now(timezone.utc)+timedelta(hours=10)).isoformat()
@@ -593,7 +602,9 @@ def lookups(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     return {"departments":[dict(r) for r in c.execute("SELECT * FROM departments WHERE active=1 ORDER BY id")],
             "categories":[dict(r) for r in c.execute("SELECT * FROM categories WHERE active=1 ORDER BY direction,name")],
             "funds":[dict(r) for r in c.execute("SELECT id,code,name,kind,active FROM funds WHERE active=1 ORDER BY id")],
-            "employees":[dict(r) for r in c.execute("SELECT id,code,name,job_title,department_id FROM employees WHERE active=1 ORDER BY name")],
+            # Staff directory is financial/HR data, not a public authenticated lookup.
+            # Reviewers retain it for assigned payroll review; clerks/viewers do not.
+            "employees":[dict(r) for r in c.execute("SELECT id,code,name,job_title,department_id FROM employees WHERE active=1 ORDER BY name")] if user["role"] in ("owner", "reviewer") else [],
             "shifts":[{"code":a,"name":b} for a,b in (("morning","صباحي"),("evening","مسائي"),("night","سهر"),("central","الحسابات المركزية"))]}
 
 

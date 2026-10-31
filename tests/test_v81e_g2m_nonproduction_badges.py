@@ -8,12 +8,12 @@ def run():
     js=(ROOT/'static/app.js').read_text()
     html=(ROOT/'static/index.html').read_text()
     api=(ROOT/'app.py').read_text()
-    assert 'V8.1E-G2P' in js and 'V8.1E-G2P' in html
-    assert 'Ramses Accounts V8.1E G2P Financial Case Clearance - Test Only' in api
+    assert 'V8.1E-G2Q' in js and 'V8.1E-G2Q' in html
+    assert 'Ramses Accounts V8.1E G2Q Security Foundation - Test Only' in api
     assert 'const trial=true;' in js
     assert 'eLabel.textContent="' in js
     assert 'تشغيل فعلي محمي' not in js
-    assert 'G2P' in (ROOT/'START_Ramses_Mac.command').read_text()
+    assert 'G2Q' in (ROOT/'START_Ramses_Mac.command').read_text()
     print('PASS G2M: unapproved environment cannot display false production-approved status')
 
 

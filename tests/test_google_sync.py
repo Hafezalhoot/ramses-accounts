@@ -45,6 +45,7 @@ def run():
         os.environ['RAMSES_ADMIN_USER'] = 'owner'
         os.environ['RAMSES_ADMIN_PASSWORD'] = 'test_only_password_16plus'
         os.environ['GOOGLE_SHEET_ID'] = 'private_sheet_test'
+        os.environ['RAMSES_GOOGLE_SYNC_SENSITIVE_APPROVED'] = '1'  # synthetic data only
         from bootstrap import initialize, connect
         import google_sync
 
