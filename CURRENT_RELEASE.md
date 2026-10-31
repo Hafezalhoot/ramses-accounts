@@ -1,3 +1,8 @@
+# Ramses Accounts V8.1E-G2T — Development / TEST ONLY
+
+**Current tested source:** G2T based on frozen G2S; no live installation. New central non-drug inventory supplier receipt and FIFO issue with independent approval and linked balanced GL. See `RAMSES_V81E_G2T_INVENTORY_QA_AR.md`. Tests: 93/97 PASS, 3 historical SKIP, 1 blocked V8.0; CI smoke 25/25 PASS locally (separate run). No producer supplier settlement or pharmacy, **NO GO**.
+
+---
 # Ramses Accounts V8.1E-G2S — Development and testing only
 
 ## G2S — Project Autopilot M4b (2026-10-31)

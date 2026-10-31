@@ -1,32 +1,30 @@
-# Ramses Accounts — Project Autopilot status
+# Ramses Accounts — Project Autopilot status (G2T)
 
-Last audited: 2026-10-31. **Current source: V8.1E-G2S** (based on G2R, backed by Git history). **Status: tested locally on synthetic data; NO-GO for production.** Nothing was deployed to a hospital system. There is no verified remote CI or offsite restore.
+**Observed source:** V8.1E-G2T developed from the exact G2S ZIP; operating only in synthetic local tests, not deployed. **Production: NO-GO.** Existing Git history G2P→G2S retained, G2T commit added locally.
 
-## Implemented in this increment
+## New implemented/tested source
 
-- Owner-only, idempotent and atomic bed transfer with independent immutable evidence; no GL entry or clinical discharge.
-- Month-close gate independently checks dated bed nights from all earlier patient admissions, reconciles ordered nights with issued and posted GL journals for the appropriate month, and refuses unresolved periods.
-- Database triggers prevent retroactive changes to closed periods, stale date-effective tariffs, unauthorized mutation of transfer records, and cross-case misassignment.
-- Historical private June preview workbook is omitted from exported ZIP. Missing fixture gives an explicit archive error and test SKIP, not invented hospital financial data.
-- G2R original schema fixture upgrades twice to G2S without losing synthetic patient, stay, tariff, night or audit records.
+- Central **non-drug** consumables stock, vendor/item catalog, receipts and issues with owner-issued prep/reviewer authorization, FIFO allocation by approved receipt lots.
+- Review-approved receipts: Dr GL 1100 / Cr 2200; review-approved issues Dr 5100 / Cr 1100. No supplier cash payment, VAT treatment or patient invoice posted automatically.
+- New source-linked inventory journal reconciliation in period close; not a certification of previously untracked historical inventory in GL 1100.
+- Approved document immutability, closed-period guards, one approval under concurrency, no negative stock, double-check reviewer grants inside write transaction.
+- Frontend RTL tested offline 1440/375/320; server app status and launcher release labels aligned to G2T.
+- Original G2S SQL schema upgrade twice into G2T; patient/GL/shift tests retained.
 
-## Test status
+## Evidence
 
-Full test inventory executed individually: **91 scripts: PASS 85, SKIP 5, BLOCKED/FAIL 1**. One blocked historic `test_billing_upgrade_v81.py` requires original V8.0 ZIP. Two skipped historical June workbook previews; three skipped historical upgrade fixtures. See `QA_G2S_TEST_RESULTS.tsv` and `RAMSES_V81E_G2S_TRANSFERS_QA.md`.
+- 97 Python tests: 93 PASS (combined split-suite runs plus targeted post-fix reruns), 3 SKIP (missing old schema source archives), 1 BLOCKED (missing original V8.0 archive). No general-purpose 97-test one-process run claimed.
+- 25/25 local CI smoke tests passed in an independent parallel test run after feature and authorization fixes.
+- Files: `RAMSES_V81E_G2T_INVENTORY_QA_AR.md`, `QA_G2T_TEST_RESULTS.tsv`, `QA_G2T_CI_25_TEST_RESULTS.tsv`.
 
-CI smoke script is a local test gate only, not a deployment or proof of a remote GitHub run. G2S source ZIP contains no live DB or uploaded patient data, private workbook, or credentials.
+## Outstanding safety and product issues
 
-## Current business rules are NOT approved
+- Unapproved hospital procurement/tax and drug policies, supplier payments/refunds, purchase orders, multi-store stock count and pharmacist controls.
+- Existing GL `inventory_buy` vouchers bypass the G2T **physical** quantity subledger; source-only reconciler does not certify the entire historical 1100 asset balance.
+- No complete doctor costs, surgery/neonatal costing, real hospital RBAC/restore/production UAT; no real network or bank acceptance.
 
-- Midnight-calendar-night billing is a **proposed** trial policy, not hospital-authorized charging. Intraday proration, payer contracts, transfers, refunds and medical sign-off are unresolved.
-- Operational transfer belongs to owner in this prototype; clinical admission/ward/nursing custody roles are not implemented.
-- Long-stay accrual and automatic monthly postings have not been implemented. Existing G2R >366-day limit needs a monthly cursor and pagination.
-- Cashier, banks, accounting and patient clearance have passed scoped tests but are not independently accepted for real funds or sensitive patient information.
+## Next three executable slices
 
-## Next three highest-value actions (pending authorization and accounting policy)
-
-1. M4c: hospital-approved room/ICU tariff-day cutoffs, in-period accrual vs invoice, long-stay monthly invoice cursor; test multi-month balances and correction paths.
-2. M6: purchase orders, vendor AP, goods receipts, lot/expiry, stock valuation and per-case consumable allocation with no negative stock or duplicate expense.
-3. M5/M7: surgical and neonatal consumables/costing plus physician accrual/settlement, cross-ledger reconcile; then independent staff/finance acceptance.
-
-**Release gate: NO-GO** until clinical/finance acceptance, full RBAC, historical migration, real device rehearsal, and verified encrypted off-device backup restore. No production bank, patient or money actions without a separate approved migration/rollback plan.
+1. Purchase orders, vendor reconciliation and proof-backed payments/refunds—test supplier balance and bank match.
+2. Approved multiple warehouses, transfers, stock count/variance, case-level cost allocation—negative quantity and closed month concurrency tests.
+3. End-to-end finance/security UAT, off-site encrypted restore and evidence sign-off before **any** real deployment.

@@ -1378,3 +1378,157 @@ CREATE TRIGGER IF NOT EXISTS bed_night_latest_tariff BEFORE INSERT ON bed_night_
     WHERE p.service_id=b.service_id AND p.valid_from<=NEW.night_date
     ORDER BY p.valid_from DESC,p.id DESC LIMIT 1)
  BEGIN SELECT RAISE(ABORT,'Night charge must use latest effective-dated tariff'); END;
+
+-- G2T (TEST ONLY): immutable central consumables warehouse subledger.
+-- Medical prescriptions, pharmacy, VAT and cash settlement are OUT OF SCOPE.
+CREATE TABLE IF NOT EXISTS inventory_vendors (
+ id INTEGER PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
+ active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1))
+);
+CREATE TABLE IF NOT EXISTS inventory_items (
+ id INTEGER PRIMARY KEY, code TEXT NOT NULL UNIQUE, name TEXT NOT NULL,
+ unit TEXT NOT NULL CHECK(unit IN ('piece','box','pack','bottle','meter')),
+ active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1))
+);
+CREATE TABLE IF NOT EXISTS inventory_access (
+ user_id INTEGER PRIMARY KEY REFERENCES users(id),
+ can_prepare INTEGER NOT NULL DEFAULT 0 CHECK(can_prepare IN (0,1)),
+ can_approve INTEGER NOT NULL DEFAULT 0 CHECK(can_approve IN (0,1)),
+ changed_by INTEGER NOT NULL REFERENCES users(id), changed_at TEXT NOT NULL,
+ reason TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS inventory_receipts (
+ id INTEGER PRIMARY KEY, vendor_id INTEGER NOT NULL REFERENCES inventory_vendors(id),
+ received_on TEXT NOT NULL, invoice_ref TEXT NOT NULL, evidence_ref TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_by INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL,
+ reviewed_by INTEGER REFERENCES users(id), reviewed_at TEXT, review_note TEXT,
+ journal_id INTEGER UNIQUE REFERENCES gl_journals(id),
+ CHECK(status!='approved' OR (reviewed_by IS NOT NULL AND reviewed_by!=created_by AND journal_id IS NOT NULL))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_supplier_invoice ON inventory_receipts(vendor_id,invoice_ref)
+ WHERE status IN ('pending','approved');
+CREATE INDEX IF NOT EXISTS idx_inventory_receipts_day ON inventory_receipts(received_on,status);
+CREATE TABLE IF NOT EXISTS inventory_receipt_lines (
+ id INTEGER PRIMARY KEY, receipt_id INTEGER NOT NULL REFERENCES inventory_receipts(id),
+ item_id INTEGER NOT NULL REFERENCES inventory_items(id),
+ quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 1000000),
+ unit_cost_piasters INTEGER NOT NULL CHECK(unit_cost_piasters BETWEEN 1 AND 100000000000),
+ batch_ref TEXT NOT NULL DEFAULT '', expiry_date TEXT,
+ CHECK(expiry_date IS NULL OR length(expiry_date)=10)
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_receipt_lines_item ON inventory_receipt_lines(item_id,receipt_id);
+CREATE TABLE IF NOT EXISTS inventory_issues (
+ id INTEGER PRIMARY KEY, department_id INTEGER NOT NULL REFERENCES departments(id),
+ case_id INTEGER REFERENCES billing_cases(id), used_on TEXT NOT NULL,
+ evidence_ref TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_by INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL,
+ reviewed_by INTEGER REFERENCES users(id), reviewed_at TEXT, review_note TEXT,
+ cost_piasters INTEGER NOT NULL DEFAULT 0 CHECK(cost_piasters>=0),
+ journal_id INTEGER UNIQUE REFERENCES gl_journals(id),
+ CHECK(status!='approved' OR (reviewed_by IS NOT NULL AND reviewed_by!=created_by AND journal_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_issues_day ON inventory_issues(used_on,status);
+CREATE TABLE IF NOT EXISTS inventory_issue_lines (
+ id INTEGER PRIMARY KEY, issue_id INTEGER NOT NULL REFERENCES inventory_issues(id),
+ item_id INTEGER NOT NULL REFERENCES inventory_items(id),
+ quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 1000000),
+ UNIQUE(issue_id,item_id)
+);
+CREATE TABLE IF NOT EXISTS inventory_issue_allocations (
+ id INTEGER PRIMARY KEY, issue_id INTEGER NOT NULL REFERENCES inventory_issues(id),
+ issue_line_id INTEGER NOT NULL REFERENCES inventory_issue_lines(id),
+ receipt_line_id INTEGER NOT NULL REFERENCES inventory_receipt_lines(id),
+ quantity INTEGER NOT NULL CHECK(quantity>0),
+ cost_piasters INTEGER NOT NULL CHECK(cost_piasters>0),
+ UNIQUE(issue_line_id,receipt_line_id)
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_lot_allocation ON inventory_issue_allocations(receipt_line_id);
+
+CREATE TRIGGER IF NOT EXISTS inv_receipt_pending_only BEFORE INSERT ON inventory_receipts
+ WHEN NEW.status!='pending' BEGIN SELECT RAISE(ABORT,'Inventory receipt must begin pending'); END;
+CREATE TRIGGER IF NOT EXISTS inv_receipt_final_immutable BEFORE UPDATE ON inventory_receipts
+ WHEN OLD.status!='pending' BEGIN SELECT RAISE(ABORT,'Final inventory receipt is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_receipt_core_immutable BEFORE UPDATE OF
+ vendor_id,received_on,invoice_ref,evidence_ref,created_by,created_at ON inventory_receipts
+ BEGIN SELECT RAISE(ABORT,'Inventory evidence immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_receipt_no_delete BEFORE DELETE ON inventory_receipts
+ BEGIN SELECT RAISE(ABORT,'Inventory receipt cannot be deleted'); END;
+CREATE TRIGGER IF NOT EXISTS inv_receipt_line_pending BEFORE INSERT ON inventory_receipt_lines
+ WHEN NOT EXISTS (SELECT 1 FROM inventory_receipts r WHERE r.id=NEW.receipt_id AND r.status='pending')
+ BEGIN SELECT RAISE(ABORT,'Inventory receipt lines require pending source'); END;
+CREATE TRIGGER IF NOT EXISTS inv_receipt_line_no_update BEFORE UPDATE ON inventory_receipt_lines
+ BEGIN SELECT RAISE(ABORT,'Inventory lot immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_receipt_line_no_delete BEFORE DELETE ON inventory_receipt_lines
+ BEGIN SELECT RAISE(ABORT,'Inventory lot immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_receipt_approval_guard BEFORE UPDATE OF status ON inventory_receipts
+ WHEN NEW.status='approved' AND (
+   NEW.reviewed_by IS NULL OR NEW.reviewed_by=NEW.created_by OR NEW.journal_id IS NULL OR
+   NOT EXISTS(SELECT 1 FROM gl_journals j WHERE j.id=NEW.journal_id AND j.status='posted') OR
+   NOT EXISTS(SELECT 1 FROM inventory_receipt_lines l WHERE l.receipt_id=NEW.id)
+ ) BEGIN SELECT RAISE(ABORT,'Approval requires signed inventory journal'); END;
+
+CREATE TRIGGER IF NOT EXISTS inv_issue_pending_only BEFORE INSERT ON inventory_issues
+ WHEN NEW.status!='pending' BEGIN SELECT RAISE(ABORT,'Inventory issue must begin pending'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_final_immutable BEFORE UPDATE ON inventory_issues
+ WHEN OLD.status!='pending' BEGIN SELECT RAISE(ABORT,'Final inventory issue immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_core_immutable BEFORE UPDATE OF
+ department_id,case_id,used_on,evidence_ref,created_by,created_at ON inventory_issues
+ BEGIN SELECT RAISE(ABORT,'Inventory issue evidence immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_no_delete BEFORE DELETE ON inventory_issues
+ BEGIN SELECT RAISE(ABORT,'Inventory issue immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_line_pending BEFORE INSERT ON inventory_issue_lines
+ WHEN NOT EXISTS (SELECT 1 FROM inventory_issues i WHERE i.id=NEW.issue_id AND i.status='pending')
+ BEGIN SELECT RAISE(ABORT,'Inventory issue lines require pending source'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_line_no_update BEFORE UPDATE ON inventory_issue_lines
+ BEGIN SELECT RAISE(ABORT,'Inventory issue evidence immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_line_no_delete BEFORE DELETE ON inventory_issue_lines
+ BEGIN SELECT RAISE(ABORT,'Inventory issue evidence immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_allocation_guard BEFORE INSERT ON inventory_issue_allocations
+ WHEN NOT EXISTS (
+   SELECT 1 FROM inventory_issue_lines l
+   JOIN inventory_issues i ON i.id=l.issue_id
+   JOIN inventory_receipt_lines rl ON rl.id=NEW.receipt_line_id AND rl.item_id=l.item_id
+   JOIN inventory_receipts r ON r.id=rl.receipt_id
+   WHERE l.id=NEW.issue_line_id AND l.issue_id=NEW.issue_id AND i.status='pending'
+      AND r.status='approved' AND r.received_on<=i.used_on
+      AND (rl.expiry_date IS NULL OR rl.expiry_date>=i.used_on)
+      AND NEW.cost_piasters=NEW.quantity*rl.unit_cost_piasters
+      AND NEW.quantity + COALESCE((SELECT SUM(a.quantity) FROM inventory_issue_allocations a
+          WHERE a.receipt_line_id=rl.id),0)<=rl.quantity
+ ) BEGIN SELECT RAISE(ABORT,'Invalid or insufficient FIFO lot allocation'); END;
+CREATE TRIGGER IF NOT EXISTS inv_allocation_no_update BEFORE UPDATE ON inventory_issue_allocations
+ BEGIN SELECT RAISE(ABORT,'Stock allocations immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_allocation_no_delete BEFORE DELETE ON inventory_issue_allocations
+ BEGIN SELECT RAISE(ABORT,'Stock allocations immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_approval_guard BEFORE UPDATE OF status ON inventory_issues
+ WHEN NEW.status='approved' AND (
+   NEW.reviewed_by IS NULL OR NEW.reviewed_by=NEW.created_by OR NEW.journal_id IS NULL OR
+   NOT EXISTS(SELECT 1 FROM gl_journals j WHERE j.id=NEW.journal_id AND j.status='posted') OR
+   NEW.cost_piasters<=0 OR
+   EXISTS (SELECT 1 FROM inventory_issue_lines l WHERE l.issue_id=NEW.id AND
+      l.quantity != COALESCE((SELECT SUM(a.quantity) FROM inventory_issue_allocations a WHERE a.issue_line_id=l.id),0))
+ ) BEGIN SELECT RAISE(ABORT,'Approved issue requires all allocated units and journal'); END;
+
+-- No retroactive stock history edits after the accounting month has been sealed.
+CREATE TRIGGER IF NOT EXISTS inv_receipt_no_closed_month BEFORE INSERT ON inventory_receipts
+ WHEN EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.received_on,1,7))
+ BEGIN SELECT RAISE(ABORT,'Closed inventory receipt month'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_no_closed_month BEFORE INSERT ON inventory_issues
+ WHEN EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.used_on,1,7))
+ BEGIN SELECT RAISE(ABORT,'Closed inventory issue month'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_closed_patient_case BEFORE INSERT ON inventory_issues
+ WHEN NEW.case_id IS NOT NULL AND EXISTS(SELECT 1 FROM billing_cases b
+  WHERE b.id=NEW.case_id AND (b.status!='open' OR b.business_date>NEW.used_on))
+ BEGIN SELECT RAISE(ABORT,'Cannot issue consumables to a closed or not-yet-open case'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_approval_closed_patient_case BEFORE UPDATE OF status ON inventory_issues
+ WHEN NEW.status='approved' AND NEW.case_id IS NOT NULL AND EXISTS(SELECT 1 FROM billing_cases b
+   WHERE b.id=NEW.case_id AND b.status!='open')
+ BEGIN SELECT RAISE(ABORT,'Cannot approve consumables for a closed patient case'); END;
+CREATE TRIGGER IF NOT EXISTS inv_receipt_no_closed_month_decision BEFORE UPDATE OF status ON inventory_receipts
+ WHEN EXISTS(SELECT 1 FROM periods WHERE period=substr(OLD.received_on,1,7))
+ BEGIN SELECT RAISE(ABORT,'Sealed month inventory receipt decision forbidden'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_no_closed_month_decision BEFORE UPDATE OF status ON inventory_issues
+ WHEN EXISTS(SELECT 1 FROM periods WHERE period=substr(OLD.used_on,1,7))
+ BEGIN SELECT RAISE(ABORT,'Sealed month inventory issue decision forbidden'); END;

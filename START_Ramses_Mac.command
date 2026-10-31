@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 printf '\n================================================\n'
-printf '  Ramses Accounts | Test Preview V8.1E-G2S (test only)\n'
+printf '  Ramses Accounts | Test Preview V8.1E-G2T (test only)\n'
 printf '================================================\n\n'
 if ! command -v python3 >/dev/null 2>&1; then
   echo 'Python 3 is missing. Install Python 3.11+ from python.org first.'

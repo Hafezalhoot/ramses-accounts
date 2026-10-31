@@ -66,23 +66,24 @@ async function bootstrapUI(){
  const eLabel=$(".environment-label");
  eLabel.textContent="بيئة اختبار • لا تسجل بيانات مالية فعلية";
  eLabel.classList.toggle("test-mode",trial);
- $(".site-footer span:last-child").textContent="V8.1E-G2S • غير معتمد للتشغيل الحقيقي";
- const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],reports:["viewer","reviewer","owner"],owner:["owner"]};
+ $(".site-footer span:last-child").textContent="V8.1E-G2T • غير معتمد للتشغيل الحقيقي";
+ const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],inventory:["clerk","reviewer","owner"],reports:["viewer","reviewer","owner"],owner:["owner"]};
  $$('[data-permission]').forEach(el=>{el.hidden=!(allowed[el.dataset.permission]||[]).includes(state.me.role)});
+ try{if(state.me.role!=='viewer'){await api('/api/inventory/overview');}else{throw Error('viewer');}}catch{const nav=$('[data-view="inventory"]');if(nav)nav.hidden=true;}
  if((state.me.role==="clerk")&&["reviews","legacy","payroll","reports","bank","accounting","admin"].includes(state.view))state.view="dashboard";
  await navigate(state.view);
 }
 function hideMenu(){$("#sidebar").classList.remove("open");$("#mobileShade").hidden=true;}
 async function navigate(view){
  if(!state.me)return;
- const restricted={billing:["owner","reviewer","clerk"],shifts:["owner","reviewer","clerk"],calendar:["owner","reviewer","clerk"],cashierCorrections:["owner","reviewer","clerk"],lateEntries:["owner","reviewer","clerk"],cashierRecoveries:["owner","reviewer","clerk"],cashierSettings:["owner"],reviews:["owner","reviewer"],legacy:["owner","reviewer"],payroll:["owner","reviewer"],reports:["owner","reviewer","viewer"],accounting:["owner","reviewer","viewer"],bank:["owner","reviewer"],admin:["owner"],new:["owner","reviewer","clerk"]};
+ const restricted={inventory:["owner","reviewer","clerk"],billing:["owner","reviewer","clerk"],shifts:["owner","reviewer","clerk"],calendar:["owner","reviewer","clerk"],cashierCorrections:["owner","reviewer","clerk"],lateEntries:["owner","reviewer","clerk"],cashierRecoveries:["owner","reviewer","clerk"],cashierSettings:["owner"],reviews:["owner","reviewer"],legacy:["owner","reviewer"],payroll:["owner","reviewer"],reports:["owner","reviewer","viewer"],accounting:["owner","reviewer","viewer"],bank:["owner","reviewer"],admin:["owner"],new:["owner","reviewer","clerk"]};
  if(restricted[view]&&!restricted[view].includes(state.me.role)){toast("ليست لديك صلاحية لهذه الصفحة",true);return;}
  state.view=view;hideMenu();$$('.nav-link[data-view]').forEach(b=>b.classList.toggle("active",b.dataset.view===view));
- const titles={billing:"الحالات والفواتير",dashboard:"نظرة عامة",new:"تسجيل سند",ledger:"دفتر الحركات",reviews:"الاعتمادات",funds:"الخزن والحسابات",shifts:"الورديات والجرد",calendar:"تقويم الورديات",cashierSettings:"إعدادات ورديات الكاشير",cashierRecoveries:"تسوية فروق الخزنة",cashierCorrections:"بلاغات تصحيح العمليات",lateEntries:"استدراك العمليات المتأخرة",payroll:"المرتبات",reports:"التقارير",accounting:"دفتر الأستاذ",bank:"مطابقة البنك",legacy:"الأرشيف التاريخي",admin:"الإدارة"};
+ const titles={inventory:"المخزن المركزي",billing:"الحالات والفواتير",dashboard:"نظرة عامة",new:"تسجيل سند",ledger:"دفتر الحركات",reviews:"الاعتمادات",funds:"الخزن والحسابات",shifts:"الورديات والجرد",calendar:"تقويم الورديات",cashierSettings:"إعدادات ورديات الكاشير",cashierRecoveries:"تسوية فروق الخزنة",cashierCorrections:"بلاغات تصحيح العمليات",lateEntries:"استدراك العمليات المتأخرة",payroll:"المرتبات",reports:"التقارير",accounting:"دفتر الأستاذ",bank:"مطابقة البنك",legacy:"الأرشيف التاريخي",admin:"الإدارة"};
  $("#crumbTitle").textContent=titles[view]||"الإدارة المالية";
  $("#content").innerHTML='<div class="loading-state">جاري تحميل البيانات…</div>';
  try{
-  const f={billing:window.renderBilling,dashboard:renderDashboard,new:renderNew,ledger:renderLedger,reviews:renderReviews,funds:renderFunds,shifts:renderShifts,calendar:window.renderCashierCalendar,cashierSettings:window.renderCashierSettings,cashierRecoveries:window.renderCashierRecoveries,cashierCorrections:window.renderFinancialCorrections,lateEntries:window.renderLateEntries,payroll:renderPayroll,reports:renderReports,accounting:renderAccounting,bank:renderBankReconciliation,legacy:renderLegacy,admin:renderAdmin}[view];
+  const f={inventory:window.renderInventory,billing:window.renderBilling,dashboard:renderDashboard,new:renderNew,ledger:renderLedger,reviews:renderReviews,funds:renderFunds,shifts:renderShifts,calendar:window.renderCashierCalendar,cashierSettings:window.renderCashierSettings,cashierRecoveries:window.renderCashierRecoveries,cashierCorrections:window.renderFinancialCorrections,lateEntries:window.renderLateEntries,payroll:renderPayroll,reports:renderReports,accounting:renderAccounting,bank:renderBankReconciliation,legacy:renderLegacy,admin:renderAdmin}[view];
   await f();
  }catch(error){errorView(error.message);}
 }

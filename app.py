@@ -550,7 +550,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G2S Bed-Stay Development - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G2T Inventory Development - Test Only"}
 
 
 @app.post("/api/login")
@@ -2952,6 +2952,10 @@ def check_period_close_ready(c,period,user):
     if c.execute("""SELECT 1 FROM gl_journals WHERE substr(entry_date,1,7)=? AND status='pending' LIMIT 1""",
                 (period,)).fetchone():
         fail("لا يمكن إقفال شهر فيه قيود محاسبية تنتظر الاعتماد",409)
+    # Independently reviewed central-store documents must reconcile before a month is sealed.
+    stock_issue=month_close_inventory_issue(c,period)
+    if stock_issue:
+        fail(stock_issue,409)
     # Bed nights belong to their service month, not the case admission month.
     # Do not close a month with missing nights or unrealized invoicing.
     issue=month_close_bed_issue(c,period)
@@ -3235,3 +3239,5 @@ app.include_router(case_settlement_router)
 
 from bed_stays import router as bed_stays_router, month_close_bed_issue
 app.include_router(bed_stays_router)
+from inventory import router as inventory_router, month_close_inventory_issue
+app.include_router(inventory_router)

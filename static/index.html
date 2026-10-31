@@ -7,6 +7,7 @@
   <meta name="description" content="نظام حسابات مستشفى رمسيس الداخلي">
   <title>رمسيس | الإدارة المالية</title>
   <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/inventory_ui.js" defer></script>
   <script src="/static/billing.js" defer></script>
   <script src="/static/app.js" defer></script>
   <script src="/static/pos_settlements_ui.js" defer></script>
@@ -66,6 +67,8 @@
       <button data-view="lateEntries" class="nav-link" data-permission="entry"><svg class="i"><use href="#i-archive"/></svg>الورديات والعمليات المتأخرة</button>
       <button data-view="cashierCorrections" class="nav-link" data-permission="entry"><svg class="i"><use href="#i-file"/></svg>بلاغات تصحيح العمليات</button>
       <button data-view="bank" class="nav-link" data-permission="review"><svg class="i"><use href="#i-wallet"/></svg>مطابقة البنك</button>
+      <div class="nav-group-label">المستلزمات والمخازن</div>
+      <button data-view="inventory" class="nav-link" data-permission="inventory"><svg class="i"><use href="#i-archive"/></svg>المخزن المركزي <span class="nav-bubble" style="background:#f6df9e;color:#583e0d">تجريبي</span></button>
       <div class="nav-group-label">الحسابات والتقارير</div>
       <button data-view="accounting" class="nav-link" data-permission="reports"><svg class="i"><use href="#i-list"/></svg>دفتر الأستاذ التجريبي</button>
       <button data-view="reports" class="nav-link" data-permission="reports"><svg class="i"><use href="#i-chart"/></svg>التقارير والتحليل</button>
@@ -84,7 +87,7 @@
     </header>
     <div class="demo-mobile-banner" role="note"><strong>بيئة اختبار</strong><span>لا تُسجّل أموالًا أو بيانات مرضى حقيقية.</span></div>
     <main class="content" id="content" tabindex="-1"><div class="loading-state">جاري تحميل بيانات النظام…</div></main>
-    <footer class="site-footer"><span>رمسيس · الحسابات الداخلية</span><span>نسخة V8.1E-G2S — تجريبية</span></footer>
+    <footer class="site-footer"><span>رمسيس · الحسابات الداخلية</span><span>نسخة V8.1E-G2T — تجريبية</span></footer>
   </div>
 </div>
 
