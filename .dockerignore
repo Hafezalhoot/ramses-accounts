@@ -1,0 +1,23 @@
+.env
+.env.*
+!.env.example
+**/__pycache__
+*.pyc
+private/
+secrets/
+imports/
+*.xlsx
+*.zip
+*.sqlite*
+*.db
+.git/
+.venv/
+tests/
+
+# Never bake credentials or cash records into the deployed image.
+*.pem
+*.key
+*service-account*.json
+render-secrets/
+data/
+backups/

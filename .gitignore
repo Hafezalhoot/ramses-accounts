@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+data/
+backups/
+secrets/
+private/
+imports/
+*.sqlite*
+*.db
+*.zip
+*.xlsx
+__pycache__/
+*.pyc
+.venv/

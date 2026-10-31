@@ -1,0 +1,68 @@
+{
+  "app": "Ramses Accounts",
+  "version": "V8.1E-G2M",
+  "baseline": "V8.1E-G2L",
+  "status": "DEVELOPMENT_TEST_ONLY_NOT_FOR_LIVE_FINANCES",
+  "tested_scripts": [
+    {
+      "name": "test_v81e_g2m_secure_backup.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_v81e_g2m_finance_preflight.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_v81e_g2m_nonproduction_badges.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_v81e_g2i_financial_safety.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_v81e_g2j_treasury_integrity.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_v81e_g2k_pos_settlement.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_v81e_g2l_fund_opening.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_v81e_g2l_opening_concurrency.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_v81e_g0_billing_close.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_general_ledger.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_user_lifecycle.py",
+      "result": "PASS"
+    },
+    {
+      "name": "test_local_server.py",
+      "result": "PASS"
+    }
+  ],
+  "historical_v80_test": "BLOCKED_ARCHIVE_NOT_ACCESSIBLE",
+  "files_sha256": {
+    "app.py": "ae821167bda2610ecb58c25fc31f91caf57c00c87c85f7f3f9863bed56db77e5",
+    "bootstrap.py": "f219cfc77feb5cea0763aac40caedbf4d19a9617e9f1dfb7ffdaa9b4436c7596",
+    "ledger.py": "186fb8049802b07e7e99a5ceb93e6feb108ab52d29111e74e224931f2b22b37e",
+    "schema.sql": "8337decfdf422c19b03fdd6b0f6702c527704f69cc128d416174b02ec2a7dd44",
+    "scripts/secure_backup.py": "331166d76a30bff90db4bbf4007ca9f4d31d6cd7fca8c44ca2dc4a18214fdf48",
+    "scripts/finance_preflight.py": "aaa84350724c6d795dd2dd2db6c604d05a18cf6e8fa2ca5ec686104878291dfc",
+    "static/app.js": "9d56bb38303bf2e5e37af095bc401fe43d35472e2c1f25691e151e73727e550c",
+    "START_Ramses_Mac.command": "738e71df763a82e3b00f24492f9f509cd38df87a8b38f6bd4c54d22a7759c37b",
+    "requirements.txt": "3f0803400bf255147862c55bd20a416c417136c3c5bca511252952cf982e2920"
+  }
+}

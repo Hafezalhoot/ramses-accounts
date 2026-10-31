@@ -1,0 +1,10 @@
+[Unit]
+Description=Ramses encrypted backup staging schedule (not off-site replication)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=ramses-encrypted-backup.service
+
+[Install]
+WantedBy=timers.target

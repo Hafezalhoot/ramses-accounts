@@ -1,0 +1,337 @@
+test	status	seconds	last_output
+test_bank_migration.py	PASS	1.43	"Pre-V8 consistent SQLite upgrade backup: /tmp/tmpetds2kas/pre_gl_upgrade_backups/before_v8_20261031_143208_7d547f.sqlite3
+Upgraded legacy shift names with a verified SQLite snapshot
+Database initialized: /tmp/tmpetds2kas/existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpetds2kas/existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - V7.5 ledger survives additive bank schema upgrade twice without silent matching
+"
+test_bank_reconciliation.py	PASS	3.75	"Database initialized: /tmp/tmp3ntua11p/bank.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — bank CSV evidence, manual matching and undo audit, two-person approval, immutable posting lock, month close, roles and correction
+"
+test_billing_credit_refunds_v81c.py	PASS	3.2	"Database initialized: /tmp/tmpl8hxekg9/credits.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1C credit notes, AR, contra revenue, approved patient refund, protected reversal, unused advance, trial balance
+"
+test_billing_foundation_v81.py	PASS	3.39	"Database initialized: /tmp/tmptfhld8g4/billing.db
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmptfhld8g4/billing.db
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1A: dual-station permissions, separate internal case, catalog prices, fulfillment, idempotency, unposted draft
+"
+test_billing_invoicing_v81b.py	PASS	3.41	"Database initialized: /tmp/tmpmfc1e_k7/billing_v81b.db
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1B: invoice -> AR/revenue, split POS/cash, advance -> liability, allocation, double entry, shifts, security, idempotency
+"
+test_billing_upgrade_v81.py	FAIL	1.03	"Traceback (most recent call last):
+  File ""/mnt/data/ramses_g2p_work/ramses_accounts/tests/test_billing_upgrade_v81.py"", line 61, in <module>
+    if __name__=='__main__':run()
+                            ~~~^^
+  File ""/mnt/data/ramses_g2p_work/ramses_accounts/tests/test_billing_upgrade_v81.py"", line 43, in run
+    else:raise AssertionError(f'Original V8.0 ZIP not found: put it at {ROOT / ""tests"" / ""fixtures"" / fixture_name} or set RAMSES_V80_ARCHIVE. Historical migration untested.')
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Original V8.0 ZIP not found: put it at /mnt/data/ramses_g2p_work/ramses_accounts/tests/fixtures/Ramses_Accounts_V8_0_Double_Entry_Decision_Foundation.zip or set RAMSES_V80_ARCHIVE. Historical migration untested.
+"
+test_billing_upgrade_v81b.py	PASS	1.49	"Pre-V8.1B consistent SQLite upgrade backup: /tmp/tmpymp5pawv/pre_billing_v81b_backups/before_v81b_20261031_143211_b10e3c.sqlite3
+Upgraded legacy shift names with a verified SQLite snapshot
+Database initialized: /tmp/tmpymp5pawv/ramses_v81a.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpymp5pawv/ramses_v81a.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1A -> V8.1B: pre-upgrade backup, patient case unchanged, new ledger accounts, idempotent start
+"
+test_cashier_shift_open_guard_v81c.py	PASS	2.6	"Database initialized: /tmp/tmpqy0luim3/shift_guard.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - mapped cash fund rejects untracked voucher; linked movement accepted only under open shift
+"
+test_deployment.py	PASS	2.25	"Database initialized: /tmp/tmp5q17kiov/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - staging marked, secure cookie, HSTS, private endpoints and CSRF verified
+"
+test_evidence_variance.py	PASS	3.56	"Database initialized: /tmp/tmpxji_w6yj/ledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — evidence BLOB/permissions/type/size/backup/immutability + investigation, shortage, overage, maker-checker, retries
+"
+test_free_preview.py	PASS	1.86	"Database initialized: /tmp/tmpiw8ift58/preview.sqlite3
+Historical rows: 618 (quarantined, not posted)
+PASS - isolated free-preview archive, 618 redacted entries, original sheet blocked
+"
+test_free_preview_e2e.py	PASS	7.29	"PASS - real preview HTTP, fabricated approved vouchers, private API, 5-tab mock Google snapshot, staging allowlist and diagnostics
+"
+test_general_ledger.py	PASS	3.21	"Database initialized: /tmp/tmp_buku1sd/ledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8: balanced journal, cashbook mapping, double-entry reversal, invoice accrual, frozen postings, payroll liability and security
+"
+test_gl_migration.py	PASS	1.74	"Pre-V8 consistent SQLite upgrade backup: /tmp/tmpgwcn1ism/pre_gl_upgrade_backups/before_v8_20261031_143215_010d7c.sqlite3
+Upgraded legacy shift names with a verified SQLite snapshot
+Database initialized: /tmp/tmpgwcn1ism/prior-version.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8 migration - old cash vouchers kept, old postings not silently certified into GL
+"
+test_google_sync.py	PASS	1.54	"Database initialized: /tmp/tmpsqjdzxqu/hospital.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - atomic private mirror, no pre-clear, preserved owner tabs, failures are safe
+"
+test_local_server.py	PASS	6.91	"Database initialized: /tmp/tmpt0qwqhvd/ledger.db
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpt0qwqhvd/ledger.db
+Historical rows: 0 (quarantined, not posted)
+PASS: first-run secret, restart without secret, backup verify, private API
+"
+test_mixed_payroll.py	PASS	3.88	"Database initialized: /tmp/tmpp_dzl3et/mixed.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — mixed hourly+monthly payroll, minute accuracy, independent approvals, no duplicates, immutable snapshots, closed month and roles
+"
+test_mixed_payroll_migration.py	PASS	1.57	"Pre-V8 consistent SQLite upgrade backup: /tmp/tmp7p0y9gx5/pre_gl_upgrade_backups/before_v8_20261031_143218_04a2f5.sqlite3
+Upgraded legacy shift names with a verified SQLite snapshot
+Database initialized: /tmp/tmp7p0y9gx5/v73.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmp7p0y9gx5/v73.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — V7.3 monthly salaries, accruals and historical values preserved through idempotent V7.5 migration
+"
+test_payroll_corrections.py	PASS	3.25	"Database initialized: /tmp/tmpgx2kb13g/payroll.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — salary corrections audited, CSV protected, pending salary freezes revisions, reject restores editability
+"
+test_payroll_review_workflow.py	PASS	3.32	"Database initialized: /tmp/tmp2hhya6m9/review.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - payroll V7.5 manual approved additions/deductions, separate signoffs, blocking payments, audit, CSV, mirror and month close
+"
+test_preview_key_protection.py	PASS	1.06	"PASS - insecure service-account permission refused, fixed staging only, archive separate, secure tunnel cookie
+"
+test_preview_modes.py	PASS	9.48	"PASS - 618 anonymized June entries and 3 dummy vouchers stay isolated across first-run modes
+"
+test_shift_coverage_v81e_p0.py	PASS	2.34	"Database initialized: /tmp/tmpep0g61yp/coverage.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS: visible missing electronic shift, submitted review, station-day incompleteness, clerk scope, no financial mutations
+"
+test_shift_migration.py	PASS	1.19	"Pre-V8 consistent SQLite upgrade backup: /tmp/tmpcwlw4bzg/pre_gl_upgrade_backups/before_v8_20261031_143223_81c9de.sqlite3
+Database initialized: /tmp/tmpcwlw4bzg/previous.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpcwlw4bzg/previous.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — upgrade adds shift link without deleting or changing historical live postings
+"
+test_shift_schedule_handoff_v81c.py	PASS	3.02	"Database initialized: /tmp/tmpdjtj08lt/handoff.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1C: configurable shifts, correct night business date, blind count, independent cash receipt, rolling cash operations, separate accountant approval
+"
+test_shift_schedule_upgrade_v81c.py	PASS	1.34	"Pre-V8.1C consistent SQLite upgrade backup: /tmp/tmpopyzak90/pre_billing_v81c_backups/before_v81c_20261031_143225_f69b3c.sqlite3
+Upgraded legacy shift names with a verified SQLite snapshot
+Database initialized: /tmp/tmpopyzak90/old_v81b.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpopyzak90/old_v81b.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1C upgrade: historical cashier shifts unchanged, consistent pre-upgrade backup, new schedules and unique-open guard
+"
+test_shifts.py	PASS	2.79	"Database initialized: /tmp/tmp_oi60i6f/shifts.db
+Historical rows: 0 (quarantined, not posted)
+PASS — shift open, blind count, pending guard, variance, segregation, recount, freeze, reversal, month close
+"
+test_system.py	PASS	2.9	"Database initialized: /tmp/tmp4piht4ld/hospital.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — historical quarantine (when available), idempotency, login/CSRF/RBAC, cash, payroll, reversals & close
+"
+test_user_lifecycle.py	PASS	3.04	"Database initialized: /tmp/tmphcrztcjy/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS - account disable/reactivate, session revocation, password reset and owner confirmation
+"
+test_v73_migration.py	PASS	1.24	"Pre-V8 consistent SQLite upgrade backup: /tmp/tmp2udbfl2d/pre_gl_upgrade_backups/before_v8_20261031_143228_389eeb.sqlite3
+Upgraded legacy shift names with a verified SQLite snapshot
+Database initialized: /tmp/tmp2udbfl2d/oldledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmp2udbfl2d/oldledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — V7.2 balances and shift ledger survived V7.3 additive upgrade twice
+"
+test_v81e_g0_bank_review_migration.py	PASS	1.3	"Database initialized: /tmp/tmpx_eubl48/upgrade.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpx_eubl48/upgrade.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G0: upgrade old submit grant without granting historical approval rights
+"
+test_v81e_g0_billing_close.py	PASS	2.45	"Database initialized: /tmp/tmphm3wq9xw/billing_gate.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G0-05: unissued draft blocks close, issued invoice recognized in GL, posted case no longer blocks close
+"
+test_v81e_g0_regressions.py	PASS	2.58	"Database initialized: /tmp/tmplqarjvwo/g0.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G0-01: missing scheduled but unregistered shifts BLOCK month close
+PASS G0-02: explicit bank grant + GL-authoritative revenue report, no cash double count
+PASS G0-03: voucher correction intake no HTTP 500, no financial mutation
+PASS G0-04: immediate grant revocation blocks new AND pending bank posting
+"
+test_v81e_g1_g2a.py	PASS	3.01	"Database initialized: /tmp/tmpj6js89up/g1_g2a.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G1: cash fund restricted, independent approvals, immediate revocation
+PASS G1: legacy cash opt-in lockdown applies immediately even inside an open shift
+PASS G2A: late incident intake, duplicate paper guard, immutable evidence, independent source link, ZERO financial double-post
+"
+test_v81e_g2b_late_invoice.py	PASS	2.79	"Database initialized: /tmp/tmp9xj2999s/g2b.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2B: closed-old-month late visit; independent triage; historical pricing; current GL; no invented cash
+"
+test_v81e_g2b_schema_upgrade.py	PASS	1.18	"Database initialized: /tmp/tmpt4c5iwvc/existing_ramses.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpt4c5iwvc/existing_ramses.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2B schema: old ledger, users, funds, schedules, and patient retained
+"
+test_v81e_g2c_cash_clearance.py	PASS	2.75	"Database initialized: /tmp/tmp54i8zu4d/cash-g2c.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2C: 2 old invoices, one approved 1500 EGP suspense voucher, zero new cash, immutable allocations
+"
+test_v81e_g2d_mixed_envelope.py	PASS	2.78	"Database initialized: /tmp/tmpx5i9sb8h/g2d.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2D mixed: gross 4500, paper expenses 600, cash 3900, shortage 50, overage 50, zero duplicate cash
+"
+test_v81e_g2e_shortage_recovery.py	PASS	3.36	"Database initialized: /tmp/tmpnji0emdi/g2d.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2D mixed: gross 4500, paper expenses 600, cash 3900, shortage 50, overage 50, zero duplicate cash
+PASS G2E: real cash recovery 30+20, independent approval, no duplicate ref, 1190 cleared, overage remains liability
+"
+test_v81e_g2f_overage_refund.py	PASS	3.81	"Database initialized: /tmp/tmphoac2343/g2d.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2D mixed: gross 4500, paper expenses 600, cash 3900, shortage 50, overage 50, zero duplicate cash
+PASS G2E: real cash recovery 30+20, independent approval, no duplicate ref, 1190 cleared, overage remains liability
+PASS G2F: claim evidence, signed proof, two-party refund 30+20, 2190 cleared, no income
+"
+test_v81e_g2f_overage_ui.py	PASS	3.24	"PASS G2F UI 1365 screenshot QA_G2F_OVERAGE_1365.png
+PASS G2F UI 375 screenshot QA_G2F_OVERAGE_375.png
+"
+test_v81e_g2g_invoice_credit.py	PASS	3.46	"Database initialized: /tmp/tmpfb8032na/correction.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2G invoice credit: independent review, balanced GL, no cash, replay protection, paid invoice guard, closed-origin/open-post
+"
+test_v81e_g2g_invoice_ui.py	PASS	3.35	"PASS G2G UI 1365 saved /mnt/data/ramses_g2p_work/QA_G2G_CORRECTION_1365.png
+PASS G2G UI 375 saved /mnt/data/ramses_g2p_work/QA_G2G_CORRECTION_375.png
+"
+test_v81e_g2g_upgrade.py	PASS	1.54	"Database initialized: /tmp/tmp92lkwlfn/legacy_g2f_shape.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmp92lkwlfn/legacy_g2f_shape.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmp92lkwlfn/legacy_g2f_shape.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2G schema upgrade: existing users/funds/points preserved; new immutable table idempotent
+"
+test_v81e_g2h_receipt_reassign.py	PASS	4.45	"Database initialized: /tmp/tmpe_gkddis/g2h.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2H: wrong-patient FULL mixed receipt; no new cash/GL; case AR; immutable audit; replay; stale/identity guards; closed origin/new effective date
+"
+test_v81e_g2h_receipt_ui.py	PASS	3.55	"PASS G2H corrected receipt UI 1365
+PASS G2H corrected receipt UI 375
+"
+test_v81e_g2h_upgrade.py	PASS	1.43	"Database initialized: /tmp/tmpy0mtz563/g2g_existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpy0mtz563/g2g_existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpy0mtz563/g2g_existing.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2H additive migration from G2G shape; repeat initialize safe, original records intact
+"
+test_v81e_g2i_financial_safety.py	PASS	3.34	"Database initialized: /tmp/tmp2lrodfju/g2i.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2I: auto-journal reversals blocked; manual control account blocked; pending bypass blocked; AR/advance/refund matched; historical mismatch and future close rejected
+"
+test_v81e_g2i_financial_ui.py	PASS	4.34	"PASS G2I static shell: 320 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 375 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 620 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 621 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 768 px, logout accessible, nav groups, no scroll overflow
+PASS G2I static shell: 1365 px, logout accessible, nav groups, no scroll overflow
+"
+test_v81e_g2j_schema_upgrade.py	SKIP	1.19	"SKIP G2J G2I upgrade: original preceding source checkout unavailable
+"
+test_v81e_g2j_treasury_integrity.py	PASS	3.2	"Database initialized: /tmp/tmpngddt_9p/treasury.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2J: source-voucher GL agreement, signed bank evidence, legacy phantom GL, independent physical count, close-block and roles
+"
+test_v81e_g2k_pos_settlement.py	PASS	3.44	"Database initialized: /tmp/tmpfob4fc5a/pos.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2K: 160 gross / 2 fee / 158 bank, rejected batch released, blocked premature bank approval, zero fee
+"
+test_v81e_g2k_pos_ui.py	PASS	3.81	"PASS G2K POS UI: 1440/375/320, 160 - 2 = 158, review controls, no console errors/overflow
+"
+test_v81e_g2k_upgrade.py	SKIP	1.13	"SKIP G2K historical G2J -> G2K upgrade: G2J source checkout not packaged
+"
+test_v81e_g2l_fund_opening.py	PASS	3.2	"Database initialized: /tmp/tmpoko9xie0/opening.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2L independent openings: posted GL, cashbook unchanged, no self-approval, no retry/DB tampering, rejection and zero case
+"
+test_v81e_g2l_opening_concurrency.py	PASS	2.99	"Database initialized: /tmp/tmp83o7ekue/race.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2L concurrent opening: one signed journal, second approval rejected, no duplicate GL
+"
+test_v81e_g2l_opening_ui.py	PASS	3.57	"PASS G2L opening review UI: 1440, 375, 320; zero/candidate/reviewer states, modal, no overflow or console errors
+"
+test_v81e_g2l_schema_upgrade.py	SKIP	1.19	"SKIP G2L G2K source checkout not available; migration must be rerun with historical source
+"
+test_v81e_g2m_finance_preflight.py	PASS	5.05	"PASS G2M read-only accounting preflight catches balanced-but-fake fund journal; no data changed
+"
+test_v81e_g2m_nonproduction_badges.py	PASS	1.14	"PASS G2M: unapproved environment cannot display false production-approved status
+"
+test_v81e_g2m_secure_backup.py	PASS	11.83	"PASS G2M AES-GCM backup: WAL snapshot, integrity, real restore, no overwrite, wrong key, tamper, truncation, key permissions
+"
+test_v81e_g2n_bank_scope.py	PASS	3.8	"Database initialized: /tmp/tmpkwfun1fa/bank_scope.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2N bank fund-scoped read/import/match/approve/revoke and POS IDOR safety
+"
+test_v81e_g2o_patient_scope_ui.py	PASS	3.66	"PASS G2O Chromium reviewer grant/revoke modal and denied empty state, 1440/375/320, no page errors/overflow
+"
+test_v81e_g2o_patient_scopes.py	PASS	3.7	"Database initialized: /tmp/tmp9viuo5y3/scope.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2O patient reviewer point grants, credit/refund/correction IDOR and instant revocation
+"
+test_v81e_p1_flexible_schedules.py	PASS	2.54	"Database initialized: /tmp/tmphfqdu4y_/ramses.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P1: owner schedule updates, history frozen, internal 1/external 3→2, opening treasury, date-crossing, policy defaults, live API
+"
+test_v81e_p3_main_treasury.py	PASS	3.53	"Database initialized: /tmp/tmphl7fvbns/ledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G2A treasury evidence: source shift matched to existing approved main-safe deposit, no double posting
+PASS P3 treasury: 990 physical transfer after source count, central expense 100, shortage 10 adjusted, external next opening 0, balanced GL, no revenue duplicate
+"
+test_v81e_p3_provisional_handoff.py	PASS	3.26	"Database initialized: /tmp/tmpryts018c/hospital.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P3: provisional cash accepted independently, next shift runs physically counted, shortage adjusted once, history immutable, owner grants/revokes, no self-approval
+"
+test_v81e_p4_points.py	PASS	2.49	"Database initialized: /tmp/tmpby_0kidk/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P4 points: immutable historical tills; effective pause/resume; unbound drafts produce NO fake missing alerts
+"
+test_v81e_p4_shortage_repayment.py	PASS	2.85	"Database initialized: /tmp/tmp12vieteo/ledger.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P4 repayments: 6+4 settled, no overpay, immutable rows, suspense 1190 cleared, GL balanced
+PASS P3 treasury: 990 physical transfer after source count, central expense 100, shortage 10 adjusted, external next opening 0, balanced GL, no revenue duplicate
+"
+test_v81e_p5_corrections_intake.py	PASS	2.76	"Database initialized: /tmp/tmprmfpfe11/corrections.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS P5 correction tickets: source scoping, idempotency, independent review, append-only events, ZERO ledger impact
+"
+test_v81e_shift_images.py	PASS	2.79	"Database initialized: /tmp/tmpfoqr7ocq/cash.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS optional/required evidence: upload, PDF validation, duplicate, authorization, conditional envelope, immutable BLOB
+"
+test_v81e_staff_access.py	PASS	2.23	"Database initialized: /tmp/tmpx6zvpbct/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1E staff access owner only, per shift open guard, revocation and preservation
+"
+test_v82_g2p_case_settlement.py	PASS	3.3	"Database initialized: /tmp/tmpr3jftqw9/sandbox.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS: ready, invoice, financial close maker/checker, no-charge, concurrent approval, immutable closure
+"
+test_v82_g2p_case_settlement_ui.py	PASS	3.5	"PASS: G2P readiness, request, review, closed UI at 1440/375/320; no JS errors or horizontal overflow
+"
+test_v82_g2p_schema_upgrade.py	PASS	1.78	"Database initialized: /tmp/tmpo7db7crh/original_g2o.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /tmp/tmpo7db7crh/original_g2o.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS: G2O table migration twice without lost old cases or broken FKs
+"
+test_worklog_pagination.py	PASS	2.85	"Database initialized: /tmp/tmpjgzzvp8g/hours.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS — 62 genuine work entries, 60/2 pages, pending count not clipped, accrual stays blocked
+"

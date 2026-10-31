@@ -1,0 +1,32 @@
+# Local-only Ramses staging service. Only Cloudflare Tunnel may publish it.
+services:
+  ramses-accounts:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      RAMSES_DB_PATH: /data/ramses.sqlite3
+      RAMSES_SECURE_COOKIES: "1"
+      RAMSES_ENVIRONMENT: staging
+      PORT: "8000"
+    # Loopback only. NEVER change this to 0.0.0.0 or add router port-forwarding.
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./data:/data
+      - ./backups:/backups
+      - ./secrets:/secrets:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,noexec,size=32m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s

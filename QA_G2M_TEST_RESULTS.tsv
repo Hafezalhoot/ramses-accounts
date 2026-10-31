@@ -1,0 +1,13 @@
+test	result	seconds	note
+test_v81e_g2m_secure_backup.py	PASS	8.0	synthetic local tests
+test_v81e_g2m_finance_preflight.py	PASS	2.9	synthetic local tests
+test_v81e_g2m_nonproduction_badges.py	PASS	0.7	synthetic local tests
+test_v81e_g2i_financial_safety.py	PASS	2.2	synthetic local tests
+test_v81e_g2j_treasury_integrity.py	PASS	2.1	synthetic local tests
+test_v81e_g2k_pos_settlement.py	PASS	2.2	synthetic local tests
+test_v81e_g2l_fund_opening.py	PASS	2.2	synthetic local tests
+test_v81e_g2l_opening_concurrency.py	PASS	1.8	synthetic local tests
+test_v81e_g0_billing_close.py	PASS	1.9	synthetic local tests
+test_general_ledger.py	PASS	2.5	synthetic local tests
+test_user_lifecycle.py	PASS	2.4	synthetic local tests
+test_local_server.py	PASS	4.7	synthetic local tests

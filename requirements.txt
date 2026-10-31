@@ -1,0 +1,10 @@
+fastapi>=0.110,<1
+python-multipart>=0.0.20,<1
+uvicorn>=0.25,<1
+pydantic>=2,<3
+openpyxl>=3.1,<4
+google-auth>=2.29,<3
+requests>=2.31,<3
+httpx>=0.27,<1  # TestClient for safe preview seed and smoke tests
+
+cryptography>=42,<47  # AES-GCM encrypted backup/restore (offline)

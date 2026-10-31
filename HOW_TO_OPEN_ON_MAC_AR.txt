@@ -1,0 +1,19 @@
+Ramses Accounts V8.1E - Mac local TEST preview
+
+1. Extract this ZIP in Finder. Do not double-click the ZIP itself to start the app.
+2. Open the ramses_accounts folder.
+3. Double-click START_Ramses_Mac.command, choose option 1 for local DEMO.
+4. On first launch, Python 3.11+ must be installed and the script will install packages.
+5. When Terminal shows that the server is ready, open http://127.0.0.1:8000 in the browser.
+6. Keep Terminal open while using the local preview. Press Control+C to stop.
+
+If Finder again reports insufficient permissions:
+  - Open Terminal. Type: chmod +x (add a SPACE after x).
+  - Drag START_Ramses_Mac.command into the Terminal window, then press Enter.
+  - Open the file again.
+An alternative is to type: bash (add SPACE), drag the .command file, press Enter.
+
+If macOS asks whether to open a downloaded file, use Finder right-click > Open
+after confirming it is the file you downloaded. Do NOT turn off Gatekeeper.
+
+Local preview only. Do not enter real patient data or publish this test server.

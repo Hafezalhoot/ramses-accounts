@@ -1,0 +1,10 @@
+[Unit]
+Description=Ramses Accounts - Consistent daily SQLite backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/ramses
+ExecStart=/bin/sh /opt/ramses/scripts/backup_local.sh

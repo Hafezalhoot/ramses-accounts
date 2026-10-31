@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Ramses ledger backup at 03:10 Cairo time
+
+[Timer]
+OnCalendar=*-*-* 03:10:00
+Persistent=true
+Unit=ramses-backup.service
+
+[Install]
+WantedBy=timers.target

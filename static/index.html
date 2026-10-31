@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#142f35">
+  <meta name="description" content="نظام حسابات مستشفى رمسيس الداخلي">
+  <title>رمسيس | الإدارة المالية</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/billing.js" defer></script>
+  <script src="/static/app.js" defer></script>
+  <script src="/static/pos_settlements_ui.js" defer></script>
+  <script src="/static/cashier_ops_ui.js" defer></script>
+  <script src="/static/financial_corrections_ui.js" defer></script>
+  <script src="/static/late_entry_ui.js" defer></script>
+</head>
+<body>
+<svg class="icon-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.3"/><rect x="14" y="3" width="7" height="7" rx="1.3"/><rect x="3" y="14" width="7" height="7" rx="1.3"/><rect x="14" y="14" width="7" height="7" rx="1.3"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M4 6h.01M4 12h.01M4 18h.01"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 2 20 6v6c0 6-4 9-8 10-4-1-8-4-8-10V6z"/><path d="m8 12 3 3 5-6"/></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="3"/><path d="M3 9h18M16 15h2M6 5V3h12"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2c0-3 3-5 6-5s6 2 6 5v2M17 6c2 0 4 2 4 4s-2 4-4 4M18 16c2 0 4 1 4 4"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V4M4 20h17M8 16v-5M13 16V8M18 16V5"/></symbol>
+<symbol id="i-archive" viewBox="0 0 24 24"><path d="M3 5h18v5H3zM5 10v11h14V10M10 14h4"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m9 2 1 2h4l1-2 3 2-1 3 2 3 3 1v3l-3 1-2 3 1 3-3 2-1-2h-4l-1 2-3-2 1-3-2-3-3-1v-3l3-1 2-3-1-3z"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M19 12H5m6-6-6 6 6 6"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m12 3 10 18H2zM12 9v5M12 18h.01"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7V3h-4M4 17v4h4M5 9a8 8 0 0 1 14-2l1 0M19 15a8 8 0 0 1-14 2l-1 0"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="12" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 15v3"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M5 2h10l4 4v16H5zM14 2v5h5M9 12h6M9 17h6"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24"><path d="M13 4H5v16h8M10 12h11m-4-4 4 4-4 4"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6M17 2v6M3 10h18"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v13m0 0 5-5m-5 5-5-5M4 18v3h16v-3"/></symbol>
+</svg>
+
+<section id="loginPage" class="login-page" hidden>
+  <div class="login-aside"><div class="login-pattern" aria-hidden="true"></div><div class="login-story"><span class="login-brand-symbol">✣</span><h1>إدارة مالية<br>أوضح. أدق. أكثر أمانًا.</h1><p>المصروفات، الخزن، الأجور والاعتمادات في مكان واحد. نظام حسابات داخلي لمستشفى رمسيس.</p><div class="login-footer">RAMSES HOSPITAL · FINANCE</div></div></div>
+  <div class="login-form-area"><div class="login-card"><div class="eyebrow">بوابة الموظفين</div><h2>تسجيل الدخول</h2><p>استخدم حسابك المخصص من إدارة المستشفى.</p><form id="loginForm"><label>اسم المستخدم<input name="username" type="text" autocomplete="username" placeholder="اسم المستخدم" required maxlength="40"></label><label>كلمة المرور<input name="password" type="password" autocomplete="current-password" placeholder="كلمة المرور" required></label><p class="error-message" id="loginError" role="alert" hidden></p><button class="btn btn-primary login-submit" type="submit">الدخول إلى النظام <svg class="i"><use href="#i-arrow"/></svg></button></form><div class="login-test-note" role="note"><strong>نسخة تجريبية وليست نظامًا ماليًا معتمدًا</strong><span>لا تُدخل بيانات مرضى حقيقية أو تسجل أموال المستشفى على هذه النسخة.</span></div><div class="login-note"><svg class="i"><use href="#i-lock"/></svg>البيانات لا تظهر إلا للمستخدمين المصرّح لهم.</div></div></div>
+</section>
+
+<div id="shell" class="shell" hidden>
+  <div class="mobile-shade" id="mobileShade" hidden></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><div class="brand-logo">✣</div><div><div class="brand-title">مستشفى رمسيس</div><div class="brand-subtitle">نظام الحسابات</div></div><button class="icon-button sidebar-close" id="hideSidebar" aria-label="إغلاق القائمة"><svg class="i"><use href="#i-close"/></svg></button></div>
+    <div class="side-label">القائمة الرئيسية</div>
+    <nav class="nav" id="mainNav" aria-label="أقسام النظام">
+      <button data-view="dashboard" class="nav-link active"><svg class="i"><use href="#i-grid"/></svg>نظرة عامة</button>
+      <div class="nav-group-label">الكاشير والتحصيل</div>
+      <button data-view="billing" class="nav-link" data-permission="entry"><svg class="i"><use href="#i-file"/></svg>الحالات والتحصيل <span class="nav-bubble" style="background:#f6df9e;color:#583e0d">تجريبي</span></button>
+      <button data-view="new" class="nav-link" data-permission="entry"><svg class="i"><use href="#i-plus"/></svg>تسجيل سند جديد</button>
+      <button data-view="shifts" class="nav-link" data-permission="entry"><svg class="i"><use href="#i-calendar"/></svg>الورديات والجرد</button>
+      <button data-view="calendar" class="nav-link" data-permission="entry"><svg class="i"><use href="#i-calendar"/></svg>تقويم الورديات</button>
+      <button data-view="funds" class="nav-link"><svg class="i"><use href="#i-wallet"/></svg>الخزن والحسابات</button>
+      <div class="nav-group-label">المراجعات والتسويات</div>
+      <button data-view="ledger" class="nav-link"><svg class="i"><use href="#i-list"/></svg>دفتر الحركات</button>
+      <button data-view="reviews" class="nav-link" data-permission="review"><svg class="i"><use href="#i-shield"/></svg>الاعتمادات <span id="pendingMenu" class="nav-bubble" hidden>0</span></button>
+      <button data-view="cashierRecoveries" class="nav-link" data-permission="entry"><svg class="i"><use href="#i-wallet"/></svg>سداد فروق العهدة</button>
+      <button data-view="lateEntries" class="nav-link" data-permission="entry"><svg class="i"><use href="#i-archive"/></svg>الورديات والعمليات المتأخرة</button>
+      <button data-view="cashierCorrections" class="nav-link" data-permission="entry"><svg class="i"><use href="#i-file"/></svg>بلاغات تصحيح العمليات</button>
+      <button data-view="bank" class="nav-link" data-permission="review"><svg class="i"><use href="#i-wallet"/></svg>مطابقة البنك</button>
+      <div class="nav-group-label">الحسابات والتقارير</div>
+      <button data-view="accounting" class="nav-link" data-permission="reports"><svg class="i"><use href="#i-list"/></svg>دفتر الأستاذ التجريبي</button>
+      <button data-view="reports" class="nav-link" data-permission="reports"><svg class="i"><use href="#i-chart"/></svg>التقارير والتحليل</button>
+      <button data-view="payroll" class="nav-link" data-permission="payroll"><svg class="i"><use href="#i-users"/></svg>شؤون المرتبات</button>
+      <button data-view="legacy" class="nav-link" data-permission="review"><svg class="i"><use href="#i-archive"/></svg>أرشيف يونيو 2026</button>
+    </nav>
+    <div class="side-label second-label" data-permission="owner">الإدارة</div>
+    <nav class="nav" data-permission="owner"><button data-view="cashierSettings" class="nav-link"><svg class="i"><use href="#i-settings"/></svg>إعدادات ورديات الكاشير</button><button data-view="admin" class="nav-link"><svg class="i"><use href="#i-settings"/></svg>الإعدادات والرقابة</button></nav>
+    <button type="button" class="nav-link sidebar-signout" id="mobileLogoutButton" aria-label="تسجيل الخروج من الحساب"><svg class="i"><use href="#i-logout"/></svg> تسجيل الخروج</button>
+    <div class="sidebar-bottom"><div class="safe-sign"><svg class="i"><use href="#i-shield"/></svg></div><div><strong>نسخة تجريبية</strong><small>تحتاج اعتماد رقابي قبل تسجيل أموال فعلية</small></div></div>
+  </aside>
+  <div class="main-area">
+    <header class="topbar">
+      <div class="topbar-right"><button class="icon-button mobile-menu" id="showSidebar" aria-label="فتح القائمة"><svg class="i"><use href="#i-menu"/></svg></button><div class="crumb"><span>الإدارة المالية</span><svg class="i crumb-chevron"><use href="#i-chevron"/></svg><strong id="crumbTitle">نظرة عامة</strong></div></div>
+      <div class="topbar-left"><span class="environment-label"><span class="online-dot"></span>بيئة اختبار — غير معتمدة للأموال الحقيقية</span><div class="user-pill"><div class="user-avatar" id="userAvatar">ح</div><div class="user-info"><strong id="usernameLabel">—</strong><small id="roleLabel">—</small></div></div><button class="icon-button logout" id="logoutButton" aria-label="تسجيل الخروج" title="تسجيل الخروج"><svg class="i"><use href="#i-logout"/></svg></button></div>
+    </header>
+    <div class="demo-mobile-banner" role="note"><strong>بيئة اختبار</strong><span>لا تُسجّل أموالًا أو بيانات مرضى حقيقية.</span></div>
+    <main class="content" id="content" tabindex="-1"><div class="loading-state">جاري تحميل بيانات النظام…</div></main>
+    <footer class="site-footer"><span>رمسيس · الحسابات الداخلية</span><span>نسخة V8.1E-G2P — تجريبية</span></footer>
+  </div>
+</div>
+
+<dialog class="modal" id="modal"><div class="modal-header"><h2 id="modalTitle">تأكيد</h2><button type="button" id="modalClose" aria-label="إغلاق" class="icon-button"><svg class="i"><use href="#i-close"/></svg></button></div><p id="modalText"></p><form id="modalForm"><div id="modalFields"></div><div id="modalError" role="alert" class="error-message" hidden></div><div class="modal-buttons"><button class="btn btn-primary" type="submit" id="modalConfirm">تأكيد</button><button class="btn btn-secondary" type="button" id="modalCancel">رجوع</button></div></form></dialog>
+<div id="toast" class="toast" aria-live="polite" hidden></div>
+</body>
+</html>
