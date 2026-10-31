@@ -26,13 +26,13 @@ def run():
                 page.set_content(html)
                 page.add_style_tag(content=(ROOT/'static/styles.css').read_text())
                 page.evaluate('''()=>{
-                  window.__attests=[];
+                  window.__attests=[]; window.__requestedPaths=[];
                   window.__pending=[{line_id:31,department_id:1,service_name:'Synthetic laboratory test',
                    quantity:1,state:'ordered',service_date:null,case_no:'CASE-SYN-001',patient_code:'PAT-SYN-001'}];
                   window.fetch=async(url,options={})=>{
-                    let data;
-                    if(url==='/api/me')data={id:8,username:'clinical_synthetic',role:'viewer',csrf:'mock'};
-                    else if(url==='/api/lookups')data={departments:[{id:1,name:'Synthetic lab'}],funds:[],employees:[],categories:[]};
+                    let data; window.__requestedPaths.push(url);
+                    if(url==='/api/me')data={id:8,username:'clinical_synthetic',role:'clinician',csrf:'mock'};
+                    else if(url==='/api/lookups')return {ok:false,status:403,json:async()=>({detail:'clinician must not read finance lookup'})};
                     else if(url==='/api/billing/clinical/queue')data={items:window.__pending};
                     else if(url==='/api/billing/clinical/lines/31/attest' && options.method==='POST'){
                       const payload=JSON.parse(options.body);
@@ -50,7 +50,9 @@ def run():
                 page.wait_for_selector('#shell:not([hidden])',timeout=9000)
                 if width<=375:page.locator('#showSidebar').click()
                 clinical=page.locator('#mainNav [data-view="clinical"]')
-                assert clinical.count()==1 and clinical.is_visible(), 'Viewer clinical section missing'
+                assert clinical.count()==1 and clinical.is_visible(), 'Clinician clinical page must be visible'
+                assert not page.locator('[data-view="reports"]').is_visible()
+                assert '/api/lookups' not in page.evaluate('window.__requestedPaths'), 'Clinical login fetched financial lookup'
                 clinical.click()
                 page.wait_for_selector('[data-clinical-attest="31"]',timeout=8000)
                 assert 'Synthetic laboratory test' in page.locator('#content').inner_text()
@@ -64,7 +66,7 @@ def run():
                 assert page.evaluate('document.documentElement.scrollWidth<=document.documentElement.clientWidth+1')
                 assert not failures,(width,failures)
                 page.close()
-            print('PASS G2Z real Chromium: isolated clinical queue / modal / mobile 320/375 and desktop 1440')
+            print('PASS G3A (G2Z behavioral compatibility) real Chromium: isolated clinical queue / modal / mobile 320/375 and desktop 1440')
         finally:browser.close()
 
 if __name__=='__main__':run()

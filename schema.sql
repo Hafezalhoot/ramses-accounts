@@ -1,7 +1,7 @@
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS users (
  id INTEGER PRIMARY KEY, username TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
- role TEXT NOT NULL CHECK(role IN ('owner','reviewer','clerk','viewer')), active INTEGER NOT NULL DEFAULT 1,
+ role TEXT NOT NULL CHECK(role IN ('owner','reviewer','clerk','viewer','clinician')), active INTEGER NOT NULL DEFAULT 1,
  created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS sessions (
@@ -1535,9 +1535,25 @@ CREATE TRIGGER IF NOT EXISTS inv_issue_no_closed_month_decision BEFORE UPDATE OF
  BEGIN SELECT RAISE(ABORT,'Sealed month inventory issue decision forbidden'); END;
 
 -- G2Z (test-only): independent per-department medical evidence gate.
--- The viewer login class is used for *explicitly granted clinical pilot* users
--- because the historical users.role CHECK cannot safely be expanded in-place.
--- This is not a legally recognized clinical e-signature or medical credential.
+-- G3A: a separate clinician login, manually reviewed by the owner for this TEST ONLY pilot.
+-- A review is a hospital-admin attestation, NOT license-registry verification or legal e-signature.
+CREATE TABLE IF NOT EXISTS billing_clinical_identity_reviews (
+ user_id INTEGER PRIMARY KEY REFERENCES users(id),
+ professional_name TEXT NOT NULL CHECK(length(trim(professional_name)) BETWEEN 3 AND 120),
+ registration_reference TEXT NOT NULL CHECK(length(trim(registration_reference)) BETWEEN 8 AND 100),
+ approved INTEGER NOT NULL CHECK(approved IN (0,1)),
+ reviewed_by INTEGER NOT NULL REFERENCES users(id),
+ reviewed_at TEXT NOT NULL,
+ review_note TEXT NOT NULL CHECK(length(trim(review_note)) BETWEEN 12 AND 400)
+);
+CREATE TRIGGER IF NOT EXISTS billing_clinical_identity_role_guard_insert
+ BEFORE INSERT ON billing_clinical_identity_reviews
+ WHEN NOT EXISTS(SELECT 1 FROM users WHERE id=NEW.user_id AND role='clinician' AND active=1)
+ BEGIN SELECT RAISE(ABORT,'Only active clinical accounts may be manually reviewed'); END;
+CREATE TRIGGER IF NOT EXISTS billing_clinical_identity_role_guard_update
+ BEFORE UPDATE ON billing_clinical_identity_reviews
+ WHEN NOT EXISTS(SELECT 1 FROM users WHERE id=NEW.user_id AND role='clinician' AND active=1)
+ BEGIN SELECT RAISE(ABORT,'Only active clinical accounts may be manually reviewed'); END;
 CREATE TABLE IF NOT EXISTS billing_clinical_grants (
  department_id INTEGER NOT NULL REFERENCES departments(id),
  user_id INTEGER NOT NULL REFERENCES users(id),
@@ -1573,7 +1589,9 @@ CREATE TRIGGER IF NOT EXISTS billing_clinical_attestation_validate_insert
    OR (SELECT state FROM billing_case_lines WHERE id=NEW.case_line_id)!='fulfilled'
    OR NOT EXISTS (SELECT 1 FROM billing_clinical_grants g JOIN users u ON u.id=g.user_id
                   WHERE g.department_id=NEW.department_id AND g.user_id=NEW.attested_by
-                    AND g.active=1 AND u.active=1 AND u.role='viewer')
+                    AND g.active=1 AND u.active=1 AND u.role='clinician'
+                    AND EXISTS (SELECT 1 FROM billing_clinical_identity_reviews i
+                                WHERE i.user_id=u.id AND i.approved=1))
    OR EXISTS (SELECT 1 FROM billing_invoice_draft_lines dl JOIN billing_invoices i
               ON i.draft_id=dl.draft_id WHERE dl.case_line_id=NEW.case_line_id)
  BEGIN SELECT RAISE(ABORT,'Invalid clinical attestation provenance'); END;

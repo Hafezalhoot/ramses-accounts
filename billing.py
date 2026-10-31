@@ -19,7 +19,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app import (audit, book_movements, c_piasters, current_month, db, fail, get_user,
-                 lookup, month_open, require, stamp, valid_date, valid_month)
+                 lookup, month_open, require, stamp, valid_date, valid_month,
+                 verify_password)
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
@@ -149,18 +150,28 @@ class ClinicalEvidenceForm(BaseModel):
     evidence_reference:str=Field(min_length=8,max_length=180)
 
 
+class ClinicalIdentityReviewForm(BaseModel):
+    user_id:int=Field(ge=1)
+    professional_name:str=Field(min_length=3,max_length=120)
+    registration_reference:str=Field(min_length=8,max_length=100)
+    review_note:str=Field(min_length=12,max_length=400)
+    approved:bool
+    current_password:str
+
+
 def clinical_required(c, department_id):
     return bool(c.execute('SELECT 1 FROM billing_clinical_policies WHERE department_id=?',
                           (department_id,)).fetchone())
 
 
 def require_clinical_grant(c, user, department_id):
-    # A financial owner/reviewer/cashier cannot self-certify a medical service.
-    # G2Z pilot uses the viewer login class plus a separately approved dept grant;
-    # a first-class clinician identity requires hospital medical/IT acceptance.
-    if user['role']!='viewer' or not c.execute('''SELECT 1 FROM billing_clinical_grants g
+    # A financial owner/reviewer/cashier/viewer cannot self-certify a medical
+    # service. Manual owner review is only an internal pilot permission record.
+    if user['role']!='clinician' or not c.execute('''SELECT 1 FROM billing_clinical_grants g
         JOIN users u ON u.id=g.user_id WHERE g.department_id=? AND g.user_id=?
-        AND g.active=1 AND u.active=1 AND u.role='viewer' ''',
+        AND g.active=1 AND u.active=1 AND u.role='clinician'
+        AND EXISTS (SELECT 1 FROM billing_clinical_identity_reviews i
+                    WHERE i.user_id=u.id AND i.approved=1) ''',
         (department_id,user['id'])).fetchone():
         fail('لا تملك تفويض إثبات طبي مستقل لهذا القسم',403)
 
@@ -169,9 +180,51 @@ def require_invoice_clinical_evidence(c, lines):
     # Always re-check at ISSUE, including drafts created before policy activation.
     for line in lines:
         if clinical_required(c,line['department_id']) and not c.execute(
-                'SELECT 1 FROM billing_clinical_attestations WHERE case_line_id=?',
+                '''SELECT 1 FROM billing_clinical_attestations a
+                   JOIN users u ON u.id=a.attested_by AND u.role='clinician'
+                   WHERE a.case_line_id=?''',
                 (line['case_line_id'] if 'case_line_id' in line.keys() else line['id'],)).fetchone():
             fail('خدمة في هذه الفاتورة تحتاج إثبات تنفيذ طبي مستقل قبل الإصدار',409)
+
+
+@router.post('/clinical/identity-review')
+def review_clinician_identity(body:ClinicalIdentityReviewForm,user=Depends(get_user),
+                              c:sqlite3.Connection=Depends(db)):
+    require(user,'owner')
+    name=trim(body.professional_name,'الاسم المهني',3,120)
+    reference=trim(body.registration_reference,'مرجع القيد المهني',8,100)
+    note=trim(body.review_note,'مبرر المراجعة',12,400)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        owner=c.execute('SELECT password_hash FROM users WHERE id=?',(user['id'],)).fetchone()
+        if not owner or not verify_password(body.current_password,owner['password_hash']):
+            fail('يجب تأكيد كلمة مرور المالك قبل مراجعة هوية الحساب الطبي',403)
+        staff=c.execute('SELECT id,role,active FROM users WHERE id=?',(body.user_id,)).fetchone()
+        if not staff or not staff['active'] or staff['role']!='clinician':
+            fail('المراجعة متاحة لحساب طبي نشط فقط',400)
+        c.execute('''INSERT INTO billing_clinical_identity_reviews
+            (user_id,professional_name,registration_reference,approved,reviewed_by,reviewed_at,review_note)
+            VALUES (?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET
+            professional_name=excluded.professional_name,
+            registration_reference=excluded.registration_reference,
+            approved=excluded.approved,reviewed_by=excluded.reviewed_by,
+            reviewed_at=excluded.reviewed_at,review_note=excluded.review_note''',
+            (body.user_id,name,reference,int(body.approved),user['id'],stamp(),note))
+        # Do not copy a medical registration reference or private review note
+        # to general accounting/audit exports.
+        audit(c,user['id'],'clinical_identity_review','user',body.user_id,
+              {'approved':body.approved,'manual_review_only':True})
+    return {'user_id':body.user_id,'approved':body.approved,'manual_review_only':True}
+
+
+@router.get('/clinical/identities')
+def clinician_identities(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    require(user,'owner')
+    # Neither personal registration references nor notes leave this endpoint.
+    return {'items':[dict(r) for r in c.execute('''SELECT u.id user_id,u.username,u.active,
+        coalesce(i.approved,0) approved,i.reviewed_at
+        FROM users u LEFT JOIN billing_clinical_identity_reviews i ON i.user_id=u.id
+        WHERE u.role='clinician' ORDER BY u.username''')]}
 
 
 @router.post('/clinical/grants')
@@ -183,8 +236,11 @@ def clinical_grant(body:ClinicalGrantForm,user=Depends(get_user),c:sqlite3.Conne
                              (body.department_id,)).fetchone()
         staff=c.execute('SELECT id,role,active FROM users WHERE id=?',(body.user_id,)).fetchone()
         if not department:fail('القسم غير موجود أو غير نشط',404)
-        if not staff or not staff['active'] or staff['role']!='viewer':
-            fail('التفويض التجريبي للطبيب يقبل حساب مشاهد نشط فقط ومنفصل عن المالية',400)
+        if not staff or not staff['active'] or staff['role']!='clinician':
+            fail('التفويض الطبي لا يقبل سوى حساب طبي نشط ومنفصل عن المالية',400)
+        if body.active and not c.execute('''SELECT 1 FROM billing_clinical_identity_reviews
+              WHERE user_id=? AND approved=1''',(staff['id'],)).fetchone():
+            fail('يجب اعتماد مراجعة الهوية المهنية يدويًا قبل التفويض',409)
         c.execute('''INSERT INTO billing_clinical_grants(department_id,user_id,active,assigned_by,assigned_at)
           VALUES (?,?,?,?,?) ON CONFLICT(department_id,user_id) DO UPDATE SET
           active=excluded.active,assigned_by=excluded.assigned_by,assigned_at=excluded.assigned_at''',
@@ -203,7 +259,9 @@ def activate_clinical_policy(department_id:int,user=Depends(get_user),c:sqlite3.
         if not c.execute('SELECT 1 FROM departments WHERE id=? AND active=1',(department_id,)).fetchone():
             fail('القسم غير موجود أو غير نشط',404)
         if not c.execute('''SELECT 1 FROM billing_clinical_grants g JOIN users u ON u.id=g.user_id
-          WHERE g.department_id=? AND g.active=1 AND u.active=1 AND u.role='viewer' ''',
+          WHERE g.department_id=? AND g.active=1 AND u.active=1 AND u.role='clinician'
+            AND EXISTS (SELECT 1 FROM billing_clinical_identity_reviews i
+                        WHERE i.user_id=u.id AND i.approved=1) ''',
           (department_id,)).fetchone():
             fail('لا يمكن تفعيل الإثبات الطبي قبل تحديد مُثبت مستقل ومفوض لهذا القسم',409)
         c.execute('INSERT INTO billing_clinical_policies(department_id,activated_by,activated_at) VALUES (?,?,?)',
@@ -221,7 +279,10 @@ def clinical_policy(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
 
 @router.get('/clinical/queue')
 def clinical_queue(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
-    require(user,'viewer')
+    require(user,'clinician')
+    if not c.execute('''SELECT 1 FROM billing_clinical_identity_reviews
+         WHERE user_id=? AND approved=1''',(user['id'],)).fetchone():
+        fail('الحساب الطبي يحتاج مراجعة هوية مهنية يدوية سارية',403)
     # No prices, payer identity, clinical history or unrestricted patient lists.
     rows=c.execute('''SELECT l.id line_id,l.department_id,l.service_name_snapshot service_name,
         l.quantity,l.state,l.service_date,b.case_no,p.code patient_code
@@ -242,7 +303,7 @@ def clinical_evidence(line_id:int,user=Depends(get_user),c:sqlite3.Connection=De
     line=c.execute('''SELECT a.*,l.case_id,l.department_id FROM billing_clinical_attestations a
         JOIN billing_case_lines l ON l.id=a.case_line_id WHERE a.case_line_id=?''',(line_id,)).fetchone()
     if not line:fail('لا يوجد إثبات طبي مسجل لهذا البند',404)
-    if user['role']=='viewer':require_clinical_grant(c,user,line['department_id'])
+    if user['role']=='clinician':require_clinical_grant(c,user,line['department_id'])
     else:
         require(user,'owner','reviewer')
         case_scope(c,user,line['case_id'])

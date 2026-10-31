@@ -43,7 +43,7 @@ app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
 SYNC_LOCK = threading.Lock()
 LOG = logging.getLogger("ramses.sync")
 SESSION_COOKIE = "ramses_sid"
-ROLES = {"owner", "reviewer", "clerk", "viewer"}
+ROLES = {"owner", "reviewer", "clerk", "viewer", "clinician"}
 SHIFTS = {"morning", "evening", "night", "central"}
 MAX_EVIDENCE_BYTES = 6 * 1024 * 1024
 MAX_EVIDENCE_PER_VOUCHER = 3
@@ -121,6 +121,17 @@ def get_user(request: Request, c: sqlite3.Connection = Depends(db)):
                       WHERE s.token_hash=? AND s.expires_at>?""", (th, stamp())).fetchone()
     if not row or not row["active"]:
         fail("انتهت الجلسة؛ سجل الدخول مرة أخرى", 401)
+    # Deny-by-default for a clinical identity, including legacy unguarded
+    # finance GETs. Never treat a clinician as a report viewer/cashier.
+    if row['role']=='clinician':
+        path=request.url.path
+        clinical_read=(request.method=='GET' and (path=='/api/billing/clinical/queue' or
+                       bool(re.fullmatch(r'/api/billing/clinical/lines/[0-9]+/evidence',path))))
+        clinical_write=(request.method=='POST' and
+                        bool(re.fullmatch(r'/api/billing/clinical/lines/[0-9]+/attest',path)))
+        session_route=path=='/api/me' or (path=='/api/logout' and request.method=='POST')
+        if not (clinical_read or clinical_write or session_route):
+            fail('الحساب الطبي لا يملك صلاحيات مالية أو إدارية',403)
     if request.method not in ("GET", "HEAD", "OPTIONS"):
         csrf = request.headers.get("X-CSRF-Token", "")
         if not csrf or not hmac.compare_digest(csrf, row["csrf"]):
@@ -550,7 +561,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G2Z Clinical Evidence Gate Development - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G3A Clinician Isolation Development - Test Only"}
 
 
 @app.post("/api/login")
@@ -3238,10 +3249,15 @@ def user_status(user_id:int,body:AccountStatus,user=Depends(get_user),c:sqlite3.
         fail("لا يمكنك تعطيل حسابك الذي تستخدمه",403)
     with c:
         c.execute("BEGIN IMMEDIATE")
-        target=c.execute("SELECT id,active FROM users WHERE id=?",(user_id,)).fetchone()
+        target=c.execute("SELECT id,active,role FROM users WHERE id=?",(user_id,)).fetchone()
         if not target: fail("المستخدم غير موجود",404)
         if bool(target["active"])==body.active:
             return {"id":user_id,"active":body.active}
+        # A disabled medical identity must be reviewed again even if the
+        # login is reactivated later. Revoke before changing active, because
+        # the SQLite identity-review guard rejects changes to inactive users.
+        if not body.active and target['role']=='clinician':
+            c.execute("UPDATE billing_clinical_identity_reviews SET approved=0 WHERE user_id=?",(user_id,))
         c.execute("UPDATE users SET active=? WHERE id=?",(int(body.active),user_id))
         if not body.active:
             c.execute("DELETE FROM sessions WHERE user_id=?",(user_id,))
@@ -3256,12 +3272,16 @@ def user_password(user_id:int,body:AccountPassword,user=Depends(get_user),c:sqli
         fail("كلمة المرور الجديدة يجب أن تكون بين 12 و256 حرفًا")
     with c:
         c.execute("BEGIN IMMEDIATE")
-        target=c.execute("SELECT id,password_hash FROM users WHERE id=?",(user_id,)).fetchone()
+        target=c.execute("SELECT id,password_hash,role,active FROM users WHERE id=?",(user_id,)).fetchone()
         if not target: fail("المستخدم غير موجود",404)
         owner_password=c.execute("SELECT password_hash FROM users WHERE id=?",(user["id"],)).fetchone()
         if not owner_password or not verify_password(body.current_password,owner_password["password_hash"]):
             fail("تأكيد كلمة مرور المدير الحالية مطلوب لتغيير أي كلمة مرور",403)
         c.execute("UPDATE users SET password_hash=? WHERE id=?",(hash_password(body.password),user_id))
+        # Rotating a clinician's credential invalidates their prior identity
+        # approval; the new credential must be reviewed before new attestations.
+        if target['role']=='clinician' and target['active']:
+            c.execute("UPDATE billing_clinical_identity_reviews SET approved=0 WHERE user_id=?",(user_id,))
         c.execute("DELETE FROM sessions WHERE user_id=?",(user_id,))
         audit(c,user["id"],"reset_user_password","user",user_id)
     return {"ok":True,"session_revoked":user_id==user["id"]}

@@ -1,3 +1,13 @@
+# G3A — verified local development tests (2026-10-31)
+
+- 109 individually invoked `tests/test_*.py` scripts on frozen G3A source: **103 PASS, 3 SKIP due to missing G2J/G2K/G2L historical source, 2 SKIP due to intentionally excluded private workbook, 1 BLOCKED due to unavailable genuine V8.0 archive, zero functional failures**. Every status is in `QA_G3A_TEST_RESULTS.tsv`.
+- G3A new tests: `test_v82_g3a_clinician_identity.py` and `test_v82_g3a_role_upgrade.py` PASS (including negative access, revocation, encrypted rollback, existing old G2Z session/attestation, and real SQLite FK check).
+- Chromium UI (stubbed synthetic backend): clinical screen 320, 375, 1440px; owner identity review 375, 1440px PASS. Includes phone sidebar menu reachability. This is not live integration with hospital APIs.
+- Endpoint dependency inventory: 187 API routes, 186 guarded with `Depends(get_user)` and 1 public `/api/login`; inventory is NOT a complete authorization or object-level security certificate.
+- CI: 37/37 PASS في تشغيل منفصل (31 أكتوبر 2026); actual execution log `QA_G3A_CI_RESULTS.txt`.
+- Historical V8.0 migration, private June workbook, original predecessor upgrade snapshots, offsite restore and hospital UAT were NOT executed.
+
+---
 - G2Y local CI smoke: **33/33 PASS**, `QA_G2Y_CI_RESULTS.txt`; historical V8.0 still BLOCKED, not green.
 # G2Y — Verified local test run, Oct 31, 2026
 

@@ -9,7 +9,7 @@ def run():
     js=(ROOT/'static/app.js').read_text()
     html=(ROOT/'static/index.html').read_text()
     api=(ROOT/'app.py').read_text()
-    version=re.search(r'V8\.1E-G2[A-Z]',html)
+    version=re.search(r'V8\.1E-G[0-9][A-Z]',html)
     assert version, 'Release label missing'
     version=version.group(0)
     assert version in js and version in html

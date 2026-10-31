@@ -531,3 +531,6 @@ input::placeholder,textarea::placeholder{color:#556e77}
 .inv-recon strong{font-variant-numeric:tabular-nums}
 @media(max-width:1100px){.inv-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.inv-grid{grid-template-columns:1fr}}
 @media(max-width:520px){.inv-stats{gap:9px}.inv-stats>div{padding:12px}.inv-stats strong{font-size:17px}.inv-form{grid-template-columns:1fr}.inv-panel .panel-header{flex-wrap:wrap}.inv-actions{width:100%}.inv-actions .btn{min-height:42px}}
+
+/* G3A: keep lower navigation options reachable in the fixed-height RTL sidebar. */
+.sidebar{overflow-y:auto;overscroll-behavior-y:contain}

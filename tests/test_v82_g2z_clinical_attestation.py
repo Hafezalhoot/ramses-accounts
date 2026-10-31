@@ -36,7 +36,7 @@ def run():
         oh=login(owner,'owner','synthetic_g2z_owner_password_long')
         actors={}
         for name,role in [('g2z_reviewer','reviewer'),('g2z_clerk','clerk'),
-                          ('g2z_medic','viewer'),('g2z_outsider','viewer')]:
+                          ('g2z_medic','clinician'),('g2z_outsider','viewer')]:
             actors[name]=check(owner.post('/api/users',headers=oh,json={
                 'username':name,'role':role,'password':'synthetic_staff_password_g2z'}))['id']
         rh=login(reviewer,'g2z_reviewer','synthetic_staff_password_g2z')
@@ -76,6 +76,11 @@ def run():
         check(clerk.post('/api/billing/clinical/grants',headers=ch,json=grant),403)
         check(owner.post('/api/billing/clinical/grants',headers=oh,json={
             'user_id':actors['g2z_reviewer'],'department_id':dept,'active':True}),400)
+        check(owner.post('/api/billing/clinical/identity-review',headers=oh,json={
+            'user_id':actors['g2z_medic'], 'professional_name':'Synthetic clinical account',
+            'registration_reference':'SYNTHETIC-G2Z-REGISTRATION-0001',
+            'review_note':'Synthetic manual review for regression testing',
+            'current_password':'synthetic_g2z_owner_password_long','approved':True}))
         check(owner.post('/api/billing/clinical/grants',headers=oh,json=grant))
         # An assigned account cannot sign or change clinical billing state
         # before the owner explicitly turns on the departmental pilot.
@@ -95,7 +100,7 @@ def run():
         # The granted viewer has no financial privilege, nor rights in another dept.
         check(medic.get('/api/billing/cases'),403)
         check(medic.get('/api/billing/clinical/queue'))
-        assert not check(stranger.get('/api/billing/clinical/queue'))['items']
+        check(stranger.get('/api/billing/clinical/queue'),403)
         check(medic.post(f'/api/billing/lines/{old_line}/fulfill',headers=mh),403)
         check(clerk.post(f'/api/billing/drafts/{old_draft}/issue',headers=ch,json={
             'request_id':'g2z_pre_activation_issue_0001'}),409)
@@ -130,8 +135,8 @@ def run():
         pending=check(medic.get('/api/billing/clinical/queue'))['items']
         assert any(item['line_id']==new_line for item in pending),pending
         assert all('unit_price_piasters' not in item and 'display_name' not in item for item in pending)
-        check(stranger.get('/api/billing/clinical/queue'))
-        assert not check(stranger.get('/api/billing/clinical/queue'))['items']
+        check(stranger.get('/api/billing/clinical/queue'),403)
+        check(stranger.get('/api/billing/clinical/queue'),403)
         check(medic.post(f'/api/billing/clinical/lines/{new_line}/attest',headers=mh,json={
             'evidence_reference':'SYN-G2Z-CLINICAL-0002'}))
         guard_line=add_line('guard_not_executed')

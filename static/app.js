@@ -17,7 +17,7 @@ const integer=(x)=>Number(x||0).toLocaleString("en-US");
 const labelType={receipt:"إيراد / تحصيل",payment:"صرف",transfer:"تحويل بين حسابات"};
 const shiftStateLabels={open:"قيد التشغيل",submitted:"بانتظار مراجعة الجرد",closed:"وردية مقفلة"};
 const stateLabels={pending:"بانتظار الاعتماد",approved:"معتمد",rejected:"مرفوض",reversed:"تمت التسوية"};
-const roleLabels={owner:"مدير النظام",reviewer:"مراجع الحسابات",clerk:"مدخل بيانات",viewer:"مشاهد التقارير"};
+const roleLabels={owner:"مدير النظام",reviewer:"مراجع الحسابات",clerk:"مدخل بيانات",viewer:"مشاهد التقارير",clinician:"موثّق خدمات طبي - اختبار"};
 const categoryNatures={revenue:"إيراد تشغيل",expense:"تكلفة تشغيل",asset:"شراء أصل / مخزون",liability:"التزام / قرض",equity:"حقوق ملكية",payroll_payment:"سداد راتب مستحق",advance:"سلفة موظف"};
 const kindChip=(k)=>`<span class="chip type-${esc(k)}">${labelType[k]||esc(k)}</span>`;
 const statusChip=(s)=>`<span class="chip ${esc(s)}">${stateLabels[s]||esc(s)}</span>`;
@@ -57,8 +57,14 @@ async function login(e){
  finally{button.disabled=false;}
 }
 async function bootstrapUI(){
- try{state.lookups=await api("/api/lookups");}
- catch(error){errorView(error.message);return;}
+ // The clinical identity is denied the finance lookup API by design.
+ if(state.me.role==='clinician'){
+   state.lookups={departments:[],categories:[],funds:[],employees:[],shifts:[]};
+   state.view='clinical';
+ }else{
+   try{state.lookups=await api("/api/lookups");}
+   catch(error){errorView(error.message);return;}
+ }
  $("#loginPage").hidden=true;$("#shell").hidden=false;
  $("#usernameLabel").textContent=state.me.username;$("#userAvatar").textContent=state.me.username.slice(0,1).toUpperCase();
  $("#roleLabel").textContent=roleLabels[state.me.role]||state.me.role;
@@ -66,17 +72,20 @@ async function bootstrapUI(){
  const eLabel=$(".environment-label");
  eLabel.textContent="بيئة اختبار • لا تسجل بيانات مالية فعلية";
  eLabel.classList.toggle("test-mode",trial);
- $(".site-footer span:last-child").textContent="V8.1E-G2Z • غير معتمد للتشغيل الحقيقي";
- const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],inventory:["clerk","reviewer","owner"],clinical:["viewer"],reports:["viewer","reviewer","owner"],accounting:["reviewer","owner"],owner:["owner"]};
+ $(".site-footer span:last-child").textContent="V8.1E-G3A • غير معتمد للتشغيل الحقيقي";
+ const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],inventory:["clerk","reviewer","owner"],clinical:["clinician"],reports:["viewer","reviewer","owner"],accounting:["reviewer","owner"],owner:["owner"]};
  $$('[data-permission]').forEach(el=>{el.hidden=!(allowed[el.dataset.permission]||[]).includes(state.me.role)});
- try{if(state.me.role!=='viewer'){await api('/api/inventory/overview');}else{throw Error('viewer');}}catch{const nav=$('[data-view="inventory"]');if(nav)nav.hidden=true;}
+ try{if(['owner','reviewer','clerk'].includes(state.me.role)){await api('/api/inventory/overview');}else{throw Error('no inventory role');}}catch{const nav=$('[data-view="inventory"]');if(nav)nav.hidden=true;}
  if((state.me.role==="clerk")&&["reviews","legacy","payroll","reports","bank","accounting","admin"].includes(state.view))state.view="dashboard";
  await navigate(state.view);
 }
 function hideMenu(){$("#sidebar").classList.remove("open");$("#mobileShade").hidden=true;}
 async function navigate(view){
  if(!state.me)return;
- const restricted={clinical:["viewer"],inventory:["owner","reviewer","clerk"],billing:["owner","reviewer","clerk"],shifts:["owner","reviewer","clerk"],calendar:["owner","reviewer","clerk"],cashierCorrections:["owner","reviewer","clerk"],lateEntries:["owner","reviewer","clerk"],cashierRecoveries:["owner","reviewer","clerk"],cashierSettings:["owner"],reviews:["owner","reviewer"],legacy:["owner","reviewer"],payroll:["owner","reviewer"],reports:["owner","reviewer","viewer"],accounting:["owner","reviewer"],bank:["owner","reviewer"],admin:["owner"],new:["owner","reviewer","clerk"]};
+ if(state.me.role==='clinician' && view!=='clinical'){
+   toast('الحساب الطبي مخصص لإثبات الخدمات فقط',true);return;
+ }
+ const restricted={clinical:["clinician"],inventory:["owner","reviewer","clerk"],billing:["owner","reviewer","clerk"],shifts:["owner","reviewer","clerk"],calendar:["owner","reviewer","clerk"],cashierCorrections:["owner","reviewer","clerk"],lateEntries:["owner","reviewer","clerk"],cashierRecoveries:["owner","reviewer","clerk"],cashierSettings:["owner"],reviews:["owner","reviewer"],legacy:["owner","reviewer"],payroll:["owner","reviewer"],reports:["owner","reviewer","viewer"],accounting:["owner","reviewer"],bank:["owner","reviewer"],admin:["owner"],new:["owner","reviewer","clerk"]};
  if(restricted[view]&&!restricted[view].includes(state.me.role)){toast("ليست لديك صلاحية لهذه الصفحة",true);return;}
  state.view=view;hideMenu();$$('.nav-link[data-view]').forEach(b=>b.classList.toggle("active",b.dataset.view===view));
  const titles={clinical:"إثبات الخدمات الطبي",inventory:"المخزن المركزي",billing:"الحالات والفواتير",dashboard:"نظرة عامة",new:"تسجيل سند",ledger:"دفتر الحركات",reviews:"الاعتمادات",funds:"الخزن والحسابات",shifts:"الورديات والجرد",calendar:"تقويم الورديات",cashierSettings:"إعدادات ورديات الكاشير",cashierRecoveries:"تسوية فروق الخزنة",cashierCorrections:"بلاغات تصحيح العمليات",lateEntries:"استدراك العمليات المتأخرة",payroll:"المرتبات",reports:"التقارير",accounting:"دفتر الأستاذ",bank:"مطابقة البنك",legacy:"الأرشيف التاريخي",admin:"الإدارة"};
@@ -1102,17 +1111,34 @@ async function renderAdmin(){
  $("#content").innerHTML=head('الإدارة والحوكمة','إعدادات وصلاحيات النظام','مدير النظام فقط يضيف المستخدمين ويحدد إقفال الفترات ويتابع النسخ إلى Google Sheets.')+
  `<div class="user-grid"><section class="panel"><div class="panel-header"><h2>مستخدمو قسم الحسابات</h2><button class="btn btn-primary btn-small" id="newUser">${ico('plus')} حساب موظف</button></div>`+
  table(['اسم المستخدم','الصلاحية','الحالة','إدارة الحساب'],users.map(u=>`<tr><td><b>${esc(u.username)}</b></td><td>${esc(roleLabels[u.role])}</td><td>${u.active?'<span class="chip approved">نشط</span>':'<span class="chip rejected">معطل</span>'}</td><td><div class="row-actions"><button class="btn btn-small btn-secondary" data-user-password="${u.id}" data-user-name="${esc(u.username)}">تغيير كلمة المرور</button>${['clerk','reviewer'].includes(u.role)?`<button class="btn btn-small btn-secondary" data-user-fund="${u.id}" data-user-name="${esc(u.username)}">تفويض حساب أو خزنة</button>`:''}<button class="btn btn-small btn-outline" data-user-toggle="${u.id}" data-user-name="${esc(u.username)}" data-new-status="${u.active?'0':'1'}" ${u.username===state.me.username?'disabled title="لا يمكنك تعطيل حسابك"':''}>${u.active?'تعطيل':'تفعيل'}</button></div></td></tr>`).join(''))+`</section>`+
- `<section class="panel"><div class="panel-header"><h2>تفويض إثبات الخدمات الطبي (تجريبي)</h2></div><div class="panel-pad"><p>التوثيق مستقل عن الحسابات. يُمنح فقط لحساب مشاهد مفوض على قسم محدد، ولا يقبل إنشاء فواتير. بعد تفعيل القسم لا يمكن إزالة شرط الإثبات صامتًا. يتطلب التشغيل الحقيقي هوية طبية معتمدة.</p><div class="row-actions"><button class="btn btn-small btn-secondary" id="clinicalGrantSetup">منح / سحب تفويض طبي</button><button class="btn btn-small btn-outline" id="clinicalActivateSetup">تفعيل شرط الإثبات لقسم</button></div></div></section>`+
+ `<section class="panel"><div class="panel-header"><h2>تفويض إثبات الخدمات الطبي (تجريبي)</h2></div><div class="panel-pad"><p>التوثيق منفصل تمامًا عن المالية. أنشئ حسابًا بدور طبي ثم سجّل مراجعة هويته يدويًا قبل تفويض القسم. مراجعة المالك لا تعني التحقق الرسمي من الترخيص أو توقيعًا إلكترونيًا معتمدًا.</p><div class="row-actions"><button class="btn btn-small btn-secondary" id="clinicalIdentitySetup">مراجعة الهوية المهنية</button><button class="btn btn-small btn-secondary" id="clinicalGrantSetup">منح / سحب تفويض طبي</button><button class="btn btn-small btn-outline" id="clinicalActivateSetup">تفعيل شرط الإثبات لقسم</button></div></div></section>`+
  `<section class="panel"><div class="panel-header"><h2>سياسة صلاحيات الخزن النقدية</h2></div><div class="panel-pad"><p>الخزن القديمة تنتقل للحماية بعد تحديد تفويضات الموظفين، والخزن الجديدة تبدأ بالحماية مفعلة. عند التفعيل لا يمكن للموظف العمل أو اعتماد حركة دون تفويض خاص بهذه الخزنة.</p><button class="btn btn-secondary btn-small" type="button" id="configureCashFundPolicy">إدارة حماية الخزنة</button></div></section>`+
  `<section class="panel"><div class="panel-header"><h2>إقفال الفترة المحاسبية</h2><button class="btn btn-secondary btn-small" id="closePeriod">${ico('lock')} إقفال شهر</button></div>`+
  table(['الفترة','تاريخ الإقفال'],periods.map(p=>`<tr><td><b>${esc(p.period)}</b></td><td>${esc(p.closed_at.slice(0,10))}</td></tr>`).join(''))+`<div class="panel-pad"><p class="hint">المحاسبة لا تسمح باعتماد أو إدخال سند جديد في فترة مغلقة، ولا إقفال شهر به سندات معلقة.</p></div></section>`+
  `<section class="panel"><div class="panel-header"><div><h2>مزامنة Google Sheets</h2><p>نسخة متابعة خاصة بمالك المستشفى فقط</p></div><button class="btn btn-primary btn-small" id="syncNow" ${sync.configured?'':'disabled'}>${ico('refresh')} مزامنة الآن</button></div>`+
  `<div class="panel-pad"><p style="margin:0 0 12px">${sync.configured?'<span class="chip approved">تم إعداد الاتصال</span>':'<span class="chip pending">لم يتم ربط Google Sheets بعد</span>'}</p><p class="summary-note">آخر مزامنة: ${esc(sync.last_synced_at||'لم تحدث')} • ${sync.dirty?'هناك تغييرات لم تنسخ بعد':'النسخة محدثة حتى آخر مزامنة'}</p><div class="info-box">${ico('shield')}<div>الموظفون لا يحصلون على صلاحية للشيت. الخادم وحده يتصل باستخدام حساب خدمة، والبيانات الأصلية تظل محفوظة داخل قاعدة النظام.</div></div></div></section>`+
  `<section class="panel"><div class="panel-header"><h2>آخر الأحداث الرقابية</h2></div>${table(['الوقت','المستخدم','الإجراء','المرجع'],audit.slice(0,20).map(a=>`<tr><td class="tiny">${esc(a.created_at.replace('T',' ').slice(0,19))}</td><td>${esc(a.username)}</td><td>${esc(a.action)}</td><td>${esc(a.entity)} #${esc(a.entity_id)}</td></tr>`).join(''))}</section></div>`;
+ $('#clinicalIdentitySetup').onclick=async()=>{
+   const clinicians=users.filter(u=>u.active&&u.role==='clinician');
+   if(!clinicians.length){toast('أنشئ حسابًا بدور طبي أولًا',true);return;}
+   const data=await modal('مراجعة هوية مهنية يدوية — اختبار فقط',
+      'فحص المرجع المهني مسؤولية بشرية خارج النظام، ولا يعد توقيعًا طبيًا قانونيًا. أعد إدخال كلمة مرور المالك لكل قرار.',[
+      {name:'user_id',type:'select',label:'الحساب الطبي',required:true,options:clinicians.map(u=>[String(u.id),u.username])},
+      {name:'professional_name',label:'الاسم المهني المسجل (تجريبي)',required:true},
+      {name:'registration_reference',label:'مرجع التسجيل المهني (غير معروض في تقارير الحسابات)',required:true},
+      {name:'review_note',label:'ملخص مراجعة المستند / سبب السحب',required:true},
+      {name:'approved',type:'select',label:'القرار',required:true,options:[['true','مراجعة مكتملة يدويًا - تجربة'],['false','سحب موافقة المراجعة فورًا']]},
+      {name:'current_password',type:'password',label:'كلمة مرور المالك للتأكيد',required:true}
+   ]);
+   if(!data)return;
+   try{await post('/api/billing/clinical/identity-review',{...data,user_id:Number(data.user_id),approved:data.approved==='true'});
+       toast('تم حفظ قرار مراجعة الهوية دون نشر رقم القيد المهني في سجل الحسابات');}
+   catch(error){toast(error.message,true);}
+ };
  $('#clinicalGrantSetup').onclick=async()=>{
-   const viewers=users.filter(u=>u.active&&u.role==='viewer');
+   const viewers=users.filter(u=>u.active&&u.role==='clinician');
    const departments=state.lookups?.departments||[];
-   if(!viewers.length||!departments.length){toast('أنشئ حساب مشاهد تجريبيًا وحدد القسم أولًا',true);return;}
+   if(!viewers.length||!departments.length){toast('أنشئ حسابًا طبيًا وراجع هويته وحدد القسم أولًا',true);return;}
    const data=await modal('تفويض مُثبت خدمة مستقل','يُمنح للمستخدم صاحب مهمة طبية تجريبية، وليس للمدير أو المحاسب أو الكاشير.',[
      {name:'user_id',type:'select',label:'حساب المُثبت',required:true,options:viewers.map(u=>[String(u.id),u.username])},
      {name:'department_id',type:'select',label:'القسم',required:true,options:departments.map(d=>[String(d.id),d.name])},
@@ -1159,7 +1185,7 @@ async function renderAdmin(){
    const data=await modal('إنشاء حساب موظف','حساب مستقل لكل موظف حتى يظهر اسمه في سجل الاعتماد والمراجعة.',[
     {name:'username',label:'اسم المستخدم بالإنجليزي',required:true,placeholder:'accountant1'},
     {name:'password',type:'password',label:'كلمة مرور قوية (12 حرفًا على الأقل)',required:true},
-    {name:'role',type:'select',label:'الصلاحية',options:[['clerk','مدخل بيانات'],['reviewer','مراجع حسابات'],['viewer','مشاهد التقارير'],['owner','مدير النظام']]}
+    {name:'role',type:'select',label:'الصلاحية',options:[['clerk','مدخل بيانات'],['reviewer','مراجع حسابات'],['viewer','مشاهد التقارير'],['clinician','موثّق خدمات طبي - اختبار'],['owner','مدير النظام']]}
    ]);
    if(!data)return;
    try{await post('/api/users',data);toast('تم إنشاء حساب المستخدم');navigate('admin');}catch(e){toast(e.message,true)}

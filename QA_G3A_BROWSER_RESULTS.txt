@@ -1,0 +1,3 @@
+G3A browser QA (synthetic API, real local Chromium; NOT hospital production)
+clinical UI Chromium: PASS G3A real Chromium: isolated clinical queue / modal / mobile 320/375 and desktop 1440
+owner review Chromium: PASS G3A owner medical review modal in Chromium 375/1440; synthetic payload and owner confirmation

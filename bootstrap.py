@@ -200,12 +200,62 @@ def backup_before_schema_upgrade(c):
         if not {('trigger', 'billing_fulfilled_line_no_update'),
                 ('trigger', 'billing_fulfilled_line_no_delete')}.issubset(objects):
             missing = True
+        # A new clinician role changes the existing users CHECK constraint,
+        # even when all table names already exist. Back up BEFORE rebuilding.
+        if 'users' in tables:
+            users_sql=c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()['sql']
+            if "'clinician'" not in users_sql:
+                missing=True
         if not missing:
             return None
         folder, prefix = 'pre_schema_upgrade_backups', 'before_schema'
     from scripts.secure_backup import create_preupgrade
     name=prefix+'_'+datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')+'_'+secrets.token_hex(4)+'.rbe'
     return create_preupgrade(c, DB.parent/folder, name)
+
+
+def migrate_clinician_role(c):
+    '''Copy users inside one FK-checked transaction after encrypted rollback.
+
+    SQLite cannot ALTER a CHECK constraint. Preserve original integer IDs and
+    linked sessions/financial/clinical records, never synthesize credentials.
+    Existing G2Z viewer witness grants are suspended, not promoted to doctors.
+    '''
+    row=c.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'").fetchone()
+    if not row or "'clinician'" in row['sql']:
+        return False
+    if c.in_transaction:
+        raise RuntimeError('Cannot rebuild clinical account role inside another transaction')
+    c.execute('PRAGMA foreign_keys=OFF')
+    try:
+        c.execute('BEGIN IMMEDIATE')
+        c.execute('''CREATE TABLE users_g3a (
+            id INTEGER PRIMARY KEY,username TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('owner','reviewer','clerk','viewer','clinician')),
+            active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL)''')
+        c.execute('''INSERT INTO users_g3a(id,username,password_hash,role,active,created_at)
+            SELECT id,username,password_hash,role,active,created_at FROM users''')
+        # SQLite validates all triggers during RENAME. The legacy medical
+        # trigger joins users and must be re-created from schema.sql afterward.
+        c.execute('DROP TRIGGER IF EXISTS billing_clinical_attestation_validate_insert')
+        c.execute('DROP TABLE users')
+        c.execute('ALTER TABLE users_g3a RENAME TO users')
+        # Safety: historical pilot witnesses stay for audit; old viewer grants
+        # can no longer certify services after role separation.
+        if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='billing_clinical_grants'").fetchone():
+            c.execute("UPDATE billing_clinical_grants SET active=0 WHERE user_id IN (SELECT id FROM users WHERE role='viewer')")
+        errors=c.execute('PRAGMA foreign_key_check').fetchall()
+        if errors:
+            raise RuntimeError('Foreign keys failed after clinician-role migration: '+str(len(errors)))
+        c.commit()
+    except BaseException:
+        c.rollback()
+        raise
+    finally:
+        c.execute('PRAGMA foreign_keys=ON')
+    if not c.execute('PRAGMA foreign_keys').fetchone()[0]:
+        raise RuntimeError('Foreign keys were not re-enabled after clinical role upgrade')
+    return True
 
 
 def initialize(legacy_path=None):
@@ -222,7 +272,14 @@ def initialize(legacy_path=None):
             backup = backup_before_schema_upgrade(c)
             if backup:
                 print('Verified encrypted pre-upgrade rollback:', backup)
+            if migrate_clinician_role(c):
+                print('G3A clinician role added with original user IDs and old viewer grants suspended')
         with c:
+            # Existing G2Z SQLite triggers contain the obsolete viewer witness
+            # rule. Re-create only that trigger against the new clinician policy.
+            witness=c.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name='billing_clinical_attestation_validate_insert'").fetchone()
+            if witness and "u.role='viewer'" in witness['sql']:
+                c.execute('DROP TRIGGER billing_clinical_attestation_validate_insert')
             c.executescript((ROOT / "schema.sql").read_text(encoding="utf8"))
             # G2U additive, preservation-first migration: old dates stay unknown.
             if 'service_date' not in {r['name'] for r in c.execute('PRAGMA table_info(billing_case_lines)')}:
