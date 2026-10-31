@@ -1,0 +1,4 @@
+PASS G3F Chromium clinician quarantine UI 320/375/1440, independent release/reject and no finance endpoints
+PASS G3D Chromium 1440/375/320 original-lot return workflow, reviewer approval and stale denial clearing
+PASS G3A real Chromium: isolated clinical queue / modal / mobile 320/375 and desktop 1440
+PASS G3B Chromium source document hash UI and owner one-way opt-in, widths 320/375/1440

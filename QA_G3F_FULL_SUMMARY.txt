@@ -1,0 +1,6 @@
+Ramses Accounts G3F verified local synthetic QA
+FULL: 121 invoked / 115 PASS / 5 SKIP / 1 BLOCKED_NO_V80 / 0 FAIL / 0 TIMEOUT / exit 0
+CI: 49/49 PASS / exit 0
+Chromium: G3F, G3D, G3A, G3B UI flows PASS at 320, 375 and 1440 px using synthetic/offline inputs
+Original V8.0 archive: unavailable; off-device hospital restore and real operational UAT: not performed.
+Production: NO-GO.

@@ -146,6 +146,30 @@ def run():
         bogus = {**payload, 'request_id': 'g3d_return_00003',
                  'lines': [{'issue_allocation_id': 9999999, 'quantity': 1}]}
         assert clerk.post('/api/inventory/returns', headers=ch, json=bogus).status_code == 409
+        # G3F: the earlier financial approval restores hospital ownership, NOT
+        # authorization for reuse. A separately credentialed clinician must
+        # release the exact immutable returned lot before FIFO can see it.
+        stock_now=ok(owner.get('/api/inventory/overview'))['items'][0]
+        assert stock_now['quarantined_quantity']==2 and stock_now['available_quantity']==4,stock_now
+        med_id=ok(owner.post('/api/users',headers=oh,json={
+            'username':'g3f_return_clinician','role':'clinician',
+            'password':'synthetic_g3f_return_clinician_pw'}))['id']
+        ok(owner.post('/api/billing/clinical/identity-review',headers=oh,json={
+            'user_id':med_id,'professional_name':'Synthetic Return Clinician',
+            'registration_reference':'SYN-G3F-REVIEWER-REF-0001',
+            'review_note':'Synthetic owner credential check before lot release',
+            'approved':True,'current_password':'synthetic_owner_return_password'}))
+        ok(owner.post('/api/billing/clinical/grants',headers=oh,json={
+            'user_id':med_id,'department_id':dept,'active':True}))
+        med=TestClient(app)
+        mh=auth(med,'g3f_return_clinician','synthetic_g3f_return_clinician_pw')
+        review_items=ok(med.get('/api/inventory/inspections/queue'))['items']
+        target=next(x for x in review_items if x['return_id']==return_id)
+        assert target['quantity']==2
+        ok(med.post(f'/api/inventory/inspections/{target["return_line_id"]}/decision',headers=mh,json={
+            'decision':'release','inspected_on':day,'evidence_ref':'SYN-G3F-PACKAGE-AND-IC-REVIEW',
+            'note':'Synthetic untouched return and physical packaging confirmed',
+            'unused_confirmed':True,'packaging_intact':True,'infection_control_clearance':True}))
         # Other lots cannot be silently substituted; quantity returns to the original FIFO lot.
         next_issue = ok(clerk.post('/api/inventory/issues', headers=ch, json={
             'department_id': dept, 'case_id': case_id, 'used_on': day,

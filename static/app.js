@@ -72,7 +72,7 @@ async function bootstrapUI(){
  const eLabel=$(".environment-label");
  eLabel.textContent="بيئة اختبار • لا تسجل بيانات مالية فعلية";
  eLabel.classList.toggle("test-mode",trial);
- $(".site-footer span:last-child").textContent="V8.1E-G3E • غير معتمد للتشغيل الحقيقي";
+ $(".site-footer span:last-child").textContent="V8.1E-G3F • غير معتمد للتشغيل الحقيقي";
  const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],inventory:["clerk","reviewer","owner"],clinical:["clinician"],reports:["viewer","reviewer","owner"],accounting:["reviewer","owner"],owner:["owner"]};
  $$('[data-permission]').forEach(el=>{el.hidden=!(allowed[el.dataset.permission]||[]).includes(state.me.role)});
  try{if(['owner','reviewer','clerk'].includes(state.me.role)){await api('/api/inventory/overview');}else{throw Error('no inventory role');}}catch{const nav=$('[data-view="inventory"]');if(nav)nav.hidden=true;}
@@ -162,6 +162,11 @@ function initialFormValues(){
 async function renderClinical(){
  const data=await api('/api/billing/clinical/queue');
  const pending=data.items||[];
+ // Inventory is a separately scoped, optional clinical worklist; it must not
+ // break the existing medical service workflow if no stock-return grant exists.
+ let inspectionItems=[],inspectionNotice='';
+ try{inspectionItems=(await api('/api/inventory/inspections/queue')).items||[];}
+ catch(error){inspectionNotice='قائمة فحص المرتجعات غير متاحة لحسابك حاليًا. تحقق من تفويض القسم أو اتصال الخدمة.';}
  $('#content').innerHTML=head('إثبات الخدمات · تجربة', 'الإثبات الطبي المستقل',
    'لا ينشئ هذا الإجراء فاتورة أو حركة نقدية. دوّن فقط مرجع تنفيذ قابل للتحقق وبعد مراجعة واقعية للخدمة.',
    `<button class="btn btn-secondary" id="refreshClinical">${ico('refresh')} تحديث القائمة</button>`)+
@@ -170,7 +175,15 @@ async function renderClinical(){
    table(['الحالة','المريض (الكود)','الخدمة','العدد','الوضع','الإجراء'],pending.map(x=>`<tr>`+
      `<td>${esc(x.case_no)}</td><td>${esc(x.patient_code)}</td><td>${esc(x.service_name)}</td>`+
      `<td class="num">${integer(x.quantity)}</td><td>${x.state==='fulfilled'?'منفذة سابقًا · تحتاج إثبات':'مطلوبة'}</td>`+
-     `<td>${x.document_required?'<span class="chip pending">بصمة ملف إلزامية</span>':''}<button class="btn btn-small btn-primary" data-clinical-attest="${esc(x.line_id)}" data-clinical-doc-required="${x.document_required?1:0}">إثبات التنفيذ</button></td></tr>`).join(''))+`</section>`;
+     `<td>${x.document_required?'<span class="chip pending">بصمة ملف إلزامية</span>':''}<button class="btn btn-small btn-primary" data-clinical-attest="${esc(x.line_id)}" data-clinical-doc-required="${x.document_required?1:0}">إثبات التنفيذ</button></td></tr>`).join(''))+`</section>`+
+   `<section class="panel" style="margin-top:18px"><div class="panel-header"><div><h2>حجر وفحص المستلزمات المرتجعة</h2><p>كل مرتجع محاسبي معتمد محجوز إلى أن يصدر قرار طبي منفصل. القائمة بحسب الأقسام الممنوحة لك، ولا تعرض بيانات مريض أو أسعارًا.</p></div></div>`+
+   (inspectionNotice?`<p class="section-subtitle" role="status">${esc(inspectionNotice)}</p>`:'')+
+   (inspectionItems.length?table(['المستلزم / الدفعة','القسم','الكمية','تاريخ الرد','الصلاحية','قرار طبي مستقل'],inspectionItems.map(x=>`<tr>`+
+     `<td><strong>${esc(x.item_name)}</strong><small class="inv-muted">${esc(x.item_code)} · ${esc(x.batch_ref||'بدون رقم تشغيلة')}</small></td>`+
+     `<td>${esc(x.department_name)}</td><td class="num">${integer(x.quantity)}</td><td>${esc(x.returned_on)}</td><td>${esc(x.expiry_date||'غير مسجل')}</td>`+
+     `<td><div class="inv-actions"><button class="btn btn-small btn-primary" data-return-inspect="${Number(x.return_line_id)}:release">إجازة بعد الفحص</button>`+
+     `<button class="btn btn-small btn-outline" data-return-inspect="${Number(x.return_line_id)}:reject">رفض طبي</button></div></td></tr>`).join('')):empty('لا توجد مرتجعات تنتظر الفحص في أقسامك حاليًا.'))+
+   `</section>`;
  $('#refreshClinical').onclick=()=>navigate('clinical');
  $$('[data-clinical-attest]',$('#content')).forEach(btn=>btn.onclick=async()=>{
    const lineId=Number(btn.dataset.clinicalAttest);
@@ -193,6 +206,32 @@ async function renderClinical(){
        await post(`/api/billing/clinical/lines/${lineId}/attest`,{evidence_reference:details.evidence_reference});
        toast('تم إثبات الخدمة بمرجع تجريبي دون بصمة مصدر');
      }
+     await navigate('clinical');
+   }catch(error){toast(error.message,true);}
+ });
+ $$('[data-return-inspect]',$('#content')).forEach(btn=>btn.onclick=async()=>{
+   const [rawId,decision]=btn.dataset.returnInspect.split(':');
+   const id=Number(rawId);
+   if(!Number.isSafeInteger(id)||id<1)return;
+   const release=decision==='release';
+   const fields=[{name:'evidence_ref',label:'رقم محضر الفحص أو موافقة مكافحة العدوى',required:true},
+                 {name:'note',label:'قرار الطبيب والمبرر (12 حرفًا على الأقل)',required:true}];
+   if(release)fields.push(...[
+     ['unused_confirmed','أؤكد أن الوحدة لم تستخدم'],
+     ['packaging_intact','أؤكد سلامة العبوة الأصلية'],
+     ['infection_control_clearance','أؤكد وجود موافقة مكافحة العدوى'],
+   ].map(([name,label])=>({name,type:'select',label,options:[['false','لا'],['true','نعم']]})));
+   const result=await modal(release?'قرار إفراج طبي تجريبي':'رفض إعادة الاستخدام',
+      'كل قرار غير قابل للتعديل. الرفض يبقي الكمية في الحجر لحين تسوية مستقلة، ولا ينشئ قيدًا ماليًا جديدًا. لا تستخدم نظام التجربة لاتخاذ قرار سلامة مستلزمات حقيقية.',fields);
+   if(!result)return;
+   try{
+     await post(`/api/inventory/inspections/${id}/decision`,{
+       decision,inspected_on:new Date().toLocaleDateString('sv-SE',{timeZone:'Africa/Cairo'}),
+       evidence_ref:result.evidence_ref,note:result.note,
+       unused_confirmed:result.unused_confirmed==='true',
+       packaging_intact:result.packaging_intact==='true',
+       infection_control_clearance:result.infection_control_clearance==='true'});
+     toast(release?'تم تسجيل الإفراج الطبي المستقل على مستلزم تجريبي':'تم الرفض؛ سيظل المستلزم محجوزًا طبيًا');
      await navigate('clinical');
    }catch(error){toast(error.message,true);}
  });

@@ -125,10 +125,11 @@ def get_user(request: Request, c: sqlite3.Connection = Depends(db)):
     # finance GETs. Never treat a clinician as a report viewer/cashier.
     if row['role']=='clinician':
         path=request.url.path
-        clinical_read=(request.method=='GET' and (path=='/api/billing/clinical/queue' or
+        clinical_read=(request.method=='GET' and (path in ('/api/billing/clinical/queue', '/api/inventory/inspections/queue') or
                        bool(re.fullmatch(r'/api/billing/clinical/lines/[0-9]+/evidence',path))))
         clinical_write=(request.method=='POST' and
-                        bool(re.fullmatch(r'/api/billing/clinical/lines/[0-9]+/(?:attest|attest-document|verify-document)',path)))
+                        bool(re.fullmatch(r'/api/billing/clinical/lines/[0-9]+/(?:attest|attest-document|verify-document)',path) or
+                             re.fullmatch(r'/api/inventory/inspections/[0-9]+/decision',path)))
         session_route=path=='/api/me' or (path=='/api/logout' and request.method=='POST')
         if not (clinical_read or clinical_write or session_route):
             fail('الحساب الطبي لا يملك صلاحيات مالية أو إدارية',403)
@@ -561,7 +562,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G3E Unused Consumables Returns Development - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G3F Returned Consumables Quarantine Development - Test Only"}
 
 
 @app.post("/api/login")

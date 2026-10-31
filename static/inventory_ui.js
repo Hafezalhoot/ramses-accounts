@@ -38,13 +38,16 @@
     const items=d.items||[],vendors=d.vendors||[];
     const totalValue=items.reduce((sum,x)=>sum+Number(x.value_piasters||0),0);
     const totalUnits=items.reduce((sum,x)=>sum+Number(x.quantity_on_hand||0),0);
+    const totalQuarantine=items.reduce((sum,x)=>sum+Number(x.quarantined_quantity||0),0);
+    const totalAvailable=items.reduce((sum,x)=>sum+Number(x.available_quantity||0),0);
     const pending=(d.receipts||[]).filter(x=>x.status==='pending').length+(d.issues||[]).filter(x=>x.status==='pending').length+(d.returns||[]).filter(x=>x.status==='pending').length;
     const units=[['piece','قطعة'],['box','صندوق'],['pack','عبوة'],['bottle','زجاجة'],['meter','متر']];
     root.innerHTML=head('المخازن والمشتريات','المخزن المركزي للمستلزمات','قيود مخزون وموردين وتكلفة تشغيل، ولا يحدث صرف من الخزنة تلقائيًا.',isOwner?`<button type="button" class="btn btn-secondary" id="invGrant">${ico('shield')} إدارة تفويضات المخزن</button>`:'')+
       `<div class="info-box warning" role="note">${ico('alert')}<div><strong>تجريبي — مستلزمات غير دوائية فقط.</strong> لا يشمل أدوية المرضى أو الصرف العلاجي أو مطابقة فواتير الموردين مع البنك أو ضريبة القيمة المضافة. التقرير لا يثبت قيمة مخزون افتتاحي تاريخي.</div></div>`+
-      `<div class="inv-stats"><div><small>أصناف مسجلة</small><strong>${integer(items.length)}</strong></div><div><small>الكمية المتاحة</small><strong>${integer(totalUnits)}</strong></div><div><small>قيمة المخزون التجريبي</small><strong>${fmt(totalValue)} ج.م</strong></div><div><small>مستندات تنتظر الاعتماد</small><strong>${integer(pending)}</strong></div></div>`+
-      `<section class="panel inv-panel"><div class="panel-header"><div><h2>الأرصدة حسب الصنف</h2><p>لا يدخل الرصيد إلا بعد اعتماد الاستلام، ولا ينقص إلا بعد اعتماد الصرف.</p></div>${isOwner?`<div class="inv-actions"><button id="invVendor" class="btn btn-small btn-outline">مورد جديد</button><button id="invItem" class="btn btn-small btn-primary">صنف جديد</button></div>`:''}</div>`+
-      (items.length?table(['الكود','الصنف','الوحدة','الرصيد','القيمة'],items.map(x=>`<tr><td>${esc(x.code)}</td><td><strong>${esc(x.name)}</strong></td><td>${esc(unitName[x.unit]||x.unit)}</td><td class="num">${integer(x.quantity_on_hand)}</td><td class="num">${fmt(x.value_piasters)}</td></tr>`).join('')):empty('سجّل موردًا وصنفًا أولًا ثم أنشئ محضر توريد.'))+
+      `<div class="inv-stats"><div><small>أصناف مسجلة</small><strong>${integer(items.length)}</strong></div><div><small>المملوك فعليًا (يشمل الحجر)</small><strong>${integer(totalUnits)}</strong></div><div><small>الحجر الطبي</small><strong>${integer(totalQuarantine)}</strong></div><div><small>المتاح بعد الحجر*</small><strong>${integer(totalAvailable)}</strong></div><div><small>قيمة المخزون (تشمل الحجر)</small><strong>${fmt(totalValue)} ج.م</strong></div></div>`+
+      `<div class="info-box warning" role="note">الموافقة المحاسبية على المرتجع لا تعني صلاحية إعادة الاستخدام. الكمية المحجوزة طبيًا لا تدخل FIFO إلا بقرار طبي مستقل، والرصيد غير المحجوز لا يضمن الصلاحية أو سلامة العبوة؛ يتم فحصهما عند الصرف. لا يجوز استخدام هذه الدورة مع مرضى حقيقيين قبل اعتماد مكافحة العدوى.</div>`+
+      `<section class="panel inv-panel"><div class="panel-header"><div><h2>الأرصدة حسب الصنف</h2><p>المملوك يشمل المستلزمات المرتجعة داخل الحجر؛ قيد المرتجع المالي مستقل عن الإفراج الطبي.</p></div>${isOwner?`<div class="inv-actions"><button id="invVendor" class="btn btn-small btn-outline">مورد جديد</button><button id="invItem" class="btn btn-small btn-primary">صنف جديد</button></div>`:''}</div>`+
+      (items.length?table(['الكود','الصنف','الوحدة','المملوك','بالحجر','غير محجوز*','القيمة'],items.map(x=>`<tr><td>${esc(x.code)}</td><td><strong>${esc(x.name)}</strong></td><td>${esc(unitName[x.unit]||x.unit)}</td><td class="num">${integer(x.quantity_on_hand)}</td><td class="num">${integer(x.quarantined_quantity)}</td><td class="num">${integer(x.available_quantity)}</td><td class="num">${fmt(x.value_piasters)}</td></tr>`).join('')):empty('سجّل موردًا وصنفًا أولًا ثم أنشئ محضر توريد.'))+
       `</section>`+
       (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">محضر استلام من مورد</h2><p class="section-subtitle">القيد المالي والكمية يترحلان فقط بعد اعتماد موظف آخر.</p><form id="invReceiptForm" class="inv-form">`+
         field('','المورد',`<select name="vendor_id" required>${options(vendors,'اختر المورد')}</select>`)+
@@ -67,9 +70,9 @@
         `<button class="btn btn-primary" type="submit" ${!items.length?'disabled':''}>إرسال إذن الصرف للمراجعة</button></form></section></div>`:'')+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>فواتير توريد الموردين</h2><p>تثبيت مخزون وموردين بعد مراجعة المستند</p></div></div>${docTable(d.receipts||[],'receipts',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>أذون صرف المستلزمات</h2><p>تكاليف حالة أو قسم، وليس تحصيلًا نقديًا</p></div></div>${docTable(d.issues||[],'issues',canApprove,state.me.id)}</section></div>`+
-      `<section class="panel inv-panel"><div class="panel-header"><div><h2>مرتجعات مستلزمات</h2><p>المخزون وتكلفة الحالة يتغيران بعد اعتماد مستقل، مع الاحتفاظ بإذن الصرف الأصلي.</p></div></div>${docTable(d.returns||[],'returns',canApprove,state.me.id)}</section>`+
+      `<section class="panel inv-panel"><div class="panel-header"><div><h2>مرتجعات مستلزمات</h2><p>الاعتماد المالي يعيد الملكية إلى المخزون المحجوز، ولا يجعل المرتجع متاحًا حتى يجيزه طبيب مفوض مستقل.</p></div></div>${docTable(d.returns||[],'returns',canApprove,state.me.id)}</section>`+
       (canPrepare?`<section class="panel panel-pad"><h2 class="section-title">إرجاع مستلزمات غير مستخدمة</h2>`+
-      `<p class="section-subtitle">يتطلب إذن صرف معتمد وأصلًا قابلًا لإعادة الاستخدام والتعقيم، دون أن تُنشأ فاتورة جديدة أو تعديل في مستند الصرف.</p>`+
+      `<p class="section-subtitle">إرجاع فعلي لإذن معتمد. كل كمية تعتمد ماليًا تدخل الحجر الطبي تلقائيًا، ولا يُسمح بالصرف منها حتى فحص مستقل.</p>`+
       `<form id="invReturnLookupForm" class="inv-form">`+
         field('','رقم إذن الصرف الأصلي',`<input name="issue_id" type="number" min="1" step="1" required aria-label="رقم إذن الصرف الأصلي">`)+
         `<button type="submit" class="btn btn-secondary">عرض الدفعات القابلة للإرجاع</button></form>`+
@@ -135,7 +138,7 @@
             evidence_ref:ret.elements.evidence_ref.value,request_id:requestId(),
             lines:[{issue_allocation_id:Number(ret.elements.issue_allocation_id.value),
                     quantity:Number(ret.elements.quantity.value)}]};
-          await apply('/api/inventory/returns',data,'تم إرسال طلب المرتجع للمراجعة؛ المخزون والتكلفة لم يتغيرا بعد');
+          await apply('/api/inventory/returns',data,'تم إرسال طلب المرتجع ماليًا؛ إذا اعتمد فسيبقى في الحجر حتى فحص طبي مستقل');
           button.disabled=false;
         });
       }catch(error){source.innerHTML=`<p role="alert">${esc(error.message)}</p>`;}

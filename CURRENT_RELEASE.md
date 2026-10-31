@@ -1,3 +1,14 @@
+# V8.1E-G3F — Quarantined return / independent medical disposition (1 November 2026) / TEST ONLY
+
+- Built on verified G3E source commit `827d458`, on isolated `feat/g3f-return-quarantine` branch. No production or patient databases used.
+- The original independent financial return, Dr1100/Cr5100 and net case cost remain unchanged. All approved returned lot quantities stay medically quarantined until a department-granted, independently reviewed clinician approves release with documented inspection; reject remains quarantined until an independently posted loss adjustment (not yet implemented).
+- FIFO API, direct SQLite allocation and final approval triggers now require released original returned lots by business date. Frozen G3E encrypted upgrade/independent local restore tests cover old used returned units and old pending preallocations; no false medical backfill.
+- Stock UI separates owned / quarantined / nonquarantined, clinical queue omits patients/prices, and medical date uses Africa/Cairo in the browser.
+- **Full regression 121 scripts: 115 PASS, 5 SKIP unavailable references, 1 BLOCKED original V8.0, 0 FAIL, exit 0. CI 49/49 PASS, exit 0.** Chromium G3F/G3D/G3A/G3B tests PASS at 320/375/1440. See `README_G3F_AR.md`, `RAMSES_V81E_G3F_QUARANTINE_QA_AR.md` and QA files.
+- **NO-GO** pending hospital-approved reuse policy and infection control, validated clinician licensing, physical quarantine/disposal, on-site UAT, financial/medical/IT approvals, original V8.0 and off-device recovery.
+
+---
+
 # V8.1E-G3E — Case privacy for inventory issues / TEST ONLY (1 November 2026)
 
 - Restored genuine G3D source, authenticated original ZIP/BUNDLE SHA-256, isolated local `feat/g3e-inventory-privacy` branch; no live deployment or clinical data.

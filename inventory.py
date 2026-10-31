@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app import audit, c_piasters, db, fail, get_user, month_open, require, stamp, valid_date, valid_month
-from billing import case_scope, cairo_today, remember, repeat, request_key, trim, CODE_PATTERN
+from billing import case_scope, cairo_today, remember, repeat, request_key, trim, CODE_PATTERN, require_clinical_grant
 import ledger
 
 router=APIRouter(prefix='/api/inventory',tags=['central-consumables'])
@@ -86,6 +86,16 @@ class ReturnForm(BaseModel):
 class ReviewForm(BaseModel):
     decision:Literal['approve','reject']
     note:str=Field(min_length=8,max_length=300)
+
+
+class ReturnInspectionForm(BaseModel):
+    decision:Literal['release','reject']
+    inspected_on:str
+    evidence_ref:str=Field(min_length=8,max_length=180)
+    note:str=Field(min_length=12,max_length=300)
+    unused_confirmed:bool=False
+    packaging_intact:bool=False
+    infection_control_clearance:bool=False
 
 
 def permission(c,user,ability='read'):
@@ -169,7 +179,7 @@ def create_item(body:ItemForm,user=Depends(get_user),c:sqlite3.Connection=Depend
 def stock_asof(c,period=None):
     upto=(period+'-31') if period else '9999-12-31'
     # Inventory lots count only approved supplier receipts; unapproved requests are not stock.
-    return [dict(r) for r in c.execute('''SELECT it.id,it.code,it.name,it.unit,
+    items=[dict(r) for r in c.execute('''SELECT it.id,it.code,it.name,it.unit,
       COALESCE(SUM(CASE WHEN r.status='approved' AND r.received_on<=? THEN l.quantity ELSE 0 END),0)-
       COALESCE((SELECT SUM(a.quantity) FROM inventory_issue_allocations a
          JOIN inventory_issues i ON i.id=a.issue_id AND i.status='approved'
@@ -194,6 +204,23 @@ def stock_asof(c,period=None):
       LEFT JOIN inventory_receipt_lines l ON l.item_id=it.id
       LEFT JOIN inventory_receipts r ON r.id=l.receipt_id
       GROUP BY it.id ORDER BY it.id''',(upto,upto,upto,upto,upto,upto))]
+    for item in items:
+        # A return is a hospital asset once financially approved, but cannot be
+        # consumed a second time without an independent *dated* clinical release.
+        # Conservative clamp covers historical G3D releases which may already
+        # have been consumed before clinical tracking existed (manual review due).
+        blocked=c.execute('''SELECT COALESCE(SUM(rl.quantity),0)
+            FROM inventory_return_lines rl
+            JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+            JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+            JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+            LEFT JOIN inventory_return_inspections med ON med.return_line_id=rl.id
+            WHERE lot.item_id=? AND ret.returned_on<=?
+              AND (med.decision IS NULL OR med.decision!='released' OR med.inspected_on>?)''',
+              (item['id'],upto,upto)).fetchone()[0]
+        item['quarantined_quantity']=min(max(0,item['quantity_on_hand']),int(blocked))
+        item['available_quantity']=max(0,item['quantity_on_hand']-item['quarantined_quantity'])
+    return items
 
 
 def visible_issue_scope(user):
@@ -361,12 +388,14 @@ def fifo_allocate(c,issue):
            COALESCE((SELECT SUM(a.quantity) FROM inventory_issue_allocations a WHERE a.receipt_line_id=l.id),0)-
            COALESCE((SELECT SUM(rl.quantity) FROM inventory_return_lines rl
              JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+             JOIN inventory_return_inspections medical ON medical.return_line_id=rl.id
+                 AND medical.decision='released' AND medical.inspected_on<=?
              JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
              WHERE a.receipt_line_id=l.id AND ret.returned_on<=?),0) used
            FROM inventory_receipt_lines l JOIN inventory_receipts r ON r.id=l.receipt_id
            WHERE l.item_id=? AND r.status='approved' AND r.received_on<=?
              AND (l.expiry_date IS NULL OR l.expiry_date>=?)
-           ORDER BY r.received_on,l.id''',(issue['used_on'],line['item_id'],issue['used_on'],issue['used_on'])).fetchall()
+           ORDER BY r.received_on,l.id''',(issue['used_on'],issue['used_on'],line['item_id'],issue['used_on'],issue['used_on'])).fetchall()
         for lot in lots:
             available=lot['quantity']-lot['used']
             take=min(remaining,available)
@@ -541,6 +570,96 @@ def decide_return(return_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3
     return {'id':return_id,'status':status,'cost_piasters':cost,'journal_id':jid}
 
 
+@router.get('/inspections/queue')
+def pending_medical_inspections(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    """A department-scoped clinical worklist. Never disclose patient or financial data."""
+    require(user,'clinician')
+    if not c.execute('''SELECT 1 FROM billing_clinical_identity_reviews
+                 WHERE user_id=? AND approved=1''',(user['id'],)).fetchone():
+        fail('الحساب الطبي يحتاج مراجعة هوية مهنية سارية',403)
+    if not c.execute('''SELECT 1 FROM billing_clinical_grants
+                 WHERE user_id=? AND active=1''',(user['id'],)).fetchone():
+        fail('لا توجد أقسام مفوضة للحساب الطبي',403)
+    rows=c.execute('''SELECT rl.id return_line_id,ret.id return_id,ret.returned_on,
+            i.department_id,d.name department_name,lot.batch_ref,lot.expiry_date,
+            it.code item_code,it.name item_name,rl.quantity
+        FROM inventory_return_lines rl
+        JOIN inventory_issue_returns ret ON ret.id=rl.return_id AND ret.status='approved'
+        JOIN inventory_issues i ON i.id=ret.issue_id
+        JOIN billing_clinical_grants g ON g.department_id=i.department_id
+             AND g.user_id=? AND g.active=1
+        JOIN departments d ON d.id=i.department_id
+        JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+        JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+        JOIN inventory_items it ON it.id=lot.item_id
+        WHERE NOT EXISTS(SELECT 1 FROM inventory_return_inspections med WHERE med.return_line_id=rl.id)
+        ORDER BY ret.returned_on,rl.id LIMIT 75''',(user['id'],)).fetchall()
+    return {'items':[dict(x) for x in rows],
+            'scope':'Clinical review of financially accepted returns. No patient IDs, costs, source documents or patient invoices.'}
+
+
+@router.post('/inspections/{return_line_id}/decision')
+def decide_return_inspection(return_line_id:int,body:ReturnInspectionForm,
+                             user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    require(user,'clinician')
+    day=business_day(body.inspected_on)
+    if day!=cairo_today():
+        fail('الفحص الطبي لا يسجل بأثر رجعي؛ استخدم تاريخ اليوم الفعلي',409)
+    evidence=trim(body.evidence_ref,'مرجع الفحص الطبي',8,180)
+    note=trim(body.note,'ملاحظات الفحص الطبي',12,300)
+    if body.decision=='release' and not (body.unused_confirmed and body.packaging_intact and body.infection_control_clearance):
+        fail('لا يسمح بإعادة الصرف دون تأكيد عدم الاستخدام وسلامة العبوة وموافقة مكافحة العدوى',409)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        row=c.execute('''SELECT rl.id,ret.id return_id,ret.status return_status,ret.returned_on,
+                      i.department_id,lot.expiry_date,lot.id lot_id,lot.quantity lot_quantity
+              FROM inventory_return_lines rl
+              JOIN inventory_issue_returns ret ON ret.id=rl.return_id
+              JOIN inventory_issues i ON i.id=ret.issue_id
+              JOIN inventory_issue_allocations a ON a.id=rl.issue_allocation_id
+              JOIN inventory_receipt_lines lot ON lot.id=a.receipt_line_id
+              WHERE rl.id=?''',(return_line_id,)).fetchone()
+        if not row:fail('محضر الفحص غير موجود',404)
+        # Current clinical identity + department grant checked under the same
+        # write lock as INSERT; revocation wins even with a live browser session.
+        require_clinical_grant(c,user,row['department_id'])
+        if row['return_status']!='approved':fail('المستلزمات لم تعتمد محاسبيًا بعد',409)
+        if c.execute('SELECT 1 FROM inventory_return_inspections WHERE return_line_id=?',
+                     (return_line_id,)).fetchone():
+            fail('تم اتخاذ قرار طبي نهائي بالفعل؛ لا يمكن تعديل المحضر',409)
+        if row['returned_on']>day:fail('تاريخ الفحص يسبق رد المستلزم',409)
+        month_open(c,day[:7])
+        if body.decision=='release':
+            if row['expiry_date'] and row['expiry_date']<day:
+                fail('المستلزم منتهي الصلاحية؛ لا يجوز إعادته للصرف',409)
+            historical=c.execute('''SELECT
+                (SELECT COALESCE(SUM(quantity),0) FROM inventory_issue_allocations
+                 WHERE receipt_line_id=?) gross_allocated,
+                (SELECT COALESCE(SUM(prior.quantity),0) FROM inventory_return_lines prior
+                 JOIN inventory_issue_allocations allocation ON allocation.id=prior.issue_allocation_id
+                 JOIN inventory_issue_returns ret ON ret.id=prior.return_id AND ret.status='approved'
+                 JOIN inventory_return_inspections med ON med.return_line_id=prior.id
+                    AND med.decision='released' AND med.inspected_on<=?
+                 WHERE allocation.receipt_line_id=? AND ret.returned_on<=?) prior_released''',
+                 (row['lot_id'],day,row['lot_id'],day)).fetchone()
+            if historical['gross_allocated']>row['lot_quantity']+historical['prior_released']:
+                fail('يوجد صرف تاريخي لمستلزمات مرتجعة قبل الفحص؛ يلزم جرد وتسوية مستقلة قبل الإفراج',409)
+        status='released' if body.decision=='release' else 'rejected'
+        c.execute('''INSERT INTO inventory_return_inspections
+              (return_line_id,decision,inspected_on,evidence_ref,note,
+               unused_confirmed,packaging_intact,infection_control_clearance,inspected_by,inspected_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?)''',
+              (return_line_id,status,day,evidence,note,
+               int(body.unused_confirmed),int(body.packaging_intact),int(body.infection_control_clearance),
+               user['id'],stamp()))
+        # Audit records only the source line and decision; reference notes stay
+        # in the restricted clinical table rather than finance audit exports.
+        audit(c,user['id'],'inventory_return_inspected','inventory_return_line',return_line_id,
+              {'decision':status,'return_id':row['return_id'],'department_id':row['department_id']})
+    return {'return_line_id':return_line_id,'status':status,
+            'financial_return_unchanged':True,'clinical_pilot_only':True}
+
+
 @router.get('/cases/{case_id}/cost')
 def case_consumables_cost(case_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     """Trace already-posted FIFO cost per authorized patient case; never infer profit."""
@@ -613,6 +732,8 @@ def reconciliation(c,period):
         errors.append('FIFO subledger / source-backed inventory GL mismatch')
     return {'period':period,'matched':not errors,'errors':errors[:20],
             'quantity_on_hand':physical_qty,'value_piasters':physical_value,
+            'quarantined_quantity':sum(x['quarantined_quantity'] for x in items),
+            'available_quantity':sum(x['available_quantity'] for x in items),
             'inventory_gl_piasters':actual_balance,'approved_receipts':len(receipts),'approved_issues':len(issues),
             'approved_returns':len(returns),
             'scope':'مستلزمات تجريبية مرتبطة بمستندات G2T فقط؛ لا تشمل رصيد مخزون افتتاحي قديم أو مشتريات سندات V8 أو دواء أو تسويات الموردين.'}
