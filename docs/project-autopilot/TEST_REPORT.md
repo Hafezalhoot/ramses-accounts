@@ -1,3 +1,12 @@
+# G3D final local full QA — 2026-11-01
+
+- Branch `feat/g3d-case-consumables-returns`, 120 unique scripts invoked: **114 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL, 0 TIMEOUT**. Source `/mnt/data/QA_G3D_TEST_RESULTS.tsv`. Full runner exit code 0.
+- G3D TDD: immutable original-lot independent physical returns (2 at 1200 piasters = 2400 piasters net decrease); authorization/Idempotency/FIFO as-of dates/month close/financial-case pending closure/double request concurrency/direct SQL; encrypted frozen G3C upgrade/restore; responsive Chromium 1440/375/320.
+- Existing legacy tests for billing service day, physical cash movements and daily shift coverage failed at Cairo midnight due UTC/no grace context. Corrected **tests only** and individually reran each 3/3 PASS; final entire suite rerun clean. Original first-run failures are not reclassified into passes retroactively.
+- Separate CI suite 45/45 PASS exit 0 (`QA_G3D_CI_RESULTS.txt`); exact extracted ZIP verification remains independently recorded in release report. NO production approval, no offsite restore and no genuine V8.0 source.
+
+---
+
 # G3C QA regression — 2026-10-31
 
 - Real FastAPI RED→GREEN: missing case cost route 404 -> approved two-lot 5600-piaster trace, dual grants and immediate revocation, no patient names or extra GL.

@@ -1,3 +1,14 @@
+# G3D local status — 2026-11-01
+
+- Branch: `feat/g3d-case-consumables-returns`, baseline G3C commit `2a5d2ee`.
+- Scope: immutable original-lot FIFO returns (independent approval and reversing posted GL); net case costing; pending return month/case clearance blocking; direct SQLite defenses.
+- Verified encrypted G3C source migration and rollback locally on synthetic fixture. Full final regression 120 = 114 PASS, 5 SKIP, 1 BLOCKED missing genuine V8.0, 0 FAIL; Separate CI 45/45 PASS exit 0; source-archive check tracked independently.
+- No live database, hospital users, external push, deployment or real patient details. NO-GO.
+
+Next 3: (1) complete regression+CI and reproducible source ZIP, (2) authorized physical return inspection/quarantine and corrected bills/PO/AP, (3) off-device restore and finance/clinical/IT UAT including missing genuine V8.0 source.
+
+---
+
 # G3C Project Autopilot verified state — 2026-10-31 (local source only)
 
 - Baseline G3B commit `4933339`; local isolated branch `feat/g3c-case-consumables-cost`; NO production access or deployment.

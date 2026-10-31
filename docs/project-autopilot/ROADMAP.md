@@ -1,3 +1,16 @@
+# G3D next releases — after original-lot case consumables returns (development)
+
+1. **P0 patient/physical safety:** A finance return is *not* clearance for reusing a medical item. Require hospital inventory, infection-control and medical acceptance policy, damaged/quarantine route, and independent clinical reviewer before production.
+2. **P0 release gate:** Real V8.0 and G2J/G2K/G2L source archives, independent off-device restore, permissions matrix, separate medical/finance/IT UAT; no production promotion without documented approvals.
+3. **P1 traceable corrections:** Reconciliation for case consumables returned to stock versus patient invoices/credits, item scrapping and over/short stock correction without rewriting original GL documents.
+4. **P1 privacy:** Fix and test `inventory.overview` issue list case-ID/evidence-ref scoping (G3D-08) for warehouse-only users; use current case-point grants for every result, then rerun negative browser/API tests.
+5. **P1 purchase cycle:** Supplier quotation/PO, purchase approval, GRN with partial delivery, tax/vendor invoice 3-way match, AP journal, independent payment request; no bank transfer in software.
+6. **P1 doctor and insurers:** Contract effective dates, doctor accrual/split, insurer claims and reconciled settlements; full operation/NICU case cost still unavailable.
+
+G3D original-lot non-drug return flow is implemented locally/test-only, **not** real hospital-ready sterilization clearance.
+
+---
+
 # Ramses Accounts priorities after G3B — 2026-10-31
 
 1. **P0 — Identity & medical governance:** independent clinician registration/licensing verification, authorized medical reviewer, legally valid signature, source-document ownership and retention in HIS/EMR/LIS. SHA-256 proves identical bytes only; G3B medical pilot is not approval.

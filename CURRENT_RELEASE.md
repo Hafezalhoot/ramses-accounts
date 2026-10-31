@@ -1,3 +1,14 @@
+# V8.1E-G3D — Original-lot consumables returns / TEST ONLY (1 November 2026)
+
+- Local isolated branch `feat/g3d-case-consumables-returns` based on verified G3C commit `2a5d2ee`; synthetic data only, no hospital deployment.
+- Independently approved non-drug FIFO returns from original issue allocations, preserving original issues and journals; Dr1100/Cr5100 separate reviewed return journal and net case-consumables reports.
+- SQLite/API enforced quantity, expiry, current case grant, historical FIFO date, month close and pending-return case-close guards. Unapproved returns do not change financial balances.
+- Frozen G3C schema upgrade behind authenticated encrypted `.rbe` rollback, isolated restore test; original historical rows not backfilled or altered.
+- QA final regression: 120 scripts = 114 PASS / 5 SKIP unavailable historical source / 1 BLOCKED_NO_V80 / 0 FAIL; independent CI 45/45 PASS exit 0; archive verification is recorded separately. See `RAMSES_V81E_G3D_RETURN_QA_AR.md` and downloadable QA reports.
+- NO-GO production: medical sterilization/quarantine policy, on-site UAT, real V8.0 archive, independent offsite backup restoration, chief accountant and medical/IT signoff missing.
+
+---
+
 # V8.1E-G3C — Case consumables FIFO cost / TEST ONLY (31 October 2026)
 
 - Isolated branch `feat/g3c-case-consumables-cost` based on verified G3B commit `4933339`; no production hospital financial/patient data, no deployment.

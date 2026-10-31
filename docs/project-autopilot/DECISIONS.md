@@ -23,3 +23,12 @@
 - **D-15:** Without time-of-day in the G2T source, disallow NEW approvals dated strictly before an already-approved later-day issue of the same item; same-day approval order governs. This trades convenience for an immutable historical cost basis. Corrections need a future approved adjustment mechanism, not direct GL rewrites.
 - **D-16:** Guard date ordering in SQL as well as API. The new triggers must be backed up before any historical G3B schema upgrade; old posted rows are never modified.
 - **D-17:** Inventory case costing excludes unlinked issues, drug stock, staff costs, doctor fees, insurer contracts and historical opening inventory, and cannot be described as case profit. No patient identities appear in the payload.
+
+## G3D decisions (local synthetic-data development)
+
+- **D-18:** Return to the original approved receipt allocation, not a stock amount at today's average price. Preserve original issue and ledger; independent reviewer posts separate Dr1100/Cr5100 at original unit cost. No patient refund/invoice credit is inferred.
+- **D-19:** Pending returns reserve their original issued quantity but cannot increase sellable stock. Approved returns increase inventory and reduce case consumables cost only as of physical return day; expired items rejected. Patient case grants apply also to replayed request IDs.
+- **D-20:** Do not backdate stock issuance before actual physical return or insert a return before a later posted issue for the same item; source records remain immutable. Calendar-day chronology remains a known limitation of the G2T source model.
+- **D-21:** Financial case closure and monthly closure both reject pending returns. A SQLite case-status trigger defends against a direct SQL close even with an approved clearance record. These conditions are tested with synthetic cases.
+- **D-22:** Legacy tests need Cairo business date, not UTC/local OS date, and a fully completed day outside the shift grace window; repair test-clock assumptions only, not financial cutoff logic.
+- **D-23:** No real hospital data, offsite file replication, medical reuse clearance, infection-control review, PO/AP vendor liability, or production authorization.
