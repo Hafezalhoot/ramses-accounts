@@ -63,7 +63,10 @@ def run():
                         return (r.status,r.read(),r.headers)
                 except urllib.error.HTTPError as e:
                     return (e.code,e.read(),e.headers)
-            for _ in range(120):
+            # Readiness is condition-based; under concurrent test load, ASGI
+            # bootstrap can take longer than the former 120 short polls.
+            deadline = time.monotonic() + 35
+            while time.monotonic() < deadline:
                 if proc.poll() is not None:
                     raise AssertionError('Preview exited early with code: '+str(proc.returncode)+'\n'+proc.stdout.read()[-2400:])
                 try:
@@ -73,7 +76,7 @@ def run():
                 except (OSError,TimeoutError):
                     time.sleep(0.1)
             else:
-                raise AssertionError('Real HTTP preview did not start')
+                raise AssertionError('Real HTTP preview did not start within 35 seconds')
             assert b'"status":"ok"' in content
             assert fetch('/api/vouchers')[0]==401
             assert fetch('/api/sync-status')[0]==401
