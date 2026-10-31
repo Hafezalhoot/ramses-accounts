@@ -16,3 +16,10 @@
 - **D-11:** Add SQLite BEFORE INSERT guard and invoice issue guard in addition to FastAPI checks, preserving old NULL hashes. A SHA digest is not an external signature or proof of medical correctness.
 - **D-12:** Preserve original G3A users/session IDs and proofs through additive columns and encrypted `.rbe` pre-DDL rollback; no real database migrations authorized.
 - **D-13:** Correct suite status classification for historical `SKIP` stdout without colon; never count unexecuted predecessor tests as PASS.
+
+
+## G3C decisions — nonproduction
+- **D-14:** Reuse immutable G2T FIFO issue allocations, never compute cost from a new estimated price or manufacture an invoice from it. Show only approved case-linked costs with an explicit partial-scope notice. Require BOTH warehouse read and case-specific cashier point access.
+- **D-15:** Without time-of-day in the G2T source, disallow NEW approvals dated strictly before an already-approved later-day issue of the same item; same-day approval order governs. This trades convenience for an immutable historical cost basis. Corrections need a future approved adjustment mechanism, not direct GL rewrites.
+- **D-16:** Guard date ordering in SQL as well as API. The new triggers must be backed up before any historical G3B schema upgrade; old posted rows are never modified.
+- **D-17:** Inventory case costing excludes unlinked issues, drug stock, staff costs, doctor fees, insurer contracts and historical opening inventory, and cannot be described as case profit. No patient identities appear in the payload.

@@ -1,3 +1,13 @@
+# V8.1E-G3C — Case consumables FIFO cost / TEST ONLY (31 October 2026)
+
+- Isolated branch `feat/g3c-case-consumables-cost` based on verified G3B commit `4933339`; no production hospital financial/patient data, no deployment.
+- Double-authorized read-only per-case approved inventory cost (warehouse and billing-point grant), with explicit pending/unlinked exclusions; responsive inventory search UI.
+- New approval-order guard for FIFO across different business dates in API and SQLite. No retroactive approved journal/stock mutation and no auto financial correction.
+- Additive SQLite triggers with verified encrypted `.rbe` rollback before G3B upgrade; frozen original G3B schema fixture.
+- QA: 116 scripts = 110 PASS / 5 SKIP / 1 BLOCKED_NO_V80 / 0 FAIL; CI 42/42 PASS. Evidence in `RAMSES_V81E_G3C_CASE_COST_FIFO_QA_AR.md`, `README_G3C_AR.md` and QA files. Production **NO-GO** unchanged.
+
+---
+
 # V8.1E-G3B — Source document fingerprint (31 أكتوبر 2026) / TEST ONLY
 
 - **Local source**: `feat/g3b-clinical-document-fingerprint`, created from verified G3A source commit `885e80e`; no deployment, financial posting or real hospital accounts modified.

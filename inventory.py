@@ -224,6 +224,24 @@ def prepare_receipt(body:ReceiptForm,user=Depends(get_user),c:sqlite3.Connection
     return {'id':cur.lastrowid,'status':'pending'}
 
 
+def ensure_fifo_date_order(c,kind,document_id,entry_day):
+    """Existing posted future issues make earlier-dated FIFO valuation ambiguous.
+
+    Same-day stock movement follows approval order: only business *dates* are
+    recorded in the legacy subledger. No historical GL allocations are rewritten.
+    """
+    source = ('inventory_receipt_lines','receipt_id') if kind=='receipt' else ('inventory_issue_lines','issue_id')
+    table,field = source
+    later=c.execute(f'''SELECT 1 FROM {table} l
+        JOIN inventory_issue_lines other_line ON other_line.item_id=l.item_id
+        JOIN inventory_issues later_issue ON later_issue.id=other_line.issue_id
+        WHERE l.{field}=? AND later_issue.status='approved'
+          AND later_issue.used_on>? LIMIT 1''',(document_id,entry_day)).fetchone()
+    if later:
+        fail('اعتماد المستند بأثر رجعي سيغير ترتيب FIFO بعد صرف مخزون معتمد؛ يلزم تسوية مستقلة',409)
+
+
+
 @router.post('/receipts/{receipt_id}/decision')
 def decide_receipt(receipt_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     permission(c,user,'approve')
@@ -237,6 +255,7 @@ def decide_receipt(receipt_id:int,body:ReviewForm,user=Depends(get_user),c:sqlit
         if r['created_by']==user['id']:fail('لا يجوز اعتماد مستند توريد أعددته بنفسك',403)
         month_open(c,r['received_on'][:7])
         if body.decision=='approve':
+            ensure_fifo_date_order(c,'receipt',receipt_id,r['received_on'])
             amount=receipt_sum(c,receipt_id)
             jid=ledger_post(c,r['received_on'],'PURCHASE',receipt_id,r['created_by'],user['id'],'1100','2200',amount)
             newstatus='approved'
@@ -328,6 +347,7 @@ def decide_issue(issue_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.C
             case=c.execute('SELECT status FROM billing_cases WHERE id=?',(i['case_id'],)).fetchone()
             if not case or case['status']!='open':fail('ملف الحالة أُغلق أثناء انتظار اعتماد الصرف',409)
         if body.decision=='approve':
+            ensure_fifo_date_order(c,'issue',issue_id,i['used_on'])
             cost=fifo_allocate(c,i)
             jid=ledger_post(c,i['used_on'],'CONSUMPTION',issue_id,i['created_by'],user['id'],'5100','1100',cost,i['department_id'])
             status='approved'
@@ -339,6 +359,32 @@ def decide_issue(issue_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.C
                   (status,user['id'],stamp(),note,cost,jid,issue_id))
         audit(c,user['id'],'inventory_issue_'+status,'inventory_issue',issue_id,{'cost_piasters':cost,'journal_id':jid,'case_id':i['case_id']})
     return {'id':issue_id,'status':status,'cost_piasters':cost,'journal_id':jid}
+
+
+@router.get('/cases/{case_id}/cost')
+def case_consumables_cost(case_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    """Trace already-posted FIFO cost per authorized patient case; never infer profit."""
+    permission(c,user)
+    case=case_scope(c,user,case_id)  # Warehouse access alone must not reveal a patient case.
+    rows=c.execute('''SELECT i.id issue_id,i.used_on,i.department_id,l.item_id,
+             it.code item_code,it.name item_name,
+             SUM(a.quantity) quantity,SUM(a.cost_piasters) cost_piasters
+        FROM inventory_issues i
+        JOIN inventory_issue_lines l ON l.issue_id=i.id
+        JOIN inventory_items it ON it.id=l.item_id
+        JOIN inventory_issue_allocations a ON a.issue_line_id=l.id AND a.issue_id=i.id
+        WHERE i.case_id=? AND i.status='approved'
+        GROUP BY i.id,l.id ORDER BY i.used_on,i.id,l.id''',(case_id,)).fetchall()
+    lines=[dict(row) for row in rows]
+    pending=c.execute("SELECT COUNT(*) FROM inventory_issues WHERE case_id=? AND status='pending'",
+                      (case_id,)).fetchone()[0]
+    return {'case_id':case_id,'case_no':case['case_no'],
+            'total_cost_piasters':sum(x['cost_piasters'] for x in lines),
+            'approved_issue_count':len({x['issue_id'] for x in lines}),
+            'pending_issue_count':pending,'lines':lines,
+            'source':'approved_fifo_consumables_only',
+            'scope':'This partial cost excludes unlinked stock issues, drugs, doctor fees and historical opening inventory; no profit or patient invoice is calculated.'}
+
 
 
 def reconciliation(c,period):

@@ -67,7 +67,34 @@
         `<button class="btn btn-primary" type="submit" ${!items.length?'disabled':''}>إرسال إذن الصرف للمراجعة</button></form></section></div>`:'')+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>فواتير توريد الموردين</h2><p>تثبيت مخزون وموردين بعد مراجعة المستند</p></div></div>${docTable(d.receipts||[],'receipts',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>أذون صرف المستلزمات</h2><p>تكاليف حالة أو قسم، وليس تحصيلًا نقديًا</p></div></div>${docTable(d.issues||[],'issues',canApprove,state.me.id)}</section></div>`+
+      `<section class="panel panel-pad"><h2 class="section-title">تكلفة مستهلكات الحالة</h2>`+
+      `<p class="section-subtitle">استعلام مقيد بتفويض المخزن ونقطة تحصيل الحالة. يعرض أذون الصرف المعتمدة فقط؛ لا يشمل الأدوية أو أتعاب الأطباء أو ربح الحالة.</p>`+
+      `<form id="invCaseCostForm" class="inv-form">`+
+      field('','رقم ملف الحالة',`<input name="case_id" type="number" min="1" step="1" required aria-label="رقم ملف الحالة">`)+
+      `<button type="submit" class="btn btn-primary">عرض المستهلكات المعتمدة</button></form>`+
+      `<div id="invCaseCostResult" role="status" aria-live="polite"></div></section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقة مخزون المستلزمات مع الأستاذ</h2><p>حتى شهر ${esc(state.month)} · لا تشمل الرصيد التاريخي غير المُسجل في هذه الدورة</p></div><span class="chip ${rec.matched?'approved':'rejected'}">${rec.matched?'مطابقة مصدر المستندات ناجحة':'فروقات تحتاج مراجعة'}</span></div><div class="inv-recon"><span>رصيد سجل الأصناف: <strong>${fmt(rec.value_piasters)} جنيه</strong></span><span>رصيد القيود المرتبطة: <strong>${fmt(rec.inventory_gl_piasters)} جنيه</strong></span></div>${(rec.errors||[]).map(e=>`<div class="info-box warning" role="alert">${esc(e)}</div>`).join('')}</section>`;
+    $('#invCaseCostForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const form=event.currentTarget, button=form.querySelector('button[type="submit"]');
+      const result=$('#invCaseCostResult');
+      const caseId=Number(form.elements.case_id.value);
+      if(!Number.isSafeInteger(caseId)||caseId<1){result.textContent='يرجى إدخال رقم حالة صحيح';return;}
+      result.textContent='جاري قراءة أذون الصرف المعتمدة…';
+      button.disabled=true;
+      try{
+        const report=await api('/api/inventory/cases/'+caseId+'/cost');
+        if(Number(form.elements.case_id.value)!==caseId)return;
+        const rows=report.lines||[];
+        result.innerHTML=`<div class="inv-stats"><div><small>تكلفة المستلزمات المعتمدة فقط</small><strong>${fmt(report.total_cost_piasters)} ج.م</strong></div>`+
+          `<div><small>أذون معتمدة</small><strong>${integer(report.approved_issue_count)}</strong></div>`+
+          `<div><small>أذون تنتظر الاعتماد، غير محتسبة</small><strong>${integer(report.pending_issue_count)}</strong></div></div>`+
+          (rows.length?table(['إذن الصرف','تاريخ الاستخدام','المستلزم','الكمية','التكلفة'],rows.map(x=>
+            `<tr><td>${integer(x.issue_id)}</td><td>${esc(x.used_on)}</td><td>${esc(x.item_code)} — ${esc(x.item_name)}</td><td class="num">${integer(x.quantity)}</td><td class="num">${fmt(x.cost_piasters)}</td></tr>`).join('')):empty('لا توجد أذون صرف معتمدة مربوطة بهذه الحالة.'))+
+          `<p class="section-subtitle">هذا تقرير تكلفة جزئي من مخزون المستلزمات المركزي؛ ليس فاتورة للمريض ولا هامش ربح.</p>`;
+      }catch(error){result.innerHTML=`<p role="alert">${esc(error.message)}</p>`;}
+      finally{button.disabled=false;}
+    });
     $('#invReceiptForm')?.addEventListener('submit',async event=>{
       event.preventDefault();const el=event.currentTarget, b=el.querySelector('button[type="submit"]');b.disabled=true;
       const f=Object.fromEntries(new FormData(el));

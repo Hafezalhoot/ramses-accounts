@@ -1620,3 +1620,21 @@ CREATE TRIGGER IF NOT EXISTS billing_clinical_attestation_validate_insert
    OR EXISTS (SELECT 1 FROM billing_invoice_draft_lines dl JOIN billing_invoices i
               ON i.draft_id=dl.draft_id WHERE dl.case_line_id=NEW.case_line_id)
  BEGIN SELECT RAISE(ABORT,'Invalid clinical attestation provenance'); END;
+
+-- G3C: a new backdated document must not rewrite already-approved FIFO order.
+-- With day-resolution source dates, same-day approvals deliberately use commit order.
+CREATE TRIGGER IF NOT EXISTS inv_receipt_fifo_date_guard BEFORE UPDATE OF status ON inventory_receipts
+ WHEN NEW.status='approved' AND EXISTS (
+  SELECT 1 FROM inventory_receipt_lines rl
+  JOIN inventory_issue_lines il ON il.item_id=rl.item_id
+  JOIN inventory_issues i ON i.id=il.issue_id
+  WHERE rl.receipt_id=OLD.id AND i.status='approved' AND i.used_on>OLD.received_on
+ ) BEGIN SELECT RAISE(ABORT,'Backdated receipt would invalidate approved FIFO issue'); END;
+CREATE TRIGGER IF NOT EXISTS inv_issue_fifo_date_guard BEFORE UPDATE OF status ON inventory_issues
+ WHEN NEW.status='approved' AND EXISTS (
+  SELECT 1 FROM inventory_issue_lines il
+  JOIN inventory_issue_lines later_line ON later_line.item_id=il.item_id
+  JOIN inventory_issues later_issue ON later_issue.id=later_line.issue_id
+  WHERE il.issue_id=OLD.id AND later_issue.status='approved'
+    AND later_issue.used_on>OLD.used_on
+ ) BEGIN SELECT RAISE(ABORT,'Backdated issue would invalidate approved FIFO issue'); END;
