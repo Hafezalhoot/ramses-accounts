@@ -44,6 +44,8 @@
     const dueLines=d.supplier_due_lines||[];
     const eligibleDue=d.supplier_due_eligible_invoices||[];
     const aging=d.supplier_aging||{};
+    const paymentRequests=d.supplier_payment_requests||[];
+    const paymentEligible=(d.supplier_payment_eligible_lines||[]).filter(x=>Number(x.available_to_request_piasters)>0);
     const installmentRow=(minimum=today())=>`<div class="inv-match-row inv-due-line">`+
       field('','تاريخ الاستحقاق',input('due_on','date',`min="${esc(minimum)}" value="${today()}"`))+
       field('','قيمة القسط بالجنيه',input('amount','number','min="0.01" step="0.01"'))+
@@ -91,6 +93,37 @@
           empty('لا توجد فاتورة مطابقة ثلاثيًا بدون جدول استحقاق نشط.'))+
         `</section>`:'');
 
+    const paymentPanel=`<section class="panel inv-panel"><div class="panel-header"><div><h2>طلبات اعتماد صرف الموردين — غير منفذة</h2>`+
+      `<p>الموافقة هنا تمهيدية فقط، وليست دفعًا نقديًا أو تحويلًا بنكيًا، ولا تخصم من حساب المورد.</p></div></div>`+
+      `<div class="info-box warning" role="note">المبالغ المحجوزة أدناه هي سعة موافقات مقترحة، وليست مبالغ مدفوعة. يلزم إثبات سند صرف مستقل ومطابقة البنك قبل إثبات السداد.</div>`+
+      (paymentRequests.length?table(['فاتورة المورد وقسطها','قيمة الطلب المرجعية','مرجع الطلب','حالة المراجعة','القرار'],paymentRequests.map(row=>{
+        const amount=Number(row.amount_piasters);
+        const trusted=Number.isSafeInteger(amount)&&amount>0&&amount<=Number(row.installment_piasters)&&
+          /^\d{4}-\d{2}-\d{2}$/.test(String(row.due_on))&&!!row.invoice_ref&&!!row.vendor_name;
+        const review=canApprove&&row.status==='pending'&&trusted&&
+          ![row.created_by,row.schedule_creator,row.invoice_creator,row.receipt_creator].some(id=>Number(id)===Number(state.me.id))?
+          `<div class="inv-actions">${Number(row.vendor_active)===1?
+            `<button type="button" class="btn btn-small btn-primary" data-inv-payment-decision="${Number(row.id)}:approve">اعتماد تمهيدي</button>`:
+            `<span class="chip rejected">المورد موقوف — الرفض فقط</span>`}`+
+          `<button type="button" class="btn btn-small btn-outline" data-inv-payment-decision="${Number(row.id)}:reject">رفض</button></div>`:'—';
+        return `<tr data-inv-payment-id="${Number(row.id)}"><td><strong>${esc(row.invoice_ref)}</strong>`+
+          `<small class="inv-muted">${esc(row.vendor_name)} — قسط يستحق ${esc(row.due_on)}</small></td>`+
+          `<td class="num">${fmt(amount)} جنيه</td><td>${esc(row.evidence_ref)}</td>`+
+          `<td><span class="chip ${esc(row.status)}">${statusName[row.status]||esc(row.status)}</span></td><td>${review}</td></tr>`;
+      }).join('')):empty('لا توجد طلبات اعتماد صرف تمهيدية.'))+
+      `</section>`+
+      (canPrepare?`<section class="panel panel-pad"><h2 class="section-title">طلب إذن صرف مبدئي لمورد</h2>`+
+        `<p class="section-subtitle">اختر قسطًا معتمدًا. الطلب ليس إثبات دفع، ولا يصدر سند خزنة أو قيد أستاذ.</p>`+
+        (paymentEligible.length?`<form id="invPaymentRequestForm" class="inv-form">`+
+          field('','القسط والفاتورة',`<select name="due_line_id" required>${paymentEligible.map(x=>
+            `<option value="${Number(x.id)}">${esc(x.vendor_name)} — ${esc(x.invoice_ref)} — ${esc(x.due_on)} (متاح للموافقة ${fmt(x.available_to_request_piasters)} جنيه)</option>`).join('')}</select>`)+
+          field('','تاريخ تقديم طلب الصرف',input('requested_on','date',`value="${today()}"`))+
+          field('','مبلغ الطلب بالجنيه',input('amount','number',`min="0.01" step="0.01" max="${(Number(paymentEligible[0].available_to_request_piasters)/100).toFixed(2)}"`))+
+          field('','مرجع مستند طلب الصرف',input('evidence_ref','text','minlength="8" maxlength="180"'))+
+          `<button type="submit" class="btn btn-primary">إرسال الطلب للمراجعة — بدون دفع</button></form>`:
+          empty('لا توجد أقساط معتمدة ذات سعة متبقية لطلب الصرف التمهيدي.'))+
+        `</section>`:'');
+
     const totalValue=items.reduce((sum,x)=>sum+Number(x.value_piasters||0),0);
     const totalUnits=items.reduce((sum,x)=>sum+Number(x.quantity_on_hand||0),0);
     const totalQuarantine=items.reduce((sum,x)=>sum+Number(x.quarantined_quantity||0),0);
@@ -106,6 +139,7 @@
       (suppliers.vendors?.length?table(['المورد','محاضر معتمدة','استحقاق محاضر الاستلام','مطابق','غير مطابق'],suppliers.vendors.map(v=>`<tr><td>${esc(v.vendor_name)}</td><td class="num">${integer(v.approved_grns)}</td><td class="num">${fmt(v.grn_accrued_piasters)}</td><td class="num">${fmt(v.confirmed_piasters)}</td><td class="num">${fmt(v.unmatched_piasters)}</td></tr>`).join('')):empty('لا توجد استلامات مورّدين معتمدة بعد.'))+
       `<p class="section-subtitle">هذه قيم مستندات GRN فقط، وليست رصيد المورد بعد المدفوعات أو ضريبة القيمة المضافة. المطابقة لا تُنشئ قيدًا ماليًا ثانيًا.</p></section>`+
       duePanel+
+      paymentPanel+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>أوامر الشراء</h2><p>مراجعة مستقلة قبل بدء استلام الكميات</p></div></div>${docTable(d.purchase_orders||[],'purchase-orders',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقات فواتير الموردين</h2><p>الرفض لا يغيّر قيود الاستلام، ويمكن إعادة التقديم بمستند صحيح</p></div></div>${docTable(d.supplier_invoice_matches||[],'supplier-invoices',canApprove,state.me.id)}</section></div>`+
       (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">طلب أمر شراء</h2><p class="section-subtitle">لا يصرف أموالًا ولا ينشئ مخزونًا. مثال الواجهة لصنف واحد؛ الـAPI يقبل عدة أصناف.</p><form id="invPurchaseOrderForm" class="inv-form">`+
@@ -305,6 +339,35 @@
         [{name:'note',label:'مبرر القرار (8 أحرف على الأقل)',required:true}]);
       if(data)await apply(`/api/inventory/supplier-due-schedules/${Number(id)}/decision`,
         {decision,note:data.note},'تم حفظ مراجعة شروط المورد دون حركة نقدية');
+    }));
+    $('#invPaymentRequestForm [name="due_line_id"]')?.addEventListener('change',event=>{
+      const line=paymentEligible.find(x=>Number(x.id)===Number(event.target.value));
+      const amount=$('#invPaymentRequestForm [name="amount"]');
+      if(line&&amount)amount.max=(Number(line.available_to_request_piasters)/100).toFixed(2);
+    });
+    $('#invPaymentRequestForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const form=event.currentTarget,btn=form.querySelector('button[type="submit"]');
+      const fields=Object.fromEntries(new FormData(form));
+      const source=paymentEligible.find(x=>Number(x.id)===Number(fields.due_line_id));
+      const amount=Math.round(Number(fields.amount)*100);
+      if(!source||!Number.isSafeInteger(amount)||amount<=0||amount>Number(source.available_to_request_piasters)){
+        toast('المبلغ أكبر من الحد المتاح للموافقة أو غير صالح',true);return;
+      }
+      btn.disabled=true;
+      try{await apply('/api/inventory/supplier-payment-requests',{
+        due_line_id:Number(fields.due_line_id),requested_on:fields.requested_on,
+        amount:fields.amount,evidence_ref:fields.evidence_ref,request_id:requestId()},
+        'تم إرسال طلب الموافقة التمهيدي؛ لا يوجد صرف نقدي أو تحويل أو قيد جديد');}
+      finally{btn.disabled=false;}
+    });
+    $$('#content [data-inv-payment-decision]').forEach(button=>button.addEventListener('click',async()=>{
+      const [id,decision]=button.dataset.invPaymentDecision.split(':');
+      const data=await modal(decision==='approve'?'اعتماد طلب صرف تمهيدي':'رفض طلب صرف تمهيدي',
+        'راجع اسم المورد ورقم الفاتورة وتاريخ القسط والمبلغ؛ اعتمادك لا يسدد الفاتورة ولا يخرج أموالًا.',
+        [{name:'note',label:'مبرر المراجعة (8 أحرف على الأقل)',required:true}]);
+      if(data)await apply(`/api/inventory/supplier-payment-requests/${Number(id)}/decision`,
+        {decision,note:data.note},'تم تسجيل قرار المراجعة دون أي حركة مالية');
     }));
     $('#invPurchaseOrderForm')?.addEventListener('submit',async event=>{
       event.preventDefault();const el=event.currentTarget,b=el.querySelector('button[type="submit"]');b.disabled=true;

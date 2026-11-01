@@ -2163,3 +2163,74 @@ CREATE TRIGGER IF NOT EXISTS inv_due_pending_period_guard BEFORE INSERT ON perio
  WHEN EXISTS(SELECT 1 FROM inventory_supplier_due_schedules s
    WHERE s.status='pending' AND substr(s.scheduled_on,1,7)=NEW.period)
  BEGIN SELECT RAISE(ABORT,'Cannot close month with pending supplier maturity terms'); END;
+
+-- G3J: PRE-PAYMENT requests only; no voucher, fund, bank or AP posting here.
+-- Pending and approved requests reserve AUTHORISABLE capacity, never represent paid amounts.
+CREATE TABLE IF NOT EXISTS inventory_supplier_payment_requests (
+ id INTEGER PRIMARY KEY,
+ due_line_id INTEGER NOT NULL REFERENCES inventory_supplier_due_lines(id),
+ requested_on TEXT NOT NULL,
+ amount_piasters INTEGER NOT NULL CHECK(amount_piasters > 0),
+ evidence_ref TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_by INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL,
+ reviewed_by INTEGER REFERENCES users(id), reviewed_at TEXT, review_note TEXT,
+ CHECK((status='pending' AND reviewed_by IS NULL AND reviewed_at IS NULL AND review_note IS NULL) OR
+       (status!='pending' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND review_note IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS inv_payment_req_line_state ON inventory_supplier_payment_requests(due_line_id,status);
+CREATE INDEX IF NOT EXISTS inv_payment_req_period ON inventory_supplier_payment_requests(requested_on,status);
+CREATE UNIQUE INDEX IF NOT EXISTS inv_payment_req_active_ref
+ ON inventory_supplier_payment_requests(due_line_id,UPPER(TRIM(evidence_ref)))
+ WHERE status IN ('pending','approved');
+CREATE TRIGGER IF NOT EXISTS inv_payment_req_insert_guard BEFORE INSERT ON inventory_supplier_payment_requests
+ WHEN NEW.status!='pending' OR NEW.reviewed_by IS NOT NULL OR NEW.reviewed_at IS NOT NULL OR
+      NEW.review_note IS NOT NULL OR LENGTH(TRIM(NEW.evidence_ref))<8 OR
+      LENGTH(NEW.requested_on)!=10 OR date(NEW.requested_on,'+0 days') IS NOT NEW.requested_on OR
+      EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.requested_on,1,7)) OR
+      NOT EXISTS (SELECT 1 FROM inventory_supplier_due_lines l
+        JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id AND s.status='approved'
+        JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id AND m.status='approved'
+        JOIN inventory_receipts r ON r.id=m.receipt_id AND r.status='approved'
+        JOIN inventory_vendors v ON v.id=r.vendor_id AND v.active=1
+        WHERE l.id=NEW.due_line_id) OR
+      NOT EXISTS(SELECT 1 FROM users u LEFT JOIN inventory_access a ON a.user_id=u.id
+        WHERE u.id=NEW.created_by AND u.active=1 AND
+          (u.role='owner' OR (u.role IN ('clerk','reviewer') AND a.can_prepare=1))) OR
+      NEW.amount_piasters + (SELECT COALESCE(SUM(p.amount_piasters),0)
+        FROM inventory_supplier_payment_requests p WHERE p.due_line_id=NEW.due_line_id
+        AND p.status IN ('pending','approved')) >
+        (SELECT l.amount_piasters FROM inventory_supplier_due_lines l WHERE l.id=NEW.due_line_id)
+ BEGIN SELECT RAISE(ABORT,'Invalid or over-reserved supplier pre-payment request'); END;
+CREATE TRIGGER IF NOT EXISTS inv_payment_req_core_lock BEFORE UPDATE OF
+ due_line_id,requested_on,amount_piasters,evidence_ref,created_by,created_at
+ ON inventory_supplier_payment_requests
+ BEGIN SELECT RAISE(ABORT,'Supplier pre-payment request terms immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_payment_req_final_lock BEFORE UPDATE ON inventory_supplier_payment_requests
+ WHEN OLD.status!='pending'
+ BEGIN SELECT RAISE(ABORT,'Final supplier pre-payment request immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_payment_req_no_delete BEFORE DELETE ON inventory_supplier_payment_requests
+ BEGIN SELECT RAISE(ABORT,'Supplier pre-payment request must remain in audit'); END;
+CREATE TRIGGER IF NOT EXISTS inv_payment_req_review_guard BEFORE UPDATE OF status ON inventory_supplier_payment_requests
+ WHEN NEW.status!='pending' AND (
+   OLD.status!='pending' OR NEW.reviewed_by IS NULL OR NEW.reviewed_by=OLD.created_by OR
+   NEW.reviewed_at IS NULL OR LENGTH(TRIM(NEW.review_note))<8 OR
+   EXISTS(SELECT 1 FROM periods WHERE period=substr(OLD.requested_on,1,7)) OR
+   NOT EXISTS(
+      SELECT 1 FROM inventory_supplier_due_lines l
+      JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id AND s.status='approved'
+      JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id AND m.status='approved'
+      JOIN inventory_receipts r ON r.id=m.receipt_id
+      JOIN inventory_vendors v ON v.id=r.vendor_id
+      JOIN users u ON u.id=NEW.reviewed_by AND u.active=1
+      LEFT JOIN inventory_access a ON a.user_id=u.id
+      WHERE l.id=OLD.due_line_id AND u.id!=s.created_by
+        AND (NEW.status!='approved' OR (r.status='approved' AND v.active=1))
+        AND u.id!=m.created_by AND u.id!=r.created_by
+        AND (u.role='owner' OR (u.role IN ('clerk','reviewer') AND a.can_approve=1))
+   )
+ ) BEGIN SELECT RAISE(ABORT,'Supplier payment request independent review denied'); END;
+CREATE TRIGGER IF NOT EXISTS inv_payment_req_pending_period_guard BEFORE INSERT ON periods
+ WHEN EXISTS(SELECT 1 FROM inventory_supplier_payment_requests p
+  WHERE p.status='pending' AND substr(p.requested_on,1,7)=NEW.period)
+ BEGIN SELECT RAISE(ABORT,'Cannot close month with pending supplier pre-payment requests'); END;

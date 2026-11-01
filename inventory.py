@@ -87,6 +87,14 @@ class SupplierDueLineForm(BaseModel):
     amount:str
 
 
+class SupplierPaymentRequestForm(BaseModel):
+    due_line_id:int=Field(gt=0)
+    requested_on:str
+    amount:str
+    evidence_ref:str=Field(min_length=8,max_length=180)
+    request_id:str
+
+
 class SupplierDueForm(BaseModel):
     invoice_match_id:int=Field(gt=0)
     scheduled_on:str
@@ -334,6 +342,7 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     permission(c,user)
     scope,params=visible_issue_scope(user)
     due_docs=supplier_due_documents(c)
+    payment_requests=supplier_payment_request_documents(c)
     return {'vendors':[dict(v) for v in c.execute('SELECT * FROM inventory_vendors WHERE active=1 ORDER BY id')],
             'items':stock_asof(c),
             'receipts':[dict(r) for r in c.execute('''SELECT r.*,v.name vendor_name,
@@ -351,6 +360,8 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
             'supplier_due_lines':due_docs['lines'],
             'supplier_due_eligible_invoices':due_docs['eligible_invoices'],
             'supplier_aging':supplier_due_aging(c,cairo_today()),
+            'supplier_payment_requests':payment_requests['requests'],
+            'supplier_payment_eligible_lines':payment_requests['eligible_lines'],
             'purchase_receipts':[dict(r) for r in c.execute('''SELECT r.id,r.vendor_id,r.invoice_ref,r.received_on,
               r.created_by,l.purchase_order_id,v.name vendor_name,
               (SELECT COALESCE(SUM(rl.quantity*rl.unit_cost_piasters),0) FROM inventory_receipt_lines rl
@@ -846,6 +857,116 @@ def decide_supplier_due(schedule_id:int,body:ReviewForm,user=Depends(get_user),c
         audit(c,user['id'],'inventory_supplier_due_'+status,'inventory_supplier_due',schedule_id,
               {'no_new_ledger_entry':True})
     return {'id':schedule_id,'status':status,'journal_id':None}
+
+
+def supplier_payment_request_documents(c):
+    """The authorization queue deliberately does NOT imply any cashbook/bank payment."""
+    requests=[dict(x) for x in c.execute('''SELECT p.*,l.due_on,l.line_no,l.amount_piasters installment_piasters,
+      s.created_by schedule_creator,m.created_by invoice_creator,r.created_by receipt_creator,
+      m.invoice_ref,m.amount_piasters invoice_piasters,v.name vendor_name,v.id vendor_id,v.active vendor_active
+      FROM inventory_supplier_payment_requests p
+      JOIN inventory_supplier_due_lines l ON l.id=p.due_line_id
+      JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id
+      JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id
+      JOIN inventory_receipts r ON r.id=m.receipt_id
+      JOIN inventory_vendors v ON v.id=r.vendor_id
+      ORDER BY p.id DESC LIMIT 100''')]
+    eligible=[dict(x) for x in c.execute('''SELECT l.id,l.due_on,l.line_no,l.amount_piasters,
+       s.id schedule_id,m.invoice_ref,v.id vendor_id,v.name vendor_name,
+       COALESCE((SELECT SUM(p.amount_piasters) FROM inventory_supplier_payment_requests p
+         WHERE p.due_line_id=l.id AND p.status IN ('pending','approved')),0) reserved_piasters
+       FROM inventory_supplier_due_lines l
+       JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id AND s.status='approved'
+       JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id AND m.status='approved'
+       JOIN inventory_receipts r ON r.id=m.receipt_id AND r.status='approved'
+       JOIN inventory_vendors v ON v.id=r.vendor_id AND v.active=1
+       ORDER BY l.due_on,l.id''')]
+    for row in eligible:
+        row['available_to_request_piasters']=row['amount_piasters']-row['reserved_piasters']
+    return {'requests':requests,'eligible_lines':eligible,'scope':'AUTHORIZATION_ONLY_NO_PAYMENT',
+            'notice':'هذه طلبات اعتماد تمهيدية فقط؛ لا تمثل سدادًا بنكيًا أو نقديًا أو تخفيضًا للمديونية.'}
+
+
+@router.get('/supplier-payment-requests')
+def supplier_payment_requests(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user)
+    return supplier_payment_request_documents(c)
+
+
+@router.post('/supplier-payment-requests')
+def prepare_supplier_payment_request(body:SupplierPaymentRequestForm,user=Depends(get_user),
+                                     c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'prepare')
+    key=request_key(body.request_id)
+    day=business_day(body.requested_on)
+    amount=c_piasters(body.amount)
+    if amount<=0:fail('مبلغ الطلب التمهيدي يجب أن يكون أكبر من صفر',409)
+    ref=trim(body.evidence_ref,'مرجع طلب الصرف التمهيدي',8,180)
+    payload={'due_line_id':body.due_line_id,'requested_on':day,'amount_piasters':amount,'evidence_ref':ref}
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'prepare')
+        previous,digest=repeat(c,key,'inventory_supplier_payment_request',user['id'],payload)
+        if previous:return {'id':previous,'replayed':True,'money_moved':False}
+        month_open(c,day[:7])
+        row=c.execute('''SELECT l.amount_piasters,s.status schedule_status,m.status invoice_status,
+                r.status receipt_status,v.active vendor_active
+              FROM inventory_supplier_due_lines l
+              JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id
+              JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id
+              JOIN inventory_receipts r ON r.id=m.receipt_id
+              JOIN inventory_vendors v ON v.id=r.vendor_id
+              WHERE l.id=?''',(body.due_line_id,)).fetchone()
+        if not row or any(row[k]!=expected for k,expected in (
+            ('schedule_status','approved'),('invoice_status','approved'),
+            ('receipt_status','approved'),('vendor_active',1))):
+            fail('طلب الصرف يحتاج قسط فاتورة مورد صالحًا ومعتمدًا',409)
+        reserved=c.execute('''SELECT COALESCE(SUM(amount_piasters),0) FROM inventory_supplier_payment_requests
+               WHERE due_line_id=? AND status IN ('pending','approved')''',(body.due_line_id,)).fetchone()[0]
+        if amount+reserved>row['amount_piasters']:
+            fail('طلب الصرف يتجاوز المتاح لطلب الموافقة لهذا القسط',409)
+        cur=c.execute('''INSERT INTO inventory_supplier_payment_requests
+          (due_line_id,requested_on,amount_piasters,evidence_ref,created_by,created_at)
+          VALUES (?,?,?,?,?,?)''',(body.due_line_id,day,amount,ref,user['id'],stamp()))
+        remember(c,key,'inventory_supplier_payment_request',user['id'],digest,cur.lastrowid)
+        audit(c,user['id'],'supplier_payment_requested','supplier_payment_request',cur.lastrowid,
+              {'money_moved':False,'amount_piasters':amount,'due_line_id':body.due_line_id})
+    return {'id':cur.lastrowid,'status':'pending','money_moved':False,'journal_id':None}
+
+
+@router.post('/supplier-payment-requests/{payment_request_id}/decision')
+def decide_supplier_payment_request(payment_request_id:int,body:ReviewForm,user=Depends(get_user),
+                                    c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'approve')
+    note=trim(body.note,'مراجعة طلب صرف المورد التمهيدي',8,300)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'approve')
+        row=c.execute('''SELECT p.*,s.created_by schedule_creator,m.created_by invoice_creator,
+             r.created_by receipt_creator,r.status receipt_status,v.active vendor_active,
+             s.status schedule_status,m.status invoice_status
+           FROM inventory_supplier_payment_requests p
+           JOIN inventory_supplier_due_lines l ON l.id=p.due_line_id
+           JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id
+           JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id
+           JOIN inventory_receipts r ON r.id=m.receipt_id
+           JOIN inventory_vendors v ON v.id=r.vendor_id WHERE p.id=?''',(payment_request_id,)).fetchone()
+        if not row:fail('طلب صرف المورد التمهيدي غير موجود',404)
+        if row['status']!='pending':fail('تمت مراجعة طلب الصرف بالفعل',409)
+        if user['id'] in (row['created_by'],row['schedule_creator'],row['invoice_creator'],row['receipt_creator']):
+            fail('لا يجوز اعتماد طلب صرف أعددت أصل فاتورته أو استلامه أو شروطه',403)
+        month_open(c,row['requested_on'][:7])
+        if row['schedule_status']!='approved' or row['invoice_status']!='approved':
+            fail('أصل المستند لم يعد معتمدًا',409)
+        if body.decision=='approve' and (row['receipt_status']!='approved' or row['vendor_active']!=1):
+            fail('لا يمكن اعتماد صرف تمهيدي لمورد موقوف أو استلام غير معتمد',409)
+        status='approved' if body.decision=='approve' else 'rejected'
+        c.execute('''UPDATE inventory_supplier_payment_requests
+           SET status=?,reviewed_by=?,reviewed_at=?,review_note=? WHERE id=?''',
+           (status,user['id'],stamp(),note,payment_request_id))
+        audit(c,user['id'],'supplier_payment_request_'+status,'supplier_payment_request',payment_request_id,
+              {'money_moved':False,'journal_id':None})
+    return {'id':payment_request_id,'status':status,'money_moved':False,'journal_id':None}
 
 
 @router.post('/issues')
@@ -1376,6 +1497,8 @@ def month_close_inventory_issue(c,period):
         return 'استلام من أمر شراء معتمد دون مطابقة ثلاثية نهائية لفاتورة المورد'
     if c.execute("SELECT 1 FROM inventory_return_writeoffs WHERE substr(disposed_on,1,7)=? AND status='pending' LIMIT 1",(period,)).fetchone():
         return 'تسوية تلف أو إعدام مستلزمات تنتظر اعتماد مراجع مالي مستقل'
+    if c.execute("SELECT 1 FROM inventory_supplier_payment_requests WHERE status='pending' AND substr(requested_on,1,7)=? LIMIT 1",(period,)).fetchone():
+        return 'طلبات صرف موردين تمهيدية قيد المراجعة'
     if c.execute("SELECT 1 FROM inventory_supplier_due_schedules WHERE status='pending' AND substr(scheduled_on,1,7)=? LIMIT 1",(period,)).fetchone():
         return 'جداول استحقاقات الموردين تنتظر اعتماد مراجع مستقل'
     # Before period closure, compare all approved inventory documents up to the month.

@@ -1,0 +1,11 @@
+# G3J Cairo Typography and Supplier Payment Authorization — Design
+
+STATUS: TEST ONLY. No live hospital database, payment, bank operation or deployment.
+
+The user's UI font is Cairo, with variable weights 200-1000 and deliberate semantic hierarchy (body 400, labels/nav 600, controls 700, headings and main KPI 800, accent 900). Load the font using Google's CSS2 URL with a narrowly scoped CSP style/font allowlist; preserve a locally installed Cairo and Arabic system fallback when offline. Do not package or distribute font binary files. Use RTL, tabular numeric figures, form labels and print continuity. Existing app URLs and features remain unchanged.
+
+G3J's first financial slice is **pre-payment request authorization only**. A preparer may propose an amount against one installment of an independently approved G3I vendor maturity schedule. The pending/approved cumulative amount cannot exceed the original installment. A separate currently authorized reviewer (different from installment schedule author, invoice author, receipt author, and request author) may approve or reject; rejected requests release the proposed capacity. Immutable evidence and real dates required. These amounts are RESERVED AUTHORIZATION ONLY and do not post AP/cashbook, make a bank transfer, or reduce gross invoice aging. They are NOT bank-reconciled or verified payments. The UI must state this explicitly and never show authorization as settled debt. No new account mapping or voucher category.
+
+Security: fresh roles/grants checked per action in the same BEGIN IMMEDIATE transaction; SQLite guards enforce scope/independence/amount even on direct DB mutation. Closed periods cannot accept new authorization requests. Pending requests may block period close. Tests use synthetic users and invoices, including negative SQL bypasses, replay, and rejection. No pharmacy/medication logic.
+
+Acceptance: browser computed font family/weights, no 320/375/1440 overflow, independent approval with detailed installment evidence, synthetic no-GL-no-cash invariant, upgrade G3I -> G3J preserves past records, full regression and CI, verified package/source history. External font loading may be blocked offline, in which case local Cairo or system fallbacks are used, not misreported as Cairo loaded.

@@ -1,3 +1,13 @@
+# Ramses Accounts V8.1E-G3J — Cairo / Supplier Pre-Payment Requests / TEST ONLY
+
+- Development continues from genuine G3I Git history, isolated on `feat/g3j-cairo-payment-requests`. Synthetic data only; no production posting.
+- Cairo Arabic variable typography (200–1000) across RTL UI and print with typography weights; nonblocking post-load Google Fonts CSS in restricted CSP, system fallbacks offline; no font binaries bundled.
+- Independent pre-payment request authorization against approved supplier maturity installments; capacity guards, immutable evidence, SQL enforced independent reviewer; explicitly **NOT a bank payment, cashbook voucher, or reduction of account 2200**.
+- Frozen authentic G3I schema migration tested with independently restored encrypted rollback. FINAL local 131 scripts: 125 PASS / 5 SKIP / 1 BLOCKED_NO_V80 / 0 FAIL; CI 59/59 PASS; nine Chromium flows PASS at 320/375/1440. See `README_G3J_AR.md`, `RAMSES_V81E_G3J_CAIRO_PAYMENT_QA_AR.md`.
+- Production gate **NO-GO**: missing V8.0, off-device restore, bank evidence integration, UAT, medical/finance/IT approvals. Next G3K: actual supplier payment evidence/allocations with appropriate accounting rules and independent verification.
+
+---
+
 # Ramses Accounts V8.1E-G3I — Gross supplier maturity scheduling / TEST ONLY
 
 - Restored and verified the original G3H source commit `b3cdcd2` and independently developed G3I on `feat/g3i-supplier-maturity` with only synthetic accounts, cases and invoices.

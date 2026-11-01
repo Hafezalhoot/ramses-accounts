@@ -1,3 +1,13 @@
+## آخر عمل — G3J | Cairo وطلبات اعتماد صرف الموردين التمهيدية
+
+- نسخة تطوير مستقلة من G3I، بدون نشر أو بيانات مستشفى فعلية.
+- عائلة Cairo بتدرج الأوزان في الواجهة والطباعة مع fallback؛ تحميل الخط الكامل عن بُعد يحتاج شبكة، وقد لا يظهر عند انقطاعها إذا لم يكن مثبتًا محليًا.
+- API+SQLite يُعد طلب اعتماد صرف تمهيدي على قسط معتمد ويمنع الاعتماد الذاتي وتجاوز مبلغ القسط وتعديل مستند نهائي؛ لا ينتج عنه دفع ولا قيد ولا تغيير مبلغ الدين.
+- اختبارات G3J الجديدة تغطي البناء والخصوصية والفصل وChrome والترقية المشفرة؛ الاختبار النهائي: 125 PASS من 131 مع 5 SKIP و1 BLOCKED_NO_V80 وصفر فشل؛ CI 59/59 نجاح، والمتصفح 9/9 على 320/375/1440.
+- التالي: ربط سند الصرف الفعلي بدليل البنك ومطابقة كشوف الموردين قبل إظهار صافي أرصدة المستحقات. التشغيل الحقيقي NO-GO.
+
+---
+
 # Ramses Accounts V8.1E-G3I — Gross supplier maturity scheduling / TEST ONLY
 
 - Restored and verified the original G3H source commit `b3cdcd2` and independently developed G3I on `feat/g3i-supplier-maturity` with only synthetic accounts, cases and invoices.

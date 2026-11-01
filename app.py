@@ -562,7 +562,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G3I Supplier Maturity Schedule Development - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G3J Cairo and Supplier Pre-Payment Requests Development - Test Only"}
 
 
 @app.post("/api/login")
@@ -3353,7 +3353,7 @@ async def mirror_after_success(request:Request,call_next):
     response.headers["X-Frame-Options"]="DENY"
     response.headers["Referrer-Policy"]="no-referrer"
     response.headers["Content-Security-Policy"]=(
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; "
         "base-uri 'self'; form-action 'self'"
     )

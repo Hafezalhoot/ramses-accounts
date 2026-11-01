@@ -72,7 +72,7 @@ async function bootstrapUI(){
  const eLabel=$(".environment-label");
  eLabel.textContent="بيئة اختبار • لا تسجل بيانات مالية فعلية";
  eLabel.classList.toggle("test-mode",trial);
- $(".site-footer span:last-child").textContent="V8.1E-G3I • غير معتمد للتشغيل الحقيقي";
+ $(".site-footer span:last-child").textContent="V8.1E-G3J • غير معتمد للتشغيل الحقيقي";
  const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],inventory:["clerk","reviewer","owner"],clinical:["clinician"],reports:["viewer","reviewer","owner"],accounting:["reviewer","owner"],owner:["owner"]};
  $$('[data-permission]').forEach(el=>{el.hidden=!(allowed[el.dataset.permission]||[]).includes(state.me.role)});
  try{if(['owner','reviewer','clerk'].includes(state.me.role)){await api('/api/inventory/overview');}else{throw Error('no inventory role');}}catch{const nav=$('[data-view="inventory"]');if(nav)nav.hidden=true;}
@@ -1333,3 +1333,13 @@ function initializeEvents(){
  $('#logoutButton').onclick=logout;$('#mobileLogoutButton').onclick=logout;
 }
 initializeEvents();loadSession();
+
+// Nonblocking Cairo variable font: show the local/offline shell before remote CSS is requested.
+window.addEventListener("load", () => {
+  setTimeout(() => {
+    const fontStyle = document.createElement("link");
+    fontStyle.rel = "stylesheet";
+    fontStyle.href = "https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&display=swap";
+    document.head.appendChild(fontStyle);
+  }, 0);
+}, { once: true });

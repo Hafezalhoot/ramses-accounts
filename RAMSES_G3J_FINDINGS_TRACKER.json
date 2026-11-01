@@ -1,0 +1,11 @@
+{
+  "release": "V8.1E-G3J", "environment": "TEST_ONLY", "production_gate": "NO_GO",
+  "completed": ["Cairo variable font 200-1000 with restricted remote CSS/font origins", "Non-paying supplier payment request approval", "Per-installment reservation limits, inactive-vendor guards and independent reviewers", "Preserved GL / fund balances in synthetic integration test", "G3I frozen historical schema upgrade test"],
+  "open_issues": [
+    {"id":"G3J-01","priority":"P0","status":"open","issue":"No bank-verified vendor payment allocation or net supplier AP balance"},
+    {"id":"G3J-02","priority":"P0","status":"blocked","issue":"Original V8.0 archive and independent off-device restore are not available"},
+    {"id":"G3J-03","priority":"P0","status":"open","issue":"Hospital clinical/finance/IT acceptance and signoffs not completed"},
+    {"id":"G3J-04","priority":"P1","status":"open","issue":"Cairo remote CSS requires network or locally installed Cairo; on-site offline font strategy pending"},
+    {"id":"G3J-05","priority":"P1","status":"open","issue":"Supplier debit and credit adjustments, tax, and one-invoice/multiple-GRN workflow not yet fully supported"}
+  ]
+}
