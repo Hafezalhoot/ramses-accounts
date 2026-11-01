@@ -1,4 +1,4 @@
-"""G3K build identifies itself consistently; do not mistake it for a prior release."""
+"""G3L build identifies itself consistently; do not mistake it for a prior release."""
 import os
 import sys
 import tempfile
@@ -20,13 +20,13 @@ def run():
         client = TestClient(app)
         health = client.get('/health')
         assert health.status_code == 200
-        assert 'G3K' in health.json()['name'] and 'Test Only' in health.json()['name']
+        assert 'G3L' in health.json()['name'] and 'Test Only' in health.json()['name']
         html = client.get('/')
-        assert html.status_code == 200 and 'V8.1E-G3K' in html.text
+        assert html.status_code == 200 and 'V8.1E-G3L' in html.text
         js = client.get('/static/app.js')
-        assert js.status_code == 200 and 'V8.1E-G3K' in js.text
-        assert 'V8.1E-G3K' in (ROOT/'START_Ramses_Mac.command').read_text()
-        print('PASS G3K development-only version label across HTTP, UI and Mac startup')
+        assert js.status_code == 200 and 'V8.1E-G3L' in js.text
+        assert 'V8.1E-G3L' in (ROOT/'START_Ramses_Mac.command').read_text()
+        print('PASS G3L development-only version label across HTTP, UI and Mac startup')
 
 
 if __name__ == '__main__':

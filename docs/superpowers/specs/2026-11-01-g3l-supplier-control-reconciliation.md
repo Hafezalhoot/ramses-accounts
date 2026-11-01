@@ -1,0 +1,9 @@
+# G3L Supplier Control Account Reconciliation — design
+
+Goal: expose an as-of, source-traced and explicitly limited audit of account 2200 against recorded supplier GRNs and bank vouchers (including reversal journals). Distinguish matched, missing, and unattributable entries. Never claim historical opening AP/credit notes/withholding taxes are included in the per-vendor subledger, and never infer bank beneficiary settlement from book postings.
+
+Decision: deliver **read-only control-account reconciliation first** instead of posting supplier credit/debit notes without an accountant-approved offset account, VAT treatment, and evidence policy. Work only in TEST_ONLY source: FastAPI, SQLite, Cairo RTL. No schema changes, live data, external payments or source rewrite. Inventory grants gate all details. Reuse ledger GL journals as the sole truth, including historical reversals as of the requested date; do not treat current voucher state as a historical amount.
+
+Data flow: posted GL lines (2200) <= as-of day -> map approved inventory receipt.journal_id and supplier_bank_voucher linked original/reversal journals -> group vendors -> isolate other journal net as unattributed -> show anomalies, negative vendor balances and source details. Include approved GRNs without invoice match; payment is recorded bank voucher not beneficiary certification. Use read-only GET API, optional dashboard summary and test from actual synthetic system flow. Prevent future as-of dates.
+
+Acceptance: authorized read sees correct GRN accrual, partial bank payment, dated reversal, unmatched accrual, unattributed GL journal flagged; other roles cannot view. Global control equals attributed plus unattributed exactly, and verification status is false for unexplained entries. Chrome test checks RTL/Cairo/readability at phone and desktop. Full CI and regression, archive, Git source bundle; production stays NO-GO.

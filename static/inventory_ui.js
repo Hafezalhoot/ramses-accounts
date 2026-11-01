@@ -23,6 +23,36 @@
       return `<tr><td><strong>${esc(ref)}</strong><small class="inv-muted">رقم ${Number(row.id)}</small></td><td>${esc(date)}</td><td><span class="chip ${esc(row.status)}">${statusName[row.status]||esc(row.status)}</span></td><td class="num">${fmt(amount)}</td><td>${controls}</td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
+  function supplierControlPanel(report){
+    const r=report||{},vendors=r.vendors||[],unassigned=r.unattributed_journals||[],alerts=r.anomalies||[];
+    const rows=vendors.map(v=>`<tr><td><strong>${esc(v.vendor_name)}</strong><small class="inv-muted">${esc(v.vendor_code)}</small></td>`+
+      `<td class="num">${fmt(v.accrued_piasters)}</td><td class="num">${fmt(v.net_payments_piasters)}</td>`+
+      `<td class="num">${fmt(v.balance_piasters)}</td><td class="num">${integer(v.approved_unmatched_grn_count)}</td></tr>`).join('');
+    const discrepancy=Number(r.unattributed_2200_piasters)!==0||unassigned.length||alerts.length||!r.reconciled;
+    return `<section class="panel inv-panel" id="invSupplierControlPanel"><div class="panel-header"><div>`+
+      `<h2>مطابقة دفتر الموردين مع حساب 2200 — G3L</h2>`+
+      `<p>رصيد الأستاذ الفعلي مقابل ما أمكن ربطه باستلامات المخزن وسندات بنك الموردين، وليس شهادة برصيد كل مورد تاريخيًا.</p>`+
+      `</div></div>`+
+      `<form id="invSupplierControlAsOf" class="inv-actions" aria-label="تحديد تاريخ دفتر الموردين">`+
+      field('','التقرير حتى تاريخ',`<input type="date" name="as_of" value="${esc(r.as_of||today())}" max="${today()}" required>`)+
+      `<button type="submit" class="btn btn-outline btn-small">تحديث المطابقة</button></form>`+
+      `<div class="inv-stats"><div><small>رصيد حساب الأستاذ 2200</small><strong>${fmt(r.control_2200_piasters)} جنيه</strong></div>`+
+      `<div><small>منسوب إلى موردين معروفين</small><strong>${fmt(r.attributed_2200_piasters)} جنيه</strong></div>`+
+      `<div><small>فرق قيود غير منسوبة</small><strong>${fmt(r.unattributed_2200_piasters)} جنيه</strong></div>`+
+      `<div><small>ملاحظات مصادر أو صلاحية قيود</small><strong>${integer(alerts.length)} ملاحظة</strong></div></div>`+
+      `<div class="info-box ${discrepancy?'warning':''}" role="status">${discrepancy?
+        'غير متطابق أو ناقص الدليل: راجع القيود غير المنسوبة وملاحظات المستندات، ولا تعتمد رصيد الموردين حتى المراجعة.':
+        'تطابق حساب 2200 مع المصادر المرتبطة في هذا التاريخ فقط؛ لا يُثبت سلامة الأرصدة الافتتاحية أو وصول تحويلات البنك.'}</div>`+
+      (vendors.length?table(['المورد','الاستلامات المرحلة','صافي سندات البنك','الرصيد الدفتري المحدد','استلامات دون فاتورة مطابقة'],rows):
+        empty('لا توجد مصادر موردين معتمدة مرتبطة بحساب الأستاذ حتى التاريخ المحدد.'))+
+      (unassigned.length?`<p class="section-subtitle"><strong>قيود حساب 2200 غير منسوبة (${integer(unassigned.length)}) — تتطلب مراجعة مالية</strong></p>`+
+        table(['رقم القيد','تاريخ القيد','مصدر القيد','القيمة الصافية'],unassigned.slice(0,40).map(j=>
+          `<tr><td class="num">${integer(j.journal_id)}</td><td>${esc(j.entry_date)}</td><td>${esc(j.origin)}</td>`+
+          `<td class="num">${fmt(j.ap_delta_piasters)}</td></tr>`).join(''))+
+        (unassigned.length>40?`<p class="section-subtitle">عرض أول 40 قيدًا فقط؛ راجع تقرير API لبقية القيود.</p>`:''):'')+
+      (alerts.length?`<p class="section-subtitle" role="alert">يوجد ${integer(alerts.length)} خلل في ربط مصدر القيد أو قيمته؛ لا تعتمد حالة التطابق دون تدقيق مستندات الأصل.</p>`:'')+
+      `<p class="section-subtitle">${esc(r.scope||'هذه مطابقة مصادر محدودة وليست حسابات موردين تاريخية معتمدة.')}</p></section>`;
+  }
   window.renderInventory=async function renderInventory(){
     const root=$('#content');
     if(!root)return;
@@ -47,6 +77,7 @@
     const paymentRequests=d.supplier_payment_requests||[];
     const paymentEligible=(d.supplier_payment_eligible_lines||[]).filter(x=>Number(x.available_to_request_piasters)>0);
     const settlement=d.supplier_settlements||null;
+    const controlLedger=d.supplier_control_ledger||null;
     const bankFunds=(state.lookups?.funds||[]).filter(f=>f.kind==='bank'&&f.active!==0);
     const bankLinked=new Set((settlement?.items||[]).filter(x=>x.voucher_id&&!['rejected','reversed'].includes(x.voucher_status)).map(x=>Number(x.payment_request_id)));
     const payableRequests=paymentRequests.filter(x=>x.status==='approved'&&Number(x.vendor_active)===1&&!bankLinked.has(Number(x.id)));
@@ -169,6 +200,7 @@
       duePanel+
       paymentPanel+
       bankPanel+
+      (controlLedger?supplierControlPanel(controlLedger):'')+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>أوامر الشراء</h2><p>مراجعة مستقلة قبل بدء استلام الكميات</p></div></div>${docTable(d.purchase_orders||[],'purchase-orders',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقات فواتير الموردين</h2><p>الرفض لا يغيّر قيود الاستلام، ويمكن إعادة التقديم بمستند صحيح</p></div></div>${docTable(d.supplier_invoice_matches||[],'supplier-invoices',canApprove,state.me.id)}</section></div>`+
       (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">طلب أمر شراء</h2><p class="section-subtitle">لا يصرف أموالًا ولا ينشئ مخزونًا. مثال الواجهة لصنف واحد؛ الـAPI يقبل عدة أصناف.</p><form id="invPurchaseOrderForm" class="inv-form">`+
@@ -407,6 +439,23 @@
           'تم إنشاء سند بنك معلّق؛ لا يتم تنفيذ تحويل أو تخفيض المورد إلا بعد الاعتماد');}
       finally{button.disabled=false;}
     });
+    function bindControlAsOf(){
+      $('#invSupplierControlAsOf')?.addEventListener('submit',async event=>{
+        event.preventDefault();
+        const chosen=event.currentTarget.elements.as_of.value;
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(chosen)||chosen>today()){
+          toast('أدخل تاريخًا صحيحًا حتى اليوم',true);return;
+        }
+        const form=event.currentTarget,btn=form.querySelector('button[type="submit"]');
+        btn.disabled=true;
+        try{
+          const data=await api('/api/inventory/supplier-control-ledger?as_of='+encodeURIComponent(chosen));
+          $('#invSupplierControlPanel').outerHTML=supplierControlPanel(data);
+          bindControlAsOf();
+        }catch(error){toast(error.message,true);btn.disabled=false;}
+      });
+    }
+    bindControlAsOf();
     $('#invPurchaseOrderForm')?.addEventListener('submit',async event=>{
       event.preventDefault();const el=event.currentTarget,b=el.querySelector('button[type="submit"]');b.disabled=true;
       const f=Object.fromEntries(new FormData(el));

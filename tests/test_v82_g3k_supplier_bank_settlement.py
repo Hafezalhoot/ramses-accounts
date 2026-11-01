@@ -38,30 +38,44 @@ def run():
             expect(clients['owner'].post('/api/inventory/access',headers=auth['owner'],json={
                 'user_id':actors[key],'can_prepare':p,'can_approve':a,
                 'reason':'Synthetic G3J financial authorization distinct duties'}))
-        now=datetime.now(ZoneInfo('Africa/Cairo')).date();day=now.isoformat()
+        now=datetime.now(ZoneInfo('Africa/Cairo')).date();day=now.isoformat();receipt_day=(now-timedelta(days=1)).isoformat()
         soon=(now+timedelta(days=24)).isoformat();later=(now+timedelta(days=75)).isoformat()
         vendor=expect(clients['owner'].post('/api/inventory/vendors',headers=auth['owner'],json={
             'code':'G3J-VENDOR','name':'Synthetic supplier only'}))['id']
         item=expect(clients['owner'].post('/api/inventory/items',headers=auth['owner'],json={
             'code':'G3J-GAUZE','name':'Synthetic test non-drug supply','unit':'piece'}))['id']
         po=expect(clients['buyer'].post('/api/inventory/purchase-orders',headers=auth['buyer'],json={
-            'vendor_id':vendor,'ordered_on':day,'order_ref':'G3J-PO-001',
+            'vendor_id':vendor,'ordered_on':receipt_day,'order_ref':'G3J-PO-001',
             'evidence_ref':'G3J-ORIGINAL-SYNTHETIC-PO','request_id':'g3j_purchase_0001',
             'lines':[{'item_id':item,'quantity':10,'unit_cost':'10.00'}]}))['id']
         expect(clients['reviewer'].post(f'/api/inventory/purchase-orders/{po}/decision',headers=auth['reviewer'],json={
             'decision':'approve','note':'Approved synthetic purchase'}))
         receipt=expect(clients['buyer'].post('/api/inventory/receipts',headers=auth['buyer'],json={
-            'vendor_id':vendor,'received_on':day,'purchase_order_id':po,'invoice_ref':'G3J-INV-001',
+            'vendor_id':vendor,'received_on':receipt_day,'purchase_order_id':po,'invoice_ref':'G3J-INV-001',
             'evidence_ref':'G3J-SYNTHETIC-GRN-001','request_id':'g3j_receipt_0001',
             'lines':[{'item_id':item,'quantity':10,'unit_cost':'10.00'}]}))['id']
         expect(clients['reviewer'].post(f'/api/inventory/receipts/{receipt}/decision',headers=auth['reviewer'],json={
             'decision':'approve','note':'Approved synthetic goods arrival'}))
+        # A GRN posts to AP even BEFORE the supplier invoice is matched.
+        open_grn=expect(clients['owner'].get('/api/inventory/supplier-control-ledger',params={'as_of':day}))
+        assert open_grn['control_2200_piasters']==10000 and open_grn['reconciled'],open_grn
+        assert open_grn['vendors'][0]['approved_unmatched_grn_count']==1,open_grn
+        yesterday=(now-timedelta(days=1)).isoformat()
+        prior=expect(clients['owner'].get('/api/inventory/supplier-control-ledger',params={'as_of':yesterday}))
+        assert prior['control_2200_piasters']==10000 and prior['vendors'][0]['approved_unmatched_grn_count']==1,prior
         invoice=expect(clients['buyer'].post('/api/inventory/supplier-invoices',headers=auth['buyer'],json={
             'receipt_id':receipt,'invoice_date':day,'invoice_ref':'G3J-INV-001','amount':'100.00',
             'evidence_ref':'G3J-SYNTHETIC-INVOICE','request_id':'g3j_invoice_0001',
             'lines':[{'item_id':item,'quantity':10,'unit_cost':'10.00'}]}))['id']
         expect(clients['reviewer'].post(f'/api/inventory/supplier-invoices/{invoice}/decision',headers=auth['reviewer'],json={
             'decision':'approve','note':'Approved independent invoice match'}))
+        # Invoice review was signed TODAY, so yesterday the GRN must still be
+        # reported as unmatched, even though its currently stored status is approved.
+        past=expect(clients['owner'].get('/api/inventory/supplier-control-ledger',params={'as_of':receipt_day}))
+        assert past['control_2200_piasters']==10000 and past['vendors'][0]['approved_unmatched_grn_count']==1,past
+        early=expect(clients['owner'].get('/api/inventory/supplier-control-ledger',params={
+            'as_of':(now-timedelta(days=2)).isoformat()}))
+        assert early['control_2200_piasters']==0 and early['attributed_2200_piasters']==0,early
         due=expect(clients['buyer'].post('/api/inventory/supplier-due-schedules',headers=auth['buyer'],json={
             'invoice_match_id':invoice,'scheduled_on':day,'terms_ref':'G3J-SYNTHETIC-DUE-REF',
             'request_id':'g3j_schedule_0001','lines':[
@@ -150,6 +164,17 @@ def run():
         row=next(x for x in report['items'] if x['payment_request_id']==pay_id)
         assert row['booked_piasters']==6000 and row['bank_confirmed_piasters']==0,row
         assert report['supplier_booked_piasters']==6000 and report['bank_confirmed_piasters']==0,report
+        # G3L RED/GREEN: the 2200 control account must expose source-mapped
+        # GRNs and posted supplier-bank vouchers, not merely matched invoices.
+        expect(clients['outsider'].get('/api/inventory/supplier-control-ledger'),403)
+        control=expect(clients['owner'].get('/api/inventory/supplier-control-ledger',params={'as_of':day}))
+        assert control['control_2200_piasters']==4000,control
+        assert control['attributed_2200_piasters']==4000 and control['unattributed_2200_piasters']==0,control
+        assert control['reconciled'] is True and len(control['vendors'])==1,control
+        assert control['vendors'][0]['accrued_piasters']==10000 and control['vendors'][0]['net_payments_piasters']==6000,control
+        assert control['vendors'][0]['balance_piasters']==4000,control
+        assert control['vendors'][0]['approved_unmatched_grn_count']==0,control
+        expect(clients['owner'].get('/api/inventory/supplier-control-ledger',params={'as_of':'2026-02-30'}),400)
         secondary=expect(clients['initiator'].post('/api/inventory/supplier-payment-requests',headers=auth['initiator'],json={
             'due_line_id':due_line,'requested_on':day,'amount':'10.00',
             'evidence_ref':'G3K-SECONDARY-RETRY-REQUEST','request_id':'g3ksecondintent0001'}))['id']
@@ -227,6 +252,24 @@ def run():
         assert report['bank_confirmed_piasters']==6000,report
         assert report['supplier_outstanding_book_piasters']==3000
         assert report['supplier_outstanding_confirmed_piasters']==4000
+        # Original and reversal journals must both count as of the requested
+        # date; current 'reversed' voucher status cannot erase its history.
+        control=expect(clients['owner'].get('/api/inventory/supplier-control-ledger',params={'as_of':day}))
+        assert control['control_2200_piasters']==3000,control
+        assert control['attributed_2200_piasters']==3000 and control['reconciled'],control
+        assert control['vendors'][0]['net_payments_piasters']==7000,control
+        with connect() as c:
+            from ledger import _journal,account_by_code
+            # A posting that hits 2200 with no vendor source MUST remain
+            # unattributed, not silently assigned to the only known vendor.
+            extra=_journal(c,entry_date=day,memo='Synthetic unattributed AP opening item',origin='manual',source_id=None,
+                  created_by=1,reviewed_by=1,lines=[
+                      (account_by_code(c,'1100'),500,0,None),(account_by_code(c,'2200'),0,500,None)])
+            assert extra is not None
+        control=expect(clients['owner'].get('/api/inventory/supplier-control-ledger',params={'as_of':day}))
+        assert control['control_2200_piasters']==3500 and control['attributed_2200_piasters']==3000,control
+        assert control['unattributed_2200_piasters']==500 and control['reconciled'] is False,control
+        assert any(j['journal_id']==extra for j in control['unattributed_journals']),control
         with connect() as c:
             assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
             assert c.execute('PRAGMA foreign_key_check').fetchall()==[]

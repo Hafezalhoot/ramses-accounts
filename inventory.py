@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from app import audit, c_piasters, db, fail, get_user, month_open, require, stamp, valid_date, valid_month
 from billing import case_scope, cairo_today, remember, repeat, request_key, trim, CODE_PATTERN, require_clinical_grant
 import ledger
+from supplier_subledger import supplier_control_ledger
 
 router=APIRouter(prefix='/api/inventory',tags=['central-consumables'])
 
@@ -369,6 +370,7 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
             'supplier_aging':supplier_due_aging(c,cairo_today()),
             'supplier_payment_requests':payment_requests['requests'],
             'supplier_settlements':supplier_settlement_documents(c),
+            'supplier_control_ledger':supplier_control_ledger(c,cairo_today()),
             'supplier_payment_eligible_lines':payment_requests['eligible_lines'],
             'purchase_receipts':[dict(r) for r in c.execute('''SELECT r.id,r.vendor_id,r.invoice_ref,r.received_on,
               r.created_by,l.purchase_order_id,v.name vendor_name,
@@ -1150,6 +1152,13 @@ def supplier_settlement_documents(c):
 def supplier_settlements(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     permission(c,user,'read')
     return supplier_settlement_documents(c)
+
+
+@router.get('/supplier-control-ledger')
+def supplier_control_ledger_report(as_of:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'read')
+    day=business_day(as_of or cairo_today())
+    return supplier_control_ledger(c,day)
 
 
 @router.post('/issues')

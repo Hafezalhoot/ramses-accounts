@@ -1,3 +1,12 @@
+# Ramses Accounts V8.1E-G3L — Supplier 2200 Control Reconciliation / Cairo / TEST ONLY
+
+- Built from verified G3K commit `5211e6a690ea15868b2f1748a55de5e35c2e3c0e` on separate `feat/g3l-supplier-control-ledger` branch.
+- Read-only source-linked GL account 2200 reconciliation as-of a selected date, including **approved GRNs before supplier invoice match**, posted G3K bank payment and reversal journals, and explicit unmatched/unattributed entries. Vendor subtotal is not asserted to include all historical opening AP.
+- Current inventory permission required for vendor names and document sources; dashboard uses Cairo RTL and a date-filtered reconciliation. No new schema, tax assumptions, VAT, adjustment GL or bank transfer.
+- Production remains **NO-GO**: missing original V8.0 source archive, off-device restore, actual beneficiary evidence, accountant-approved adjustment policies, and medical/finance/IT signoff. See `README_G3L_AR.md` and `RAMSES_V81E_G3L_SUPPLIER_LEDGER_QA_AR.md`.
+
+---
+
 # Ramses Accounts V8.1E-G3K — Supplier AP Bank Voucher Link / Cairo / TEST ONLY
 
 - Based on authenticated G3J commit `d26d77afdc139e444a0d55c30e2d423f2cec36a4`, branch `feat/g3k-supplier-ap-bank-link`; only synthetic test data.
@@ -238,3 +247,5 @@ Next work: clinical custody/fulfillment role, signed tariff/partial-day policy, 
 - Missing hospital modules: bed occupancy, operations/NICU costing, procurement/inventory/suppliers, physician fees, annual close, full RBAC.
 
 **Evidence:** `RAMSES_V81E_G2Q_AUTOPILOT_QA_AR.md`, `QA_G2Q_TEST_RESULTS.tsv` and the 32-item register updated as `RAMSES_G2Q_FINDINGS_REGISTER.json`.
+
+- **G3L final broad-regression evidence**: 134 scripts = 128 PASS / 5 SKIP / 1 historical V8.0 BLOCKED / 0 FAIL / 0 TIMEOUT (exit 0). Ten independent Chromium GUI flows PASS at 320/375/1440. Source-owned CI 62/62 PASS (exit 0); independent extracted-artifact verification recorded separately after packaging; no production deployment.
