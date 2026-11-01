@@ -2317,3 +2317,71 @@ CREATE TRIGGER IF NOT EXISTS supplier_bank_voucher_reversal_guard BEFORE UPDATE 
  AND EXISTS(SELECT 1 FROM fund_movements fm JOIN bank_statement_matches bm
    ON bm.movement_id=fm.id AND bm.status='active' WHERE fm.voucher_id=OLD.id)
  BEGIN SELECT RAISE(ABORT,'Unmatch supplier bank statement before voucher reversal'); END;
+
+-- G3M TEST ONLY: historical supplier AP journal attribution with preserved original GL.
+-- This is a review classification, NOT an opening balance, credit note, VAT or a payment.
+CREATE TABLE IF NOT EXISTS supplier_journal_attributions (
+ id INTEGER PRIMARY KEY,
+ gl_journal_id INTEGER NOT NULL REFERENCES gl_journals(id),
+ vendor_id INTEGER NOT NULL REFERENCES inventory_vendors(id),
+ evidence_ref TEXT NOT NULL CHECK(length(trim(evidence_ref)) BETWEEN 8 AND 180),
+ reason TEXT NOT NULL CHECK(length(trim(reason)) BETWEEN 12 AND 300),
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_by INTEGER NOT NULL REFERENCES users(id),
+ created_at TEXT NOT NULL,
+ reviewed_by INTEGER REFERENCES users(id),
+ reviewed_at TEXT,
+ review_note TEXT,
+ CHECK(status!='approved' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS supplier_attribution_one_open
+ ON supplier_journal_attributions(gl_journal_id) WHERE status IN ('pending','approved');
+CREATE INDEX IF NOT EXISTS supplier_attribution_by_vendor
+ ON supplier_journal_attributions(vendor_id,status,reviewed_at);
+CREATE TRIGGER IF NOT EXISTS supplier_attribution_insert_guard
+ BEFORE INSERT ON supplier_journal_attributions
+ WHEN NEW.status!='pending' OR NEW.reviewed_by IS NOT NULL OR NEW.reviewed_at IS NOT NULL
+      OR NEW.review_note IS NOT NULL
+      OR NOT EXISTS(SELECT 1 FROM inventory_vendors v WHERE v.id=NEW.vendor_id AND v.active=1)
+      OR NOT EXISTS(SELECT 1 FROM gl_journals j WHERE j.id=NEW.gl_journal_id
+                    AND j.status='posted' AND j.origin='manual' AND j.source_id IS NULL
+                    AND j.reversal_of_id IS NULL)
+      OR (SELECT COUNT(*) FROM gl_lines l JOIN gl_accounts a ON a.id=l.account_id
+         WHERE l.journal_id=NEW.gl_journal_id AND a.code='2200')!=1
+      OR EXISTS(SELECT 1 FROM inventory_receipts r WHERE r.journal_id=NEW.gl_journal_id)
+      OR EXISTS(SELECT 1 FROM inventory_issues i WHERE i.journal_id=NEW.gl_journal_id)
+      OR EXISTS(SELECT 1 FROM inventory_issue_returns r WHERE r.journal_id=NEW.gl_journal_id)
+      OR NOT EXISTS(SELECT 1 FROM users u LEFT JOIN inventory_access a ON a.user_id=u.id
+        WHERE u.id=NEW.created_by AND u.active=1 AND (u.role='owner'
+          OR (u.role='clerk' AND a.can_prepare=1)))
+ BEGIN SELECT RAISE(ABORT,'Unsupported or unauthorized supplier attribution proposal'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_attribution_core_locked
+ BEFORE UPDATE OF gl_journal_id,vendor_id,evidence_ref,reason,created_by,created_at
+ ON supplier_journal_attributions
+ BEGIN SELECT RAISE(ABORT,'Supplier attribution evidence is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_attribution_final_locked
+ BEFORE UPDATE ON supplier_journal_attributions WHEN OLD.status!='pending'
+ BEGIN SELECT RAISE(ABORT,'Supplier attribution decision is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_attribution_no_delete
+ BEFORE DELETE ON supplier_journal_attributions
+ BEGIN SELECT RAISE(ABORT,'Supplier attribution audit history cannot be deleted'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_attribution_review_guard
+ BEFORE UPDATE OF status ON supplier_journal_attributions
+ WHEN NEW.status NOT IN ('approved','rejected') OR OLD.status!='pending'
+   OR NEW.reviewed_by IS NULL OR NEW.reviewed_by=OLD.created_by
+   OR NEW.reviewed_at IS NULL OR length(trim(COALESCE(NEW.review_note,'')))<8
+   OR substr(NEW.reviewed_at,1,10)<substr(OLD.created_at,1,10)
+   OR substr(NEW.reviewed_at,1,10)>date('now','+1 day')
+   OR NOT EXISTS(SELECT 1 FROM gl_journals j JOIN users u ON u.id=NEW.reviewed_by
+      LEFT JOIN inventory_access a ON a.user_id=u.id
+      WHERE j.id=OLD.gl_journal_id AND j.status='posted' AND j.origin='manual'
+        AND j.source_id IS NULL AND j.reversal_of_id IS NULL AND u.active=1
+        AND u.id!=j.created_by AND u.id!=COALESCE(j.reviewed_by,-1)
+        AND (u.role='owner' OR (u.role='reviewer' AND a.can_approve=1)))
+   OR (NEW.status='approved' AND NOT EXISTS(
+      SELECT 1 FROM inventory_vendors v WHERE v.id=OLD.vendor_id AND v.active=1))
+ BEGIN SELECT RAISE(ABORT,'Supplier attribution must have an independent financial reviewer'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_attribution_review_fields_locked
+ BEFORE UPDATE OF reviewed_by,reviewed_at,review_note ON supplier_journal_attributions
+ WHEN NEW.status=OLD.status
+ BEGIN SELECT RAISE(ABORT,'Reviewer evidence cannot change without final decision'); END;

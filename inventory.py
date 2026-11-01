@@ -18,6 +18,7 @@ from app import audit, c_piasters, db, fail, get_user, month_open, require, stam
 from billing import case_scope, cairo_today, remember, repeat, request_key, trim, CODE_PATTERN, require_clinical_grant
 import ledger
 from supplier_subledger import supplier_control_ledger
+import financial_integrity
 
 router=APIRouter(prefix='/api/inventory',tags=['central-consumables'])
 
@@ -93,6 +94,14 @@ class SupplierPaymentRequestForm(BaseModel):
     requested_on:str
     amount:str
     evidence_ref:str=Field(min_length=8,max_length=180)
+    request_id:str
+
+
+class SupplierAttributionForm(BaseModel):
+    journal_id:int=Field(gt=0)
+    vendor_id:int=Field(gt=0)
+    evidence_ref:str=Field(min_length=8,max_length=180)
+    reason:str=Field(min_length=12,max_length=300)
     request_id:str
 
 
@@ -371,6 +380,7 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
             'supplier_payment_requests':payment_requests['requests'],
             'supplier_settlements':supplier_settlement_documents(c),
             'supplier_control_ledger':supplier_control_ledger(c,cairo_today()),
+            'supplier_attribution_documents':supplier_attribution_documents(c,user),
             'supplier_payment_eligible_lines':payment_requests['eligible_lines'],
             'purchase_receipts':[dict(r) for r in c.execute('''SELECT r.id,r.vendor_id,r.invoice_ref,r.received_on,
               r.created_by,l.purchase_order_id,v.name vendor_name,
@@ -1152,6 +1162,96 @@ def supplier_settlement_documents(c):
 def supplier_settlements(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     permission(c,user,'read')
     return supplier_settlement_documents(c)
+
+
+def supplier_attribution_documents(c,user=None):
+    rows=[dict(r) for r in c.execute("""SELECT m.*,j.entry_date,j.created_by original_creator,
+        j.reviewed_by original_reviewer,v.name vendor_name,v.code vendor_code,
+        (SELECT SUM(l.credit_piasters-l.debit_piasters) FROM gl_lines l
+         JOIN gl_accounts a ON a.id=l.account_id AND a.code='2200'
+         WHERE l.journal_id=m.gl_journal_id) ap_delta_piasters
+        FROM supplier_journal_attributions m
+        JOIN inventory_vendors v ON v.id=m.vendor_id
+        JOIN gl_journals j ON j.id=m.gl_journal_id
+        ORDER BY m.id DESC LIMIT 100""")]
+    return [r for r in rows if user is None or user['role']!='clerk' or r['created_by']==user['id']]
+
+
+def supplier_attribution_source(c,journal_id):
+    j=c.execute("""SELECT j.* FROM gl_journals j WHERE j.id=?""",(journal_id,)).fetchone()
+    if not j or j['status']!='posted' or j['origin']!='manual' or j['source_id'] is not None or j['reversal_of_id'] is not None:
+        fail('القيد غير معتمد أو مرتبط بمصدر آخر؛ لا يجوز نسبته تلقائيًا',409)
+    if financial_integrity.journal_source(c,journal_id):
+        fail('القيد مربوط بالفعل بمستند تشغيلي؛ لا يجوز نسبته مرة أخرى',409)
+    amount=c.execute("""SELECT l.credit_piasters-l.debit_piasters
+           FROM gl_lines l JOIN gl_accounts a ON a.id=l.account_id AND a.code='2200'
+           WHERE l.journal_id=?""",(journal_id,)).fetchall()
+    if len(amount)!=1 or int(amount[0][0])==0:
+        fail('هذا القيد لا يحتوي على سطر واحد صالح لحساب 2200؛ يحتاج معالجة خاصة',409)
+    return dict(j),int(amount[0][0])
+
+
+@router.get('/supplier-attributions')
+def supplier_attributions(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'read')
+    return {'documents':supplier_attribution_documents(c,user),
+            'notice':'إثبات نسب قيد قديم إلى مورد لا ينشئ أي قيد أو يسدد أي دين؛ الدليل وموافقة المراجع المالي إلزاميان.'}
+
+
+@router.post('/supplier-attributions')
+def propose_supplier_attribution(body:SupplierAttributionForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'prepare')
+    if user['role'] not in ('owner','clerk'):fail('إعداد ربط القيد متاح لصاحب النظام أو الموظف المفوض فقط',403)
+    key=request_key(body.request_id)
+    evidence=trim(body.evidence_ref,'مرجع دليل القيد الأصلي',8,180)
+    reason=trim(body.reason,'شرح وجه استحقاق المورد',12,300)
+    payload={'journal_id':body.journal_id,'vendor_id':body.vendor_id,'evidence_ref':evidence,'reason':reason}
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'prepare')
+        prior,digest=repeat(c,key,'supplier_gl_attribution',user['id'],payload)
+        if prior:
+            current=c.execute('SELECT status FROM supplier_journal_attributions WHERE id=?',(prior,)).fetchone()
+            return {'id':prior,'status':current['status'],'replayed':True,'money_moved':False}
+        supplier_attribution_source(c,body.journal_id)
+        vendor=c.execute('SELECT 1 FROM inventory_vendors WHERE id=? AND active=1',(body.vendor_id,)).fetchone()
+        if not vendor:fail('المورد غير موجود أو موقوف',409)
+        if c.execute("SELECT 1 FROM supplier_journal_attributions WHERE gl_journal_id=? AND status IN ('pending','approved')",(body.journal_id,)).fetchone():
+            fail('يوجد ربط قائم لهذا القيد؛ لا يمكن تكرار النسب',409)
+        cur=c.execute("""INSERT INTO supplier_journal_attributions
+            (gl_journal_id,vendor_id,evidence_ref,reason,created_by,created_at)
+            VALUES (?,?,?,?,?,?)""",(body.journal_id,body.vendor_id,evidence,reason,user['id'],stamp()))
+        remember(c,key,'supplier_gl_attribution',user['id'],digest,cur.lastrowid)
+        audit(c,user['id'],'supplier_attribution_proposed','supplier_journal_attribution',cur.lastrowid,
+              {'gl_journal_id':body.journal_id,'vendor_id':body.vendor_id,'no_gl_posting':True})
+    return {'id':cur.lastrowid,'status':'pending','money_moved':False}
+
+
+@router.post('/supplier-attributions/{attribution_id}/decision')
+def review_supplier_attribution(attribution_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'approve')
+    if user['role'] not in ('owner','reviewer'):fail('المراجعة المالية تتطلب دور مراجع مستقل',403)
+    note=trim(body.note,'سبب قرار المراجع',8,300)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'approve')
+        doc=c.execute("""SELECT m.*,j.created_by original_creator,j.reviewed_by original_reviewer
+              FROM supplier_journal_attributions m JOIN gl_journals j ON j.id=m.gl_journal_id
+              WHERE m.id=?""",(attribution_id,)).fetchone()
+        if not doc:fail('مستند نسبة المورد غير موجود',404)
+        if doc['status']!='pending':fail('تم اتخاذ القرار بالفعل',409)
+        if user['id'] in (doc['created_by'],doc['original_creator'],doc['original_reviewer']):
+            fail('يجب فصل مراجع النسب عن منشئ القيد وأي مراجع سابق',403)
+        if body.decision=='approve':
+            supplier_attribution_source(c,doc['gl_journal_id'])
+            if not c.execute('SELECT 1 FROM inventory_vendors WHERE id=? AND active=1',(doc['vendor_id'],)).fetchone():
+                fail('المورد توقف؛ لا يمكن اعتماد النسب',409)
+        status='approved' if body.decision=='approve' else 'rejected'
+        c.execute("""UPDATE supplier_journal_attributions SET status=?,reviewed_by=?,reviewed_at=?,review_note=?
+                     WHERE id=?""",(status,user['id'],stamp(),note,attribution_id))
+        audit(c,user['id'],'supplier_attribution_'+status,'supplier_journal_attribution',attribution_id,
+              {'source_gl_journal_id':doc['gl_journal_id'],'no_gl_posting':True})
+    return {'id':attribution_id,'status':status,'money_moved':False}
 
 
 @router.get('/supplier-control-ledger')

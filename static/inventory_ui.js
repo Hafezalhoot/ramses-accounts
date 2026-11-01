@@ -23,11 +23,41 @@
       return `<tr><td><strong>${esc(ref)}</strong><small class="inv-muted">رقم ${Number(row.id)}</small></td><td>${esc(date)}</td><td><span class="chip ${esc(row.status)}">${statusName[row.status]||esc(row.status)}</span></td><td class="num">${fmt(amount)}</td><td>${controls}</td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
+  function supplierAttributionPanel(docs,report,vendors,canPrepare,canReview,meId){
+    const rows=docs||[],unassigned=(report?.unattributed_journals||[]).filter(j=>j.origin==='manual'&&
+      !rows.some(d=>Number(d.gl_journal_id)===Number(j.journal_id)&&['pending','approved'].includes(d.status)));
+    const tableRows=rows.map(d=>{
+      const independent=![d.created_by,d.original_creator,d.original_reviewer].some(x=>Number(x)===Number(meId));
+      const decision=d.status==='pending'&&canReview&&independent?
+        `<div class="inv-actions"><button class="btn btn-small btn-primary" data-inv-attribution-decision="${Number(d.id)}:approve">اعتماد النسب</button>`+
+        `<button class="btn btn-small btn-outline" data-inv-attribution-decision="${Number(d.id)}:reject">رفض</button></div>`:'—';
+      return `<tr><td class="num">${integer(d.gl_journal_id)}</td><td>${esc(d.entry_date)}</td>`+
+        `<td>${esc(d.vendor_name)}<small class="inv-muted">${esc(d.vendor_code)}</small></td>`+
+        `<td class="num">${fmt(d.ap_delta_piasters)}</td><td><strong>${esc(d.evidence_ref)}</strong>`+
+        `<small class="inv-muted">${esc(d.reason)}</small></td>`+
+        `<td><span class="chip ${esc(d.status)}">${statusName[d.status]||esc(d.status)}</span></td><td>${decision}</td></tr>`;
+    }).join('');
+    return `<section class="panel inv-panel" id="invSupplierAttributionPanel"><div class="panel-header"><div>`+
+      `<h2>G3M — مراجعة نسبة القيود القديمة إلى المورد</h2>`+
+      `<p>نسب تصنيفي يستند إلى أصل المستند، ولا يُنشئ رصيدًا افتتاحيًا جديدًا أو سندًا بنكيًا أو قيدًا في الأستاذ.</p></div></div>`+
+      `<div class="info-box warning" role="note">الربط يبدأ أثره من تاريخ قرار المراجع المالي، ولا يغير أصل القيد أو تقارير الفترات السابقة. لا تنسب قيدًا مختلطًا أو غير واضح المصدر؛ تصحيح الرصيد يتطلب دورة مالية مستقلة.</div>`+
+      (rows.length?table(['قيد الأستاذ','تاريخ القيد','المورد','أثر 2200 بالجنيه','الدليل والمبرر','الحالة','مراجعة مستقلة'],tableRows):
+        empty('لا توجد طلبات نسبة قيود تاريخية بعد.'))+
+      (canPrepare&&unassigned.length&&vendors.length?`<form id="invSupplierAttributionForm" class="inv-form">`+
+        field('','قيد 2200 غير منسوب',`<select name="journal_id" required>${unassigned.slice(0,100).map(j=>
+          `<option value="${Number(j.journal_id)}">#${integer(j.journal_id)} — ${esc(j.entry_date)} — ${fmt(j.ap_delta_piasters)} جنيه</option>`).join('')}</select>`)+
+        field('','المورد من سجل الموردين',`<select name="vendor_id" required>${options(vendors,'اختر المورد المستحق')}</select>`)+
+        field('','مرجع المستند الأصلي الموقع',input('evidence_ref','text','minlength="8" maxlength="180" placeholder="رقم خطاب التأكيد أو مستند المورد"'))+
+        field('','السبب التفصيلي لنسبة القيد',`<textarea name="reason" rows="3" minlength="12" maxlength="300" required placeholder="اشرح لماذا هذا القيد يخص هذا المورد دون غيره"></textarea>`)+
+        `<button type="submit" class="btn btn-primary">إرسال النسب لمراجع مالي مستقل (بدون ترحيل)</button></form>`:
+        (canPrepare?`<p class="section-subtitle">لا توجد قيود 2200 غير منسوبة صالحة للاختيار أو موردون نشطون.</p>`:''))+
+      `</section>`;
+  }
   function supplierControlPanel(report){
     const r=report||{},vendors=r.vendors||[],unassigned=r.unattributed_journals||[],alerts=r.anomalies||[];
     const rows=vendors.map(v=>`<tr><td><strong>${esc(v.vendor_name)}</strong><small class="inv-muted">${esc(v.vendor_code)}</small></td>`+
       `<td class="num">${fmt(v.accrued_piasters)}</td><td class="num">${fmt(v.net_payments_piasters)}</td>`+
-      `<td class="num">${fmt(v.balance_piasters)}</td><td class="num">${integer(v.approved_unmatched_grn_count)}</td></tr>`).join('');
+      `<td class="num">${fmt(v.legacy_attributed_piasters)}</td><td class="num">${fmt(v.balance_piasters)}</td><td class="num">${integer(v.approved_unmatched_grn_count)}</td></tr>`).join('');
     const discrepancy=Number(r.unattributed_2200_piasters)!==0||unassigned.length||alerts.length||!r.reconciled;
     return `<section class="panel inv-panel" id="invSupplierControlPanel"><div class="panel-header"><div>`+
       `<h2>مطابقة دفتر الموردين مع حساب 2200 — G3L</h2>`+
@@ -43,7 +73,7 @@
       `<div class="info-box ${discrepancy?'warning':''}" role="status">${discrepancy?
         'غير متطابق أو ناقص الدليل: راجع القيود غير المنسوبة وملاحظات المستندات، ولا تعتمد رصيد الموردين حتى المراجعة.':
         'تطابق حساب 2200 مع المصادر المرتبطة في هذا التاريخ فقط؛ لا يُثبت سلامة الأرصدة الافتتاحية أو وصول تحويلات البنك.'}</div>`+
-      (vendors.length?table(['المورد','الاستلامات المرحلة','صافي سندات البنك','الرصيد الدفتري المحدد','استلامات دون فاتورة مطابقة'],rows):
+      (vendors.length?table(['المورد','الاستلامات المرحلة','صافي سندات البنك','منسوب بدليل تاريخي','الرصيد الدفتري المحدد','استلامات دون فاتورة مطابقة'],rows):
         empty('لا توجد مصادر موردين معتمدة مرتبطة بحساب الأستاذ حتى التاريخ المحدد.'))+
       (unassigned.length?`<p class="section-subtitle"><strong>قيود حساب 2200 غير منسوبة (${integer(unassigned.length)}) — تتطلب مراجعة مالية</strong></p>`+
         table(['رقم القيد','تاريخ القيد','مصدر القيد','القيمة الصافية'],unassigned.slice(0,40).map(j=>
@@ -201,6 +231,8 @@
       paymentPanel+
       bankPanel+
       (controlLedger?supplierControlPanel(controlLedger):'')+
+      supplierAttributionPanel(d.supplier_attribution_documents||[],controlLedger,vendors,
+        canPrepare&&['owner','clerk'].includes(state.me.role),canApprove&&['owner','reviewer'].includes(state.me.role),state.me.id)+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>أوامر الشراء</h2><p>مراجعة مستقلة قبل بدء استلام الكميات</p></div></div>${docTable(d.purchase_orders||[],'purchase-orders',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقات فواتير الموردين</h2><p>الرفض لا يغيّر قيود الاستلام، ويمكن إعادة التقديم بمستند صحيح</p></div></div>${docTable(d.supplier_invoice_matches||[],'supplier-invoices',canApprove,state.me.id)}</section></div>`+
       (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">طلب أمر شراء</h2><p class="section-subtitle">لا يصرف أموالًا ولا ينشئ مخزونًا. مثال الواجهة لصنف واحد؛ الـAPI يقبل عدة أصناف.</p><form id="invPurchaseOrderForm" class="inv-form">`+
@@ -456,6 +488,23 @@
       });
     }
     bindControlAsOf();
+    $('#invSupplierAttributionForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();const form=event.currentTarget,btn=form.querySelector('button[type="submit"]');
+      const values=Object.fromEntries(new FormData(form));btn.disabled=true;
+      try{await apply('/api/inventory/supplier-attributions',{
+        journal_id:Number(values.journal_id),vendor_id:Number(values.vendor_id),
+        evidence_ref:values.evidence_ref,reason:values.reason,request_id:requestId()},
+        'تم إرسال دليل النسب لمراجع مستقل دون إنشاء أي قيد أو حركة أموال');}
+      finally{btn.disabled=false;}
+    });
+    $$('[data-inv-attribution-decision]').forEach(el=>el.addEventListener('click',async()=>{
+      const [id,decision]=el.dataset.invAttributionDecision.split(':');
+      const data=await modal('قرار نسب قيد مورد',
+        `مراجعة القيد رقم ${id}: تحقق من أصل المستند واسم المورد قبل ${decision==='approve'?'الاعتماد':'الرفض'}.`,
+        [{name:'note',label:'ملاحظات المراجع وأصل الدليل',type:'text',required:true}]);
+      if(data)await apply(`/api/inventory/supplier-attributions/${Number(id)}/decision`,
+        {decision,note:data.note},'تم حفظ مراجعة النسب دون تعديل الأستاذ أو البنك');
+    }));
     $('#invPurchaseOrderForm')?.addEventListener('submit',async event=>{
       event.preventDefault();const el=event.currentTarget,b=el.querySelector('button[type="submit"]');b.disabled=true;
       const f=Object.fromEntries(new FormData(el));

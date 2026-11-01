@@ -1,3 +1,15 @@
+# Ramses Accounts V8.1E-G3M — Evidence-based historical supplier AP attribution / TEST ONLY
+
+- Based on verified G3L source commit `981f7adeff554707e3aa91792882b915f2631122`; branch `feat/g3m-supplier-attribution`.
+- An original *posted, unlinked* manual GL journal with exactly one account-2200 line can be classified to a supplier only with evidence, justification and independent review. No journal, opening balance, tax, cash voucher, bank transfer, or financial amount is generated, updated, or deleted.
+- SQL and API protect source eligibility, non-duplication, immutable proposal, grant revocation, independent checker (not original GL maker/reviewer), rejected proposal history and as-of temporal truth.
+- `supplier_subledger.py` includes approved mapping only from its actual Cairo review date; older reports stay unattributed. G3L receipt, payment, reversal and anomaly handling stay intact.
+- Cairo RTL UI shows original journal ID, signed 2200 amount, named supplier, proof and reason before approval. Owner and explicitly delegated warehouse operator prepare; reviewer with grant or independently authorized owner reviews, never original GL author/reviewer.
+- Verified full local regression 136 scripts: 130 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT; independent CI 64/64 PASS; eleven Chromium browser flows pass at 320/375/1440. Original V8.0 migration remains BLOCKED, not passed.
+- Production **NO-GO**: original V8.0, independent off-device recovery, finance evidence policy, signed bank beneficiary proof, real hospital UAT and medical/finance/IT signoff absent.
+
+---
+
 # Ramses Accounts V8.1E-G3L — Supplier 2200 Control Reconciliation / Cairo / TEST ONLY
 
 - Built from verified G3K commit `5211e6a690ea15868b2f1748a55de5e35c2e3c0e` on separate `feat/g3l-supplier-control-ledger` branch.

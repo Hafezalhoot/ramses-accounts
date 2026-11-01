@@ -35,7 +35,7 @@ def supplier_control_ledger(c: sqlite3.Connection, as_of: str) -> dict:
             'vendor_id': vendor_id, 'vendor_name': name, 'vendor_code': vendor_code,
             'accrued_piasters': 0, 'gross_bank_payments_piasters': 0,
             'bank_reversals_piasters': 0, 'net_payments_piasters': 0,
-            'balance_piasters': 0, 'approved_grn_count': 0,
+            'balance_piasters': 0, 'legacy_attributed_piasters':0, 'approved_grn_count': 0,
             'approved_unmatched_grn_count': 0, 'posted_payment_count': 0})
 
     def assign(journal: dict | None, row: dict, *, kind: str, expected: int,
@@ -63,6 +63,8 @@ def supplier_control_ledger(c: sqlite3.Connection, as_of: str) -> dict:
             v['gross_bank_payments_piasters'] -= amount
             v['net_payments_piasters'] -= amount
             v['posted_payment_count'] += 1
+        elif kind=='historical_attribution':
+            v['legacy_attributed_piasters']+=amount
         else:  # reversal of an actual payment journal
             v['bank_reversals_piasters'] += amount
             v['net_payments_piasters'] -= amount
@@ -70,7 +72,7 @@ def supplier_control_ledger(c: sqlite3.Connection, as_of: str) -> dict:
                        'kind': kind, 'source_id': source_id, 'vendor_id': vendor_id,
                        'vendor_name': vendor_name, 'ap_delta_piasters': amount})
 
-    def invoice_was_approved_by(approved_at: str | None) -> bool:
+    def reviewed_by_as_of(approved_at: str | None) -> bool:
         if not approved_at:
             return False
         try:
@@ -95,7 +97,7 @@ def supplier_control_ledger(c: sqlite3.Connection, as_of: str) -> dict:
         row = dict(receipt)
         record = vendor_record(row['vendor_id'], row['vendor_name'], row['vendor_code'])
         record['approved_grn_count'] += 1
-        if not invoice_was_approved_by(row['invoice_approved_at']):
+        if not reviewed_by_as_of(row['invoice_approved_at']):
             record['approved_unmatched_grn_count'] += 1
         jid = row['journal_id']
         journal = journals.get(int(jid)) if jid is not None else None
@@ -134,6 +136,28 @@ def supplier_control_ledger(c: sqlite3.Connection, as_of: str) -> dict:
                        vendor_id=row['vendor_id'],vendor_name=row['vendor_name'],
                        vendor_code=row['vendor_code'],source_id=rev['id'])
 
+    # G3M: explicitly reviewed historical mapping. Never infer vendor from GL memo.
+    # Classifications take effect on reviewer date, without backdating reports or posting money.
+    historical=c.execute("""SELECT m.id,m.gl_journal_id,m.vendor_id,m.reviewed_at,
+                 v.name vendor_name,v.code vendor_code
+          FROM supplier_journal_attributions m JOIN inventory_vendors v ON v.id=m.vendor_id
+          WHERE m.status='approved' ORDER BY m.id""").fetchall()
+    for raw in historical:
+        doc=dict(raw)
+        if not reviewed_by_as_of(doc['reviewed_at']):
+            continue
+        source=journals.get(int(doc['gl_journal_id']))
+        if not source:
+            continue
+        if int(source['id']) in mapped:
+            anomalies.append({'type':'historical_attribution_conflicts_with_source',
+                               'journal_id':int(source['id']),'attribution_id':doc['id']})
+            continue
+        amount=int(source['ap_delta_piasters'])
+        assign(source,doc,kind='historical_attribution',expected=amount,
+               vendor_id=doc['vendor_id'],vendor_name=doc['vendor_name'],
+               vendor_code=doc['vendor_code'],source_id=doc['id'])
+
     unattributed = [dict(journal_id=j['id'],entry_date=j['entry_date'],origin=j['origin'],
                          ap_delta_piasters=j['ap_delta_piasters'])
                     for jid,j in journals.items() if jid not in mapped]
@@ -158,8 +182,9 @@ def supplier_control_ledger(c: sqlite3.Connection, as_of: str) -> dict:
         'unattributed_journals':unattributed,
         'events':sorted(events,key=lambda e:(e['entry_date'],e['journal_id']),reverse=True)[:100],
         'event_count':len(events),
+        'approved_legacy_attribution_count':sum(1 for v in vendors.values() if v['legacy_attributed_piasters']!=0),
         'event_rows_truncated':len(events)>100,
         'scope':('مطابقة دفتر 2200 بالكامل مع استلامات G3H/Supplier GRN وسندات G3K المنسوبة فقط؛ '
-                 'أي قيد افتتاحي أو ضريبة أو إشعار أو التزام خارجي يظهر غير منسوب ولا يُوزع تلقائيًا. '
+                 'القيود التاريخية تُنسب فقط بعد دليل ومراجعة مستقلة بدءًا من تاريخ الموافقة؛ وما لم يُراجع يبقى غير منسوب. '
                  'مطابقة حساب الأستاذ ليست إثبات وصول تحويل للمستفيد ولا اعتمادًا نهائيًا للأرصدة التاريخية.'),
     }

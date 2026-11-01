@@ -77,7 +77,7 @@ def run():
                     time.sleep(0.1)
             else:
                 raise AssertionError('Real HTTP preview did not start within 35 seconds')
-            assert b'"status":"ok"' in content and b'G3L' in content, (
+            assert b'"status":"ok"' in content and b'G3M' in content, (
                 'Preview responded from an unexpected application', content[:220])
             status, body, _ = fetch('/api/vouchers')
             assert status == 401, ('Unauthenticated voucher HTTP status', status, body[:220])

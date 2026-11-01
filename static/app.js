@@ -72,7 +72,7 @@ async function bootstrapUI(){
  const eLabel=$(".environment-label");
  eLabel.textContent="بيئة اختبار • لا تسجل بيانات مالية فعلية";
  eLabel.classList.toggle("test-mode",trial);
- $(".site-footer span:last-child").textContent="V8.1E-G3L • غير معتمد للتشغيل الحقيقي";
+ $(".site-footer span:last-child").textContent="V8.1E-G3M • غير معتمد للتشغيل الحقيقي";
  const allowed={entry:["clerk","reviewer","owner"],review:["reviewer","owner"],payroll:["reviewer","owner"],inventory:["clerk","reviewer","owner"],clinical:["clinician"],reports:["viewer","reviewer","owner"],accounting:["reviewer","owner"],owner:["owner"]};
  $$('[data-permission]').forEach(el=>{el.hidden=!(allowed[el.dataset.permission]||[]).includes(state.me.role)});
  try{if(['owner','reviewer','clerk'].includes(state.me.role)){await api('/api/inventory/overview');}else{throw Error('no inventory role');}}catch{const nav=$('[data-view="inventory"]');if(nav)nav.hidden=true;}
