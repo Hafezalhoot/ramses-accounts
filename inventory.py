@@ -82,6 +82,19 @@ class SupplierInvoiceMatchForm(BaseModel):
     request_id:str
 
 
+class SupplierDueLineForm(BaseModel):
+    due_on:str
+    amount:str
+
+
+class SupplierDueForm(BaseModel):
+    invoice_match_id:int=Field(gt=0)
+    scheduled_on:str
+    terms_ref:str=Field(min_length=8,max_length=180)
+    request_id:str
+    lines:list[SupplierDueLineForm]=Field(min_length=1,max_length=12)
+
+
 class IssueLineForm(BaseModel):
     item_id:int
     quantity:int=Field(ge=1,le=1000000)
@@ -320,6 +333,7 @@ def writeoff_documents(c):
 def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     permission(c,user)
     scope,params=visible_issue_scope(user)
+    due_docs=supplier_due_documents(c)
     return {'vendors':[dict(v) for v in c.execute('SELECT * FROM inventory_vendors WHERE active=1 ORDER BY id')],
             'items':stock_asof(c),
             'receipts':[dict(r) for r in c.execute('''SELECT r.*,v.name vendor_name,
@@ -333,6 +347,10 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
             'supplier_summary':supplier_payables(user=user,c=c),
             'purchase_orders':purchase_order_docs(c),
             'supplier_invoice_matches':supplier_invoice_docs(c),
+            'supplier_due_schedules':due_docs['schedules'],
+            'supplier_due_lines':due_docs['lines'],
+            'supplier_due_eligible_invoices':due_docs['eligible_invoices'],
+            'supplier_aging':supplier_due_aging(c,cairo_today()),
             'purchase_receipts':[dict(r) for r in c.execute('''SELECT r.id,r.vendor_id,r.invoice_ref,r.received_on,
               r.created_by,l.purchase_order_id,v.name vendor_name,
               (SELECT COALESCE(SUM(rl.quantity*rl.unit_cost_piasters),0) FROM inventory_receipt_lines rl
@@ -673,6 +691,161 @@ def decide_supplier_invoice(match_id:int,body:ReviewForm,user=Depends(get_user),
         audit(c,user['id'],'inventory_supplier_invoice_'+status,'inventory_supplier_invoice',match_id,
               {'receipt_id':match['receipt_id'],'no_new_journal':True})
     return {'id':match_id,'status':status,'journal_id':None}
+
+
+# G3I: maturity timing for approved supplier invoices; no cash/GL posting.
+def supplier_due_documents(c):
+    schedules=[dict(x) for x in c.execute('''SELECT s.*,m.invoice_ref,m.invoice_date,
+       m.amount_piasters,v.id vendor_id,v.name vendor_name,
+       m.created_by invoice_creator,r.created_by receipt_creator
+       FROM inventory_supplier_due_schedules s
+       JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id
+       JOIN inventory_receipts r ON r.id=m.receipt_id
+       JOIN inventory_vendors v ON v.id=r.vendor_id
+       ORDER BY s.id DESC LIMIT 100''')]
+    ids=[x['id'] for x in schedules]
+    lines=[]
+    if ids:
+        marks=','.join('?'*len(ids))
+        lines=[dict(x) for x in c.execute(f'''SELECT id,schedule_id,line_no,due_on,amount_piasters
+            FROM inventory_supplier_due_lines WHERE schedule_id IN ({marks})
+            ORDER BY schedule_id DESC,line_no''',ids)]
+    eligible=[dict(x) for x in c.execute('''SELECT m.id,m.invoice_ref,m.invoice_date,m.amount_piasters,
+      v.name vendor_name,r.vendor_id FROM inventory_supplier_invoice_matches m
+      JOIN inventory_receipts r ON r.id=m.receipt_id
+      JOIN inventory_vendors v ON v.id=r.vendor_id
+      WHERE m.status='approved' AND NOT EXISTS (
+        SELECT 1 FROM inventory_supplier_due_schedules s
+        WHERE s.invoice_match_id=m.id AND s.status IN ('pending','approved'))
+      ORDER BY m.id DESC LIMIT 100''')]
+    return {'schedules':schedules,'lines':lines,'eligible_invoices':eligible}
+
+
+def supplier_due_aging(c,as_of):
+    point=valid_date(as_of)
+    keys=('future','due_today','over_1_30','over_31_60','over_61_90','over_90')
+    totals={key+'_piasters':0 for key in keys}
+    vendors={}
+    approved=[dict(r) for r in c.execute('''SELECT m.id,m.amount_piasters,v.id vendor_id,v.name vendor_name
+      FROM inventory_supplier_invoice_matches m
+      JOIN inventory_receipts r ON r.id=m.receipt_id
+      JOIN inventory_vendors v ON v.id=r.vendor_id WHERE m.status='approved' ''')]
+    scheduled_rows=[dict(r) for r in c.execute('''SELECT m.id match_id,l.due_on,l.amount_piasters
+       FROM inventory_supplier_due_schedules s
+       JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id AND m.status='approved'
+       JOIN inventory_supplier_due_lines l ON l.schedule_id=s.id
+       WHERE s.status='approved' ''')]
+    schedule_ids={r['match_id'] for r in scheduled_rows}
+    vendor_lookup={r['id']:r for r in approved}
+    for row in approved:
+        vendors.setdefault(row['vendor_id'],{'vendor_id':row['vendor_id'],
+             'vendor_name':row['vendor_name'],**{key+'_piasters':0 for key in keys},
+             'unscheduled_total_piasters':0})
+    for row in approved:
+        if row['id'] not in schedule_ids:
+            vendors[row['vendor_id']]['unscheduled_total_piasters']+=row['amount_piasters']
+    for row in scheduled_rows:
+        when=date.fromisoformat(row['due_on']); days=(point-when).days
+        key='future' if days<0 else 'due_today' if days==0 else \
+            'over_1_30' if days<=30 else 'over_31_60' if days<=60 else \
+            'over_61_90' if days<=90 else 'over_90'
+        totals[key+'_piasters']+=row['amount_piasters']
+        vendors[vendor_lookup[row['match_id']]['vendor_id']][key+'_piasters']+=row['amount_piasters']
+    total=sum(r['amount_piasters'] for r in approved)
+    unscheduled=sum(v['unscheduled_total_piasters'] for v in vendors.values())
+    return {'as_of':point.isoformat(),'approved_invoice_total_piasters':total,
+       'scheduled_total_piasters':total-unscheduled,'unscheduled_total_piasters':unscheduled,
+       **totals,'over_30_piasters':sum(totals[k+'_piasters'] for k in ('over_31_60','over_61_90','over_90')),
+       'payment_posted_piasters':0,'vendors':list(vendors.values()),
+       'notice':'إجمالي استحقاقات الموردين المجدولة قبل أي سداد؛ لا يمثل الرصيد الفعلي غير المدفوع ولا إذن صرف.'}
+
+
+@router.get('/supplier-due-schedules')
+def supplier_due_list(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user)
+    return supplier_due_documents(c)
+
+
+@router.get('/supplier-aging')
+def supplier_aging(as_of:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user)
+    return supplier_due_aging(c,as_of or cairo_today())
+
+
+@router.post('/supplier-due-schedules')
+def prepare_supplier_due(body:SupplierDueForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'prepare')
+    key=request_key(body.request_id)
+    scheduled_on=business_day(body.scheduled_on)
+    terms=trim(body.terms_ref,'مرجع شروط السداد',8,180)
+    lines=[]
+    for n,row in enumerate(body.lines,1):
+        due=valid_date(row.due_on).isoformat() # Due dates may be in the future.
+        money=c_piasters(row.amount)
+        if money<=0:fail('يجب أن يكون مبلغ القسط أكبر من صفر',409)
+        lines.append({'line_no':n,'due_on':due,'amount_piasters':money})
+    payload={'invoice_match_id':body.invoice_match_id,'scheduled_on':scheduled_on,
+             'terms_ref':terms,'lines':lines}
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'prepare')
+        prior,digest=repeat(c,key,'inventory_supplier_due',user['id'],payload)
+        if prior:return {'id':prior,'replayed':True}
+        month_open(c,scheduled_on[:7])
+        matched=c.execute('''SELECT m.*,r.created_by receipt_creator FROM inventory_supplier_invoice_matches m
+             JOIN inventory_receipts r ON r.id=m.receipt_id WHERE m.id=?''',(body.invoice_match_id,)).fetchone()
+        if not matched or matched['status']!='approved':fail('فاتورة المورد تحتاج مطابقة ثلاثية معتمدة',409)
+        if any(x['due_on']<matched['invoice_date'] for x in lines):
+            fail('لا يجوز أن يسبق استحقاق القسط تاريخ فاتورة المورد',409)
+        if sum(x['amount_piasters'] for x in lines)!=matched['amount_piasters']:
+            fail('مجموع الأقساط يجب أن يطابق إجمالي فاتورة المورد بالقروش',409)
+        if c.execute('''SELECT 1 FROM inventory_supplier_due_schedules
+            WHERE invoice_match_id=? AND status IN ('pending','approved')''',(body.invoice_match_id,)).fetchone():
+            fail('هناك جدول استحقاق نشط لنفس فاتورة المورد',409)
+        cur=c.execute('''INSERT INTO inventory_supplier_due_schedules
+              (invoice_match_id,scheduled_on,terms_ref,created_by,created_at)
+              VALUES(?,?,?,?,?)''',(body.invoice_match_id,scheduled_on,terms,user['id'],stamp()))
+        for row in lines:
+            c.execute('''INSERT INTO inventory_supplier_due_lines
+                (schedule_id,line_no,due_on,amount_piasters) VALUES(?,?,?,?)''',
+                (cur.lastrowid,row['line_no'],row['due_on'],row['amount_piasters']))
+        remember(c,key,'inventory_supplier_due',user['id'],digest,cur.lastrowid)
+        audit(c,user['id'],'inventory_supplier_due_requested','inventory_supplier_due',cur.lastrowid,
+              {'invoice_match_id':body.invoice_match_id,'amount_piasters':matched['amount_piasters']})
+    return {'id':cur.lastrowid,'status':'pending','journal_id':None}
+
+
+@router.post('/supplier-due-schedules/{schedule_id}/decision')
+def decide_supplier_due(schedule_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'approve')
+    note=trim(body.note,'مراجعة شروط السداد',8,300)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'approve')
+        row=c.execute('''SELECT s.*,m.invoice_date,m.amount_piasters,m.status match_status,
+           m.created_by invoice_creator,r.created_by receipt_creator
+           FROM inventory_supplier_due_schedules s
+           JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id
+           JOIN inventory_receipts r ON r.id=m.receipt_id WHERE s.id=?''',(schedule_id,)).fetchone()
+        if not row:fail('جدول الاستحقاق غير موجود',404)
+        if row['status']!='pending':fail('تمت مراجعة هذا الجدول من قبل',409)
+        if user['id'] in (row['created_by'],row['invoice_creator'],row['receipt_creator']):
+            fail('الاعتماد المستقل يمنع مُعد الجدول أو الفاتورة أو الاستلام',403)
+        month_open(c,row['scheduled_on'][:7])
+        if body.decision=='approve':
+            detail=list(c.execute('SELECT due_on,amount_piasters FROM inventory_supplier_due_lines WHERE schedule_id=?',
+                                  (schedule_id,)))
+            if row['match_status']!='approved' or not 1<=len(detail)<=12 or \
+                  sum(x['amount_piasters'] for x in detail)!=row['amount_piasters'] or \
+                  any(x['due_on']<row['invoice_date'] for x in detail):
+                fail('بنود شروط السداد لا تطابق الفاتورة المعتمدة',409)
+        status='approved' if body.decision=='approve' else 'rejected'
+        c.execute('''UPDATE inventory_supplier_due_schedules
+           SET status=?,reviewed_by=?,reviewed_at=?,review_note=? WHERE id=?''',
+           (status,user['id'],stamp(),note,schedule_id))
+        audit(c,user['id'],'inventory_supplier_due_'+status,'inventory_supplier_due',schedule_id,
+              {'no_new_ledger_entry':True})
+    return {'id':schedule_id,'status':status,'journal_id':None}
 
 
 @router.post('/issues')
@@ -1203,6 +1376,8 @@ def month_close_inventory_issue(c,period):
         return 'استلام من أمر شراء معتمد دون مطابقة ثلاثية نهائية لفاتورة المورد'
     if c.execute("SELECT 1 FROM inventory_return_writeoffs WHERE substr(disposed_on,1,7)=? AND status='pending' LIMIT 1",(period,)).fetchone():
         return 'تسوية تلف أو إعدام مستلزمات تنتظر اعتماد مراجع مالي مستقل'
+    if c.execute("SELECT 1 FROM inventory_supplier_due_schedules WHERE status='pending' AND substr(scheduled_on,1,7)=? LIMIT 1",(period,)).fetchone():
+        return 'جداول استحقاقات الموردين تنتظر اعتماد مراجع مستقل'
     # Before period closure, compare all approved inventory documents up to the month.
     report=reconciliation(c,period)
     return 'مخزون المستلزمات لا يطابق قيوده ومستنداته؛ راجع تقرير المطابقة' if not report['matched'] else None

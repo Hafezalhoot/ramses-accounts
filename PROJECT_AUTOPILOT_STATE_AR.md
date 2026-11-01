@@ -1,3 +1,13 @@
+# Ramses Accounts V8.1E-G3I — Gross supplier maturity scheduling / TEST ONLY
+
+- Restored and verified the original G3H source commit `b3cdcd2` and independently developed G3I on `feat/g3i-supplier-maturity` with only synthetic accounts, cases and invoices.
+- One to 12 real-calendar installments per approved G3H invoice with exact piaster total, live independent approval, immutable SQL evidence and separate inventory month-close gate. No new payable ledger entries, cash vouchers or payments.
+- RTL approval UI requires reviewer-visible amount/date for each installment. Supplier aging is explicitly **GROSS BEFORE PAYMENT**, never actual unpaid balance.
+- Frozen authentic G3H schema SQL and independently locally restored encrypted pre-upgrade rollback. See `README_G3I_AR.md`, `RAMSES_V81E_G3I_SUPPLIER_DUE_QA_AR.md` for implementation and current independent QA results.
+- **NO-GO:** missing original V8.0 archive, off-device recovery, real supplier/bank docs and approvals, medical/finance/IT UAT and hospital deployment authorization. Next: verified supplier payment allocation and debit/credit adjustment policy; no automated money movement.
+
+---
+
 # Project Autopilot — الحالة الحالية G3H (1 نوفمبر 2026)
 
 - **الفرع:** `feat/g3h-purchase-order-invoice-match` من المصدر الموثق G3G commit `4be7173`؛ نسخة اختبار فقط.

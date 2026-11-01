@@ -39,6 +39,58 @@
     const approvedOrders=(d.purchase_orders||[]).filter(x=>x.status==='approved');
     const invoiceReceipts=d.purchase_receipts||[];
     const suppliers=d.supplier_summary||{};
+
+    const dueDocs=d.supplier_due_schedules||[];
+    const dueLines=d.supplier_due_lines||[];
+    const eligibleDue=d.supplier_due_eligible_invoices||[];
+    const aging=d.supplier_aging||{};
+    const installmentRow=(minimum=today())=>`<div class="inv-match-row inv-due-line">`+
+      field('','تاريخ الاستحقاق',input('due_on','date',`min="${esc(minimum)}" value="${today()}"`))+
+      field('','قيمة القسط بالجنيه',input('amount','number','min="0.01" step="0.01"'))+
+      `</div>`;
+    const dueRows=dueDocs.map(doc=>{
+      const parts=dueLines.filter(line=>Number(line.schedule_id)===Number(doc.id));
+      const trusted=parts.length>0&&parts.length<=12&&
+        parts.every(line=>Number.isInteger(Number(line.amount_piasters))&&Number(line.amount_piasters)>0&&/^\d{4}-\d{2}-\d{2}$/.test(String(line.due_on)))&&
+        parts.reduce((sum,line)=>sum+Number(line.amount_piasters),0)===Number(doc.amount_piasters);
+      const review=canApprove&&doc.status==='pending'&&trusted&&
+        ![doc.created_by,doc.invoice_creator,doc.receipt_creator].some(id=>Number(id)===Number(state.me.id))?
+        `<div class="inv-actions"><button class="btn btn-small btn-primary" data-inv-due-decision="${Number(doc.id)}:approve">اعتماد</button>`+
+        `<button class="btn btn-small btn-outline" data-inv-due-decision="${Number(doc.id)}:reject">رفض</button></div>`:'—';
+      const details=trusted?parts.map(line=>`<span class="inv-muted">القسط ${integer(line.line_no)}: ${esc(line.due_on)} — ${fmt(line.amount_piasters)} جنيه</span>`).join(' ؛ '):
+        '<strong>تفاصيل الأقساط ناقصة — ممنوع الاعتماد</strong>';
+      return `<tr data-inv-due-schedule="${Number(doc.id)}"><td><strong>${esc(doc.invoice_ref)}</strong>`+
+        `<small class="inv-muted">${esc(doc.vendor_name)} / ${esc(doc.terms_ref)}</small></td>`+
+        `<td>${esc(doc.scheduled_on)}</td><td class="num">${fmt(doc.amount_piasters)}</td>`+
+        `<td>${details}</td><td><span class="chip ${esc(doc.status)}">${statusName[doc.status]||esc(doc.status)}</span></td>`+
+        `<td>${review}</td></tr>`;
+    }).join('');
+    const duePanel=`<section class="panel inv-panel"><div class="panel-header"><div><h2>جدولة استحقاقات الموردين — إجمالي قبل السداد</h2>`+
+      `<p>مواعيد أقساط الفواتير المطابقة، وليست رصيدًا غير مدفوع ولا إذنًا بصرف النقدية.</p></div></div>`+
+      `<div class="inv-stats"><div><small>فواتير معتمدة بالقيمة الإجمالية</small><strong>${fmt(aging.approved_invoice_total_piasters)} جنيه</strong></div>`+
+      `<div><small>إجمالي أقساط معتمدة</small><strong>${fmt(aging.scheduled_total_piasters)} جنيه</strong></div>`+
+      `<div><small>فواتير بدون جدول معتمد</small><strong>${fmt(aging.unscheduled_total_piasters)} جنيه</strong></div>`+
+      `<div><small>مستقبلية</small><strong>${fmt(aging.future_piasters)} جنيه</strong></div>`+
+      `<div><small>مستحقة اليوم</small><strong>${fmt(aging.due_today_piasters)} جنيه</strong></div>`+
+      `<div><small>متأخرة 1–30 يومًا</small><strong>${fmt(aging.over_1_30_piasters)} جنيه</strong></div>`+
+      `<div><small>متأخرة 31–60</small><strong>${fmt(aging.over_31_60_piasters)} جنيه</strong></div>`+
+      `<div><small>متأخرة 61–90</small><strong>${fmt(aging.over_61_90_piasters)} جنيه</strong></div>`+
+      `<div><small>متأخرة أكثر من 90</small><strong>${fmt(aging.over_90_piasters)} جنيه</strong></div></div>`+
+      `<p class="section-subtitle">التقرير مبني على الجداول المعتمدة حاليًا بتاريخ ${esc(aging.as_of||today())}، ولا يخصم سدادًا تاريخيًا أو أرصدة افتتاحية أو ضرائب.</p>`+
+      (dueDocs.length?table(['فاتورة المورد','تاريخ التسجيل','القيمة','تواريخ ومبالغ كل قسط','الحالة','القرار'],dueRows):empty('لم تُسجّل جداول استحقاق بعد.'))+
+      `</section>`+
+      (canPrepare?`<section class="panel panel-pad"><h2 class="section-title">تسجيل شروط سداد فاتورة مورد</h2>`+
+        `<p class="section-subtitle">يجب أن يساوي مجموع الأقساط فاتورة المورد كاملةً بالقروش. لا ينشأ قيد إضافي.</p>`+
+        (eligibleDue.length?`<form id="invDueScheduleForm" class="inv-form">`+
+          field('','فاتورة مطابقة ومستحقة للجدولة',`<select name="invoice_match_id" required>${eligibleDue.map(x=>`<option value="${Number(x.id)}">${esc(x.vendor_name)} — ${esc(x.invoice_ref)} — ${fmt(x.amount_piasters)} جنيه</option>`).join('')}</select>`)+
+          field('','تاريخ تسجيل الشروط',input('scheduled_on','date',`value="${today()}"`))+
+          field('','مرجع شروط السداد المتفق عليها',input('terms_ref','text','minlength="8" maxlength="180"'))+
+          `<div id="invDueLines">${installmentRow(eligibleDue[0].invoice_date)}</div>`+
+          `<div class="inv-actions"><button id="invAddInstallment" type="button" class="btn btn-outline">إضافة قسط (حد أقصى 12)</button>`+
+          `<button type="submit" class="btn btn-primary">إرسال شروط السداد لمراجع مستقل</button></div></form>`:
+          empty('لا توجد فاتورة مطابقة ثلاثيًا بدون جدول استحقاق نشط.'))+
+        `</section>`:'');
+
     const totalValue=items.reduce((sum,x)=>sum+Number(x.value_piasters||0),0);
     const totalUnits=items.reduce((sum,x)=>sum+Number(x.quantity_on_hand||0),0);
     const totalQuarantine=items.reduce((sum,x)=>sum+Number(x.quarantined_quantity||0),0);
@@ -53,6 +105,7 @@
       `<div class="inv-stats"><div><small>استحقاق موردين من محاضر الاستلام فقط</small><strong>${fmt(suppliers.total_grn_accrued_piasters)} ج.م</strong></div><div><small>مطابق مع فاتورة مورد</small><strong>${fmt(suppliers.confirmed_piasters)} ج.م</strong></div><div><small>غير مطابق / قديم خارج دورة الشراء</small><strong>${fmt(suppliers.unmatched_piasters)} ج.م</strong></div></div>`+
       (suppliers.vendors?.length?table(['المورد','محاضر معتمدة','استحقاق محاضر الاستلام','مطابق','غير مطابق'],suppliers.vendors.map(v=>`<tr><td>${esc(v.vendor_name)}</td><td class="num">${integer(v.approved_grns)}</td><td class="num">${fmt(v.grn_accrued_piasters)}</td><td class="num">${fmt(v.confirmed_piasters)}</td><td class="num">${fmt(v.unmatched_piasters)}</td></tr>`).join('')):empty('لا توجد استلامات مورّدين معتمدة بعد.'))+
       `<p class="section-subtitle">هذه قيم مستندات GRN فقط، وليست رصيد المورد بعد المدفوعات أو ضريبة القيمة المضافة. المطابقة لا تُنشئ قيدًا ماليًا ثانيًا.</p></section>`+
+      duePanel+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>أوامر الشراء</h2><p>مراجعة مستقلة قبل بدء استلام الكميات</p></div></div>${docTable(d.purchase_orders||[],'purchase-orders',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقات فواتير الموردين</h2><p>الرفض لا يغيّر قيود الاستلام، ويمكن إعادة التقديم بمستند صحيح</p></div></div>${docTable(d.supplier_invoice_matches||[],'supplier-invoices',canApprove,state.me.id)}</section></div>`+
       (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">طلب أمر شراء</h2><p class="section-subtitle">لا يصرف أموالًا ولا ينشئ مخزونًا. مثال الواجهة لصنف واحد؛ الـAPI يقبل عدة أصناف.</p><form id="invPurchaseOrderForm" class="inv-form">`+
@@ -209,6 +262,50 @@
       const selected=(d.writeoff_candidates||[]).find(x=>Number(x.return_line_id)===Number(event.target.value));
       const qty=$('#invWriteoffForm [name="quantity"]');if(qty&&selected)qty.max=Number(selected.remaining_quantity);
     });
+    $('#invDueScheduleForm [name="invoice_match_id"]')?.addEventListener('change',event=>{
+      const inv=eligibleDue.find(x=>Number(x.id)===Number(event.target.value));
+      if(!inv)return;
+      $$('#invDueLines [name="due_on"]').forEach(field=>{
+        field.min=inv.invoice_date;
+        if(field.value<inv.invoice_date)field.value=inv.invoice_date;
+      });
+    });
+    $('#invAddInstallment')?.addEventListener('click',()=>{
+      const holder=$('#invDueLines');
+      if(holder.querySelectorAll('.inv-due-line').length>=12){toast('حد أقصى 12 قسطًا',true);return;}
+      const inv=eligibleDue.find(x=>Number(x.id)===Number($('#invDueScheduleForm').elements.invoice_match_id.value));
+      holder.insertAdjacentHTML('beforeend',installmentRow(inv?.invoice_date));
+    });
+    $('#invDueScheduleForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();
+      const el=event.currentTarget,button=el.querySelector('button[type="submit"]');
+      const lines=[...el.querySelectorAll('.inv-due-line')].map(row=>({
+        due_on:row.querySelector('[name="due_on"]').value,
+        amount:row.querySelector('[name="amount"]').value}));
+      if(lines.length<1||lines.length>12||lines.some(line=>!line.due_on||!line.amount)){
+        toast('أكمل تاريخ ومبلغ كل قسط',true);return;
+      }
+      const fields=Object.fromEntries(new FormData(el));
+      const invoice=eligibleDue.find(x=>Number(x.id)===Number(fields.invoice_match_id));
+      const total=lines.reduce((sum,line)=>sum+Math.round(Number(line.amount)*100),0);
+      if(!invoice||!lines.every(line=>Number(line.amount)>0)||total!==Number(invoice.amount_piasters)){
+        toast('مجموع الأقساط لا يساوي القيمة الأصلية لفاتورة المورد',true);return;
+      }
+      button.disabled=true;
+      try{await apply('/api/inventory/supplier-due-schedules',{
+        invoice_match_id:Number(fields.invoice_match_id),scheduled_on:fields.scheduled_on,
+        terms_ref:fields.terms_ref,lines,request_id:requestId()},
+        'تم إرسال مواعيد الاستحقاق للمراجعة؛ لم يجر أي دفع أو قيد جديد');}
+      finally{button.disabled=false;}
+    });
+    $$('#content [data-inv-due-decision]').forEach(button=>button.addEventListener('click',async()=>{
+      const [id,decision]=button.dataset.invDueDecision.split(':');
+      const data=await modal(decision==='approve'?'اعتماد شروط السداد':'رفض شروط السداد',
+        'راجع تواريخ ومبالغ كل قسط بالمستند قبل الاعتماد؛ لا يعتبر القرار إذن صرف.',
+        [{name:'note',label:'مبرر القرار (8 أحرف على الأقل)',required:true}]);
+      if(data)await apply(`/api/inventory/supplier-due-schedules/${Number(id)}/decision`,
+        {decision,note:data.note},'تم حفظ مراجعة شروط المورد دون حركة نقدية');
+    }));
     $('#invPurchaseOrderForm')?.addEventListener('submit',async event=>{
       event.preventDefault();const el=event.currentTarget,b=el.querySelector('button[type="submit"]');b.disabled=true;
       const f=Object.fromEntries(new FormData(el));

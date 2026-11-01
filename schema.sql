@@ -2084,3 +2084,82 @@ CREATE TRIGGER IF NOT EXISTS inv_po_period_pending_invoice BEFORE INSERT ON peri
    WHERE r.status='approved' AND substr(r.received_on,1,7)=NEW.period
     AND NOT EXISTS (SELECT 1 FROM inventory_supplier_invoice_matches m WHERE m.receipt_id=r.id AND m.status='approved'))
  BEGIN SELECT RAISE(ABORT,'Cannot seal PO-linked GRN with unresolved supplier invoice'); END;
+
+-- G3I: Gross supplier invoice maturity; NO payment, tax or new AP ledger entry.
+CREATE TABLE IF NOT EXISTS inventory_supplier_due_schedules (
+ id INTEGER PRIMARY KEY,
+ invoice_match_id INTEGER NOT NULL REFERENCES inventory_supplier_invoice_matches(id),
+ scheduled_on TEXT NOT NULL,terms_ref TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL,
+ reviewed_by INTEGER REFERENCES users(id),reviewed_at TEXT,review_note TEXT,
+ CHECK(status='pending' OR (reviewed_by IS NOT NULL AND reviewed_by!=created_by))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inv_supplier_due_active
+ ON inventory_supplier_due_schedules(invoice_match_id) WHERE status IN ('pending','approved');
+CREATE INDEX IF NOT EXISTS idx_inv_supplier_due_month
+ ON inventory_supplier_due_schedules(scheduled_on,status);
+CREATE TABLE IF NOT EXISTS inventory_supplier_due_lines (
+ id INTEGER PRIMARY KEY,
+ schedule_id INTEGER NOT NULL REFERENCES inventory_supplier_due_schedules(id),
+ line_no INTEGER NOT NULL CHECK(line_no BETWEEN 1 AND 12),
+ due_on TEXT NOT NULL,
+ amount_piasters INTEGER NOT NULL CHECK(amount_piasters>0),
+ UNIQUE(schedule_id,line_no)
+);
+CREATE INDEX IF NOT EXISTS idx_inv_supplier_due_line_day ON inventory_supplier_due_lines(due_on);
+CREATE TRIGGER IF NOT EXISTS inv_due_schedule_initial BEFORE INSERT ON inventory_supplier_due_schedules
+ WHEN NEW.status!='pending' OR NEW.reviewed_by IS NOT NULL OR NEW.reviewed_at IS NOT NULL OR
+      NEW.review_note IS NOT NULL OR LENGTH(NEW.terms_ref)<8 OR
+      LENGTH(NEW.scheduled_on)!=10 OR date(NEW.scheduled_on,'+0 days') IS NOT NEW.scheduled_on OR
+      EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.scheduled_on,1,7)) OR
+      NOT EXISTS(SELECT 1 FROM inventory_supplier_invoice_matches m
+        WHERE m.id=NEW.invoice_match_id AND m.status='approved') OR
+      NOT EXISTS(SELECT 1 FROM users u LEFT JOIN inventory_access a ON a.user_id=u.id
+        WHERE u.id=NEW.created_by AND u.active=1 AND
+          (u.role='owner' OR (u.role IN ('clerk','reviewer') AND a.can_prepare=1)))
+ BEGIN SELECT RAISE(ABORT,'Supplier maturity requires approved invoice, active preparer, open period'); END;
+CREATE TRIGGER IF NOT EXISTS inv_due_schedule_core_lock BEFORE UPDATE OF
+ invoice_match_id,scheduled_on,terms_ref,created_by,created_at ON inventory_supplier_due_schedules
+ BEGIN SELECT RAISE(ABORT,'Supplier due terms immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_due_schedule_final_lock BEFORE UPDATE ON inventory_supplier_due_schedules
+ WHEN OLD.status!='pending' BEGIN SELECT RAISE(ABORT,'Final supplier due schedule immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_due_schedule_no_delete BEFORE DELETE ON inventory_supplier_due_schedules
+ BEGIN SELECT RAISE(ABORT,'Supplier due schedule immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_due_line_initial BEFORE INSERT ON inventory_supplier_due_lines
+ WHEN NOT EXISTS(SELECT 1 FROM inventory_supplier_due_schedules s
+      JOIN inventory_supplier_invoice_matches m ON m.id=s.invoice_match_id AND m.status='approved'
+      WHERE s.id=NEW.schedule_id AND s.status='pending'
+        AND NEW.due_on>=m.invoice_date)
+      OR LENGTH(NEW.due_on)!=10 OR date(NEW.due_on,'+0 days') IS NOT NEW.due_on
+      OR (SELECT COUNT(*) FROM inventory_supplier_due_lines WHERE schedule_id=NEW.schedule_id)>=12
+ BEGIN SELECT RAISE(ABORT,'Supplier installment requires real date and active pending schedule'); END;
+CREATE TRIGGER IF NOT EXISTS inv_due_line_no_update BEFORE UPDATE ON inventory_supplier_due_lines
+ BEGIN SELECT RAISE(ABORT,'Supplier due installment immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_due_line_no_delete BEFORE DELETE ON inventory_supplier_due_lines
+ BEGIN SELECT RAISE(ABORT,'Supplier due installment immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_due_schedule_review_guard BEFORE UPDATE OF status ON inventory_supplier_due_schedules
+ WHEN NEW.status!='pending' AND (
+   OLD.status!='pending' OR NEW.reviewed_by IS NULL OR NEW.reviewed_by=OLD.created_by OR
+   NEW.reviewed_at IS NULL OR LENGTH(NEW.review_note)<8 OR
+   EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.scheduled_on,1,7)) OR
+   NOT EXISTS(
+     SELECT 1 FROM inventory_supplier_invoice_matches m
+       JOIN inventory_receipts r ON r.id=m.receipt_id
+       JOIN users u ON u.id=NEW.reviewed_by AND u.active=1
+       LEFT JOIN inventory_access a ON a.user_id=u.id
+     WHERE m.id=NEW.invoice_match_id AND m.status='approved'
+       AND u.id!=m.created_by AND u.id!=r.created_by
+       AND (u.role='owner' OR (u.role IN ('clerk','reviewer') AND a.can_approve=1))
+   ) OR
+   (NEW.status='approved' AND (
+     (SELECT COUNT(*) FROM inventory_supplier_due_lines WHERE schedule_id=OLD.id) NOT BETWEEN 1 AND 12 OR
+     (SELECT COALESCE(SUM(l.amount_piasters),0) FROM inventory_supplier_due_lines l
+       WHERE l.schedule_id=OLD.id)!=(SELECT m.amount_piasters FROM inventory_supplier_invoice_matches m
+                                         WHERE m.id=NEW.invoice_match_id)
+   ))
+ ) BEGIN SELECT RAISE(ABORT,'Supplier schedule independent review or installment total invalid'); END;
+CREATE TRIGGER IF NOT EXISTS inv_due_pending_period_guard BEFORE INSERT ON periods
+ WHEN EXISTS(SELECT 1 FROM inventory_supplier_due_schedules s
+   WHERE s.status='pending' AND substr(s.scheduled_on,1,7)=NEW.period)
+ BEGIN SELECT RAISE(ABORT,'Cannot close month with pending supplier maturity terms'); END;

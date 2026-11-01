@@ -562,7 +562,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G3H Purchase Orders and Three-Way Match Development - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G3I Supplier Maturity Schedule Development - Test Only"}
 
 
 @app.post("/api/login")
