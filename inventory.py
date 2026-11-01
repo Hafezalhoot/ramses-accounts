@@ -50,10 +50,36 @@ class ReceiptLineForm(BaseModel):
 class ReceiptForm(BaseModel):
     vendor_id:int
     received_on:str
+    purchase_order_id:int|None=None
     invoice_ref:str=Field(min_length=6,max_length=90)
     evidence_ref:str=Field(min_length=8,max_length=180)
     request_id:str
     lines:list[ReceiptLineForm]=Field(min_length=1,max_length=50)
+
+
+class PurchaseOrderLineForm(BaseModel):
+    item_id:int=Field(gt=0)
+    quantity:int=Field(ge=1,le=1000000)
+    unit_cost:str
+
+
+class PurchaseOrderForm(BaseModel):
+    vendor_id:int=Field(gt=0)
+    ordered_on:str
+    order_ref:str=Field(min_length=6,max_length=90)
+    evidence_ref:str=Field(min_length=8,max_length=180)
+    request_id:str
+    lines:list[PurchaseOrderLineForm]=Field(min_length=1,max_length=50)
+
+
+class SupplierInvoiceMatchForm(BaseModel):
+    receipt_id:int=Field(gt=0)
+    lines:list[PurchaseOrderLineForm]=Field(min_length=1,max_length=50)
+    invoice_date:str
+    invoice_ref:str=Field(min_length=6,max_length=90)
+    amount:str
+    evidence_ref:str=Field(min_length=8,max_length=180)
+    request_id:str
 
 
 class IssueLineForm(BaseModel):
@@ -304,11 +330,130 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
             'returns':[dict(r) for r in c.execute(f'''SELECT ret.id,ret.issue_id,ret.returned_on,ret.evidence_ref,ret.status,ret.created_by,ret.cost_piasters
                 FROM inventory_issue_returns ret JOIN inventory_issues i ON i.id=ret.issue_id
                 WHERE {scope} ORDER BY ret.id DESC LIMIT 60''',params)],
+            'supplier_summary':supplier_payables(user=user,c=c),
+            'purchase_orders':purchase_order_docs(c),
+            'supplier_invoice_matches':supplier_invoice_docs(c),
+            'purchase_receipts':[dict(r) for r in c.execute('''SELECT r.id,r.vendor_id,r.invoice_ref,r.received_on,
+              r.created_by,l.purchase_order_id,v.name vendor_name,
+              (SELECT COALESCE(SUM(rl.quantity*rl.unit_cost_piasters),0) FROM inventory_receipt_lines rl
+               WHERE rl.receipt_id=r.id) total_piasters
+              FROM inventory_receipts r JOIN inventory_receipt_purchase_links l ON l.receipt_id=r.id
+              JOIN inventory_vendors v ON v.id=r.vendor_id WHERE r.status='approved'
+              AND NOT EXISTS (SELECT 1 FROM inventory_supplier_invoice_matches m
+                 WHERE m.receipt_id=r.id AND m.status IN ('pending','approved'))
+              ORDER BY r.id DESC LIMIT 100''')],
+            'purchase_receipt_lines':[dict(x) for x in c.execute('''SELECT rl.receipt_id,rl.item_id,
+                 it.code item_code,it.name item_name,rl.quantity,rl.unit_cost_piasters
+               FROM inventory_receipt_lines rl
+               JOIN inventory_receipt_purchase_links link ON link.receipt_id=rl.receipt_id
+               JOIN inventory_items it ON it.id=rl.item_id
+               JOIN inventory_receipts r ON r.id=rl.receipt_id AND r.status='approved'
+               WHERE NOT EXISTS(SELECT 1 FROM inventory_supplier_invoice_matches m
+                    WHERE m.receipt_id=r.id AND m.status IN ('pending','approved'))
+               ORDER BY rl.receipt_id DESC,rl.id''')],
             'writeoffs':writeoff_documents(c),
             'writeoff_candidates':writeoff_candidates(c),
             'grants':dict(c.execute('SELECT can_prepare,can_approve FROM inventory_access WHERE user_id=?',(user['id'],)).fetchone() or {'can_prepare':0,'can_approve':0}),
             'role':user['role'],
             'notice':'مخزن مستلزمات تجريبي واحد؛ لا يعادل صرف دواء، ولا يسدد فاتورة المورد نقدًا.'}
+
+
+def purchase_order_docs(c):
+    return [dict(r) for r in c.execute('''SELECT p.id,p.vendor_id,p.ordered_on,p.order_ref,p.evidence_ref,
+        p.status,p.created_by,p.reviewed_by,v.name vendor_name,
+        COALESCE(SUM(l.quantity*l.unit_cost_piasters),0) total_piasters
+        FROM inventory_purchase_orders p JOIN inventory_vendors v ON v.id=p.vendor_id
+        LEFT JOIN inventory_purchase_order_lines l ON l.order_id=p.id
+        GROUP BY p.id ORDER BY p.id DESC LIMIT 100''')]
+
+
+def supplier_invoice_docs(c):
+    return [dict(r) for r in c.execute('''SELECT m.id,m.receipt_id,m.invoice_ref,m.invoice_date,m.evidence_ref,
+         m.amount_piasters,m.status,m.created_by,m.reviewed_by,r.vendor_id,v.name vendor_name
+         FROM inventory_supplier_invoice_matches m JOIN inventory_receipts r ON r.id=m.receipt_id
+         JOIN inventory_vendors v ON v.id=r.vendor_id ORDER BY m.id DESC LIMIT 100''')]
+
+
+def validate_po_receipt(c,receipt_id,po_id):
+    po=c.execute('SELECT * FROM inventory_purchase_orders WHERE id=?',(po_id,)).fetchone()
+    r=c.execute('SELECT * FROM inventory_receipts WHERE id=?',(receipt_id,)).fetchone()
+    if not po or po['status']!='approved' or po['vendor_id']!=r['vendor_id'] or r['received_on']<po['ordered_on']:
+        fail('الاستلام يتطلب أمر شراء معتمدًا من المورد نفسه وقبل تاريخ الاستلام',409)
+    lines=c.execute('SELECT * FROM inventory_receipt_lines WHERE receipt_id=?',(receipt_id,)).fetchall()
+    if not lines or len({x['item_id'] for x in lines})!=len(lines):
+        fail('يجب تحديد أصناف استلام فريدة وغير فارغة',409)
+    for line in lines:
+        planned=c.execute('SELECT * FROM inventory_purchase_order_lines WHERE order_id=? AND item_id=?',
+                          (po_id,line['item_id'])).fetchone()
+        if not planned or planned['unit_cost_piasters']!=line['unit_cost_piasters']:
+            fail('الصنف أو سعر الوحدة لا يطابق أمر الشراء المعتمد',409)
+        already=c.execute('''SELECT COALESCE(SUM(rl.quantity),0) FROM inventory_receipt_purchase_links link
+          JOIN inventory_receipts rec ON rec.id=link.receipt_id AND rec.status IN ('pending','approved')
+          JOIN inventory_receipt_lines rl ON rl.receipt_id=rec.id AND rl.item_id=?
+          WHERE link.purchase_order_id=?''',(line['item_id'],po_id)).fetchone()[0]
+        if already+line['quantity']>planned['quantity']:
+            fail('الكمية المستلمة والمعلقة تتجاوز أمر الشراء',409)
+
+
+@router.get('/purchase-orders')
+def purchase_orders(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user)
+    return {'orders':purchase_order_docs(c),
+            'notice':'أوامر شراء تجريبية لمستلزمات غير دوائية؛ لا تنشئ دينًا أو دفعة مالية.'}
+
+
+@router.post('/purchase-orders')
+def prepare_purchase_order(body:PurchaseOrderForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'prepare')
+    key=request_key(body.request_id)
+    day=business_day(body.ordered_on)
+    ref=trim(body.order_ref,'رقم أمر الشراء',6,90).upper()
+    evidence=trim(body.evidence_ref,'مرجع اعتماد الشراء',8,180)
+    lines=[{'item_id':row.item_id,'quantity':row.quantity,'unit_cost_piasters':c_piasters(row.unit_cost)} for row in body.lines]
+    if len({x['item_id'] for x in lines})!=len(lines):fail('لا يجوز تكرار الصنف في أمر شراء',409)
+    payload={'vendor_id':body.vendor_id,'ordered_on':day,'order_ref':ref,'evidence_ref':evidence,'lines':lines}
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'prepare')
+        prior,digest=repeat(c,key,'inventory_purchase_order',user['id'],payload)
+        if prior:return {'id':prior,'replayed':True}
+        month_open(c,day[:7])
+        if not c.execute('SELECT 1 FROM inventory_vendors WHERE id=? AND active=1',(body.vendor_id,)).fetchone():
+            fail('مورد غير نشط',409)
+        if c.execute('SELECT 1 FROM inventory_purchase_orders WHERE vendor_id=? AND order_ref=?',
+                     (body.vendor_id,ref)).fetchone():fail('رقم أمر الشراء مسجل سابقًا',409)
+        for line in lines:
+            if not c.execute('SELECT 1 FROM inventory_items WHERE id=? AND active=1',(line['item_id'],)).fetchone():
+                fail('صنف غير موجود أو غير نشط',409)
+        cur=c.execute('''INSERT INTO inventory_purchase_orders
+              (vendor_id,ordered_on,order_ref,evidence_ref,created_by,created_at) VALUES (?,?,?,?,?,?)''',
+              (body.vendor_id,day,ref,evidence,user['id'],stamp()))
+        for line in lines:
+            c.execute('INSERT INTO inventory_purchase_order_lines(order_id,item_id,quantity,unit_cost_piasters) VALUES (?,?,?,?)',
+                      (cur.lastrowid,line['item_id'],line['quantity'],line['unit_cost_piasters']))
+        remember(c,key,'inventory_purchase_order',user['id'],digest,cur.lastrowid)
+        audit(c,user['id'],'inventory_purchase_order_requested','inventory_purchase_order',cur.lastrowid,
+              {'vendor_id':body.vendor_id,'total_piasters':sum(x['quantity']*x['unit_cost_piasters'] for x in lines)})
+    return {'id':cur.lastrowid,'status':'pending'}
+
+
+@router.post('/purchase-orders/{order_id}/decision')
+def decide_purchase_order(order_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'approve')
+    note=trim(body.note,'مراجعة أمر الشراء',8,300)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'approve')
+        order=c.execute('SELECT * FROM inventory_purchase_orders WHERE id=?',(order_id,)).fetchone()
+        if not order:fail('أمر الشراء غير موجود',404)
+        if order['status']!='pending':fail('أمر الشراء تمت مراجعته بالفعل',409)
+        if order['created_by']==user['id']:fail('لا يجوز اعتماد أمر شراء أعددته بنفسك',403)
+        month_open(c,order['ordered_on'][:7])
+        status='approved' if body.decision=='approve' else 'rejected'
+        c.execute('UPDATE inventory_purchase_orders SET status=?,reviewed_by=?,reviewed_at=?,review_note=? WHERE id=?',
+                  (status,user['id'],stamp(),note,order_id))
+        audit(c,user['id'],'inventory_purchase_order_'+status,'inventory_purchase_order',order_id)
+    return {'id':order_id,'status':status,'journal_id':None}
 
 
 @router.post('/receipts')
@@ -325,7 +470,7 @@ def prepare_receipt(body:ReceiptForm,user=Depends(get_user),c:sqlite3.Connection
         if expiry and expiry<day:fail('لا يمكن استلام دفعة منتهية قبل تاريخ الاستلام',409)
         lines.append({'item_id':row.item_id,'quantity':row.quantity,'unit_cost_piasters':c_piasters(row.unit_cost),
                       'batch_ref':batch,'expiry_date':expiry})
-    payload={'vendor_id':body.vendor_id,'received_on':day,'invoice_ref':ref,'evidence_ref':proof,'lines':lines}
+    payload={'vendor_id':body.vendor_id,'received_on':day,'invoice_ref':ref,'evidence_ref':proof,'purchase_order_id':body.purchase_order_id,'lines':lines}
     with c:
         c.execute('BEGIN IMMEDIATE')
         permission(c,user,'prepare')  # Recheck revoked grants inside the write transaction.
@@ -342,6 +487,10 @@ def prepare_receipt(body:ReceiptForm,user=Depends(get_user),c:sqlite3.Connection
         for line in lines:
             c.execute('''INSERT INTO inventory_receipt_lines(receipt_id,item_id,quantity,unit_cost_piasters,batch_ref,expiry_date)
                VALUES(?,?,?,?,?,?)''',(cur.lastrowid,*[line[k] for k in ('item_id','quantity','unit_cost_piasters','batch_ref','expiry_date')]))
+        if body.purchase_order_id is not None:
+            validate_po_receipt(c,cur.lastrowid,body.purchase_order_id)
+            c.execute('INSERT INTO inventory_receipt_purchase_links(receipt_id,purchase_order_id) VALUES (?,?)',
+                      (cur.lastrowid,body.purchase_order_id))
         remember(c,key,'inventory_receipt',user['id'],digest,cur.lastrowid)
         audit(c,user['id'],'inventory_receipt_requested','inventory_receipt',cur.lastrowid,
               {'received_on':day,'total_piasters':sum(x['quantity']*x['unit_cost_piasters'] for x in lines)})
@@ -386,6 +535,14 @@ def decide_receipt(receipt_id:int,body:ReviewForm,user=Depends(get_user),c:sqlit
         if r['created_by']==user['id']:fail('لا يجوز اعتماد مستند توريد أعددته بنفسك',403)
         month_open(c,r['received_on'][:7])
         if body.decision=='approve':
+            link=c.execute('SELECT purchase_order_id FROM inventory_receipt_purchase_links WHERE receipt_id=?',
+                           (receipt_id,)).fetchone()
+            if link:
+                # Existing reservation counts this GRN; SQL trigger also revalidates.
+                po=c.execute('SELECT * FROM inventory_purchase_orders WHERE id=?',
+                             (link['purchase_order_id'],)).fetchone()
+                if not po or po['status']!='approved' or po['vendor_id']!=r['vendor_id']:
+                    fail('أمر الشراء لم يعد صالحًا للاعتماد',409)
             ensure_fifo_date_order(c,'receipt',receipt_id,r['received_on'])
             amount=receipt_sum(c,receipt_id)
             jid=ledger_post(c,r['received_on'],'PURCHASE',receipt_id,r['created_by'],user['id'],'1100','2200',amount)
@@ -398,6 +555,124 @@ def decide_receipt(receipt_id:int,body:ReviewForm,user=Depends(get_user),c:sqlit
         audit(c,user['id'],'inventory_receipt_'+newstatus,'inventory_receipt',receipt_id,
               {'journal_id':jid,'invoice_ref':r['invoice_ref']})
     return {'id':receipt_id,'status':newstatus,'journal_id':jid}
+
+
+@router.get('/supplier-payables')
+def supplier_payables(period:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user)
+    period=valid_month(period or cairo_today()[:7])
+    # Only GRN-backed 2200; no claim about voucher/bank settlements or other AP.
+    lines=[dict(x) for x in c.execute('''SELECT v.id vendor_id,v.code vendor_code,v.name vendor_name,
+       COUNT(r.id) approved_grns,
+       COALESCE(SUM((SELECT SUM(l.quantity*l.unit_cost_piasters)
+          FROM inventory_receipt_lines l WHERE l.receipt_id=r.id)),0) grn_accrued_piasters,
+       COALESCE(SUM(CASE WHEN EXISTS(SELECT 1 FROM inventory_supplier_invoice_matches m
+           WHERE m.receipt_id=r.id AND m.status='approved') THEN
+          (SELECT SUM(l.quantity*l.unit_cost_piasters) FROM inventory_receipt_lines l WHERE l.receipt_id=r.id)
+           ELSE 0 END),0) confirmed_piasters
+       FROM inventory_vendors v JOIN inventory_receipts r ON r.vendor_id=v.id AND r.status='approved'
+       WHERE substr(r.received_on,1,7)<=? GROUP BY v.id ORDER BY v.name''',(period,))]
+    for row in lines:
+        row['unmatched_piasters']=row['grn_accrued_piasters']-row['confirmed_piasters']
+    return {'period':period,'vendors':lines,
+            'total_grn_accrued_piasters':sum(x['grn_accrued_piasters'] for x in lines),
+            'confirmed_piasters':sum(x['confirmed_piasters'] for x in lines),
+            'unmatched_piasters':sum(x['unmatched_piasters'] for x in lines),
+            'payment_posted_piasters':0,
+            'scope':'GRN-backed supplier accrual only; no payment, VAT, credit notes, opening AP or reconciliation to external bank statements.'}
+
+
+@router.get('/supplier-invoices')
+def supplier_invoices(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user)
+    return {'matches':supplier_invoice_docs(c)}
+
+
+@router.post('/supplier-invoices')
+def prepare_supplier_invoice(body:SupplierInvoiceMatchForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'prepare')
+    key=request_key(body.request_id)
+    day=business_day(body.invoice_date)
+    ref=trim(body.invoice_ref,'مرجع فاتورة المورد',6,90).upper()
+    evidence=trim(body.evidence_ref,'مرجع صورة فاتورة المورد',8,180)
+    amount=c_piasters(body.amount)
+    lines=[{'item_id':line.item_id,'quantity':line.quantity,'unit_cost_piasters':c_piasters(line.unit_cost)}
+           for line in body.lines]
+    if len({x['item_id'] for x in lines})!=len(lines):fail('لا يجوز تكرار نفس الصنف في فاتورة المورد',409)
+    if sum(x['quantity']*x['unit_cost_piasters'] for x in lines)!=amount:
+        fail('إجمالي بنود فاتورة المورد لا يساوي الإجمالي المقدم',409)
+    payload={'receipt_id':body.receipt_id,'invoice_date':day,'invoice_ref':ref,
+             'evidence_ref':evidence,'amount_piasters':amount,'lines':lines}
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'prepare')
+        prior,digest=repeat(c,key,'inventory_supplier_invoice',user['id'],payload)
+        if prior:return {'id':prior,'replayed':True}
+        month_open(c,day[:7])
+        r=c.execute('''SELECT r.*,p.ordered_on FROM inventory_receipts r
+             JOIN inventory_receipt_purchase_links l ON l.receipt_id=r.id
+             JOIN inventory_purchase_orders p ON p.id=l.purchase_order_id AND p.status='approved'
+             WHERE r.id=?''',(body.receipt_id,)).fetchone()
+        if not r or r['status']!='approved' or not r['journal_id']:
+            fail('فاتورة المورد لا تطابق استلامًا معتمدًا مرتبطًا بأمر شراء',409)
+        if r['invoice_ref']!=ref or day<r['ordered_on'] or receipt_sum(c,body.receipt_id)!=amount:
+            fail('مخالفة في رقم الفاتورة أو التاريخ أو الإجمالي بالمطابقة الثلاثية',409)
+        stock_lines=[dict(x) for x in c.execute('SELECT item_id,quantity,unit_cost_piasters FROM inventory_receipt_lines WHERE receipt_id=?',
+                                                (body.receipt_id,))]
+        if sorted((x['item_id'],x['quantity'],x['unit_cost_piasters']) for x in stock_lines)!=\
+           sorted((x['item_id'],x['quantity'],x['unit_cost_piasters']) for x in lines):
+            fail('بنود فاتورة المورد لا تطابق أصناف وكميات وأسعار محضر الاستلام',409)
+        if c.execute("SELECT 1 FROM inventory_supplier_invoice_matches WHERE receipt_id=? AND status IN ('pending','approved')",
+                     (body.receipt_id,)).fetchone():fail('فاتورة استلام سبق تسجيل مطابقة نشطة لها',409)
+        cur=c.execute('''INSERT INTO inventory_supplier_invoice_matches
+            (receipt_id,invoice_date,invoice_ref,amount_piasters,evidence_ref,created_by,created_at)
+            VALUES (?,?,?,?,?,?,?)''',(body.receipt_id,day,ref,amount,evidence,user['id'],stamp()))
+        for line in lines:
+            c.execute('''INSERT INTO inventory_supplier_invoice_match_lines
+                     (match_id,item_id,quantity,unit_cost_piasters) VALUES (?,?,?,?)''',
+                      (cur.lastrowid,line['item_id'],line['quantity'],line['unit_cost_piasters']))
+        remember(c,key,'inventory_supplier_invoice',user['id'],digest,cur.lastrowid)
+        audit(c,user['id'],'inventory_supplier_invoice_requested','inventory_supplier_invoice',cur.lastrowid,
+              {'receipt_id':body.receipt_id,'amount_piasters':amount})
+    return {'id':cur.lastrowid,'status':'pending','journal_id':None}
+
+
+@router.post('/supplier-invoices/{match_id}/decision')
+def decide_supplier_invoice(match_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'approve')
+    note=trim(body.note,'مراجعة المطابقة الثلاثية',8,300)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'approve')
+        match=c.execute('''SELECT m.*,r.created_by receipt_creator,r.status receipt_status,
+               r.invoice_ref receipt_ref,r.journal_id,p.ordered_on
+            FROM inventory_supplier_invoice_matches m
+            JOIN inventory_receipts r ON r.id=m.receipt_id
+            JOIN inventory_receipt_purchase_links l ON l.receipt_id=r.id
+            JOIN inventory_purchase_orders p ON p.id=l.purchase_order_id AND p.status='approved'
+            WHERE m.id=?''',(match_id,)).fetchone()
+        if not match:fail('مطابقة فاتورة المورد غير موجودة',404)
+        if match['status']!='pending':fail('تم البت في مطابقة الفاتورة بالفعل',409)
+        if match['created_by']==user['id'] or match['receipt_creator']==user['id']:
+            fail('لا يجوز اعتماد مطابقة قمت بإعدادها أو استلامها بنفسك',403)
+        month_open(c,match['invoice_date'][:7])
+        if body.decision=='approve':
+            if match['receipt_status']!='approved' or match['invoice_ref']!=match['receipt_ref'] or \
+                    receipt_sum(c,match['receipt_id'])!=match['amount_piasters'] or match['invoice_date']<match['ordered_on']:
+                fail('تغيرت مستندات المطابقة الثلاثية؛ لا يجوز الاعتماد',409)
+            source=[tuple(x) for x in c.execute('SELECT item_id,quantity,unit_cost_piasters FROM inventory_receipt_lines WHERE receipt_id=?',
+                                                (match['receipt_id'],))]
+            invoice=[tuple(x) for x in c.execute('SELECT item_id,quantity,unit_cost_piasters FROM inventory_supplier_invoice_match_lines WHERE match_id=?',
+                                                 (match_id,))]
+            if sorted(source)!=sorted(invoice):fail('بنود فاتورة المورد لم تعد تطابق محضر الاستلام',409)
+            journal=c.execute('SELECT status FROM gl_journals WHERE id=?',(match['journal_id'],)).fetchone()
+            if not journal or journal['status']!='posted':fail('قيد استلام المورد غير مرحل',409)
+        status='approved' if body.decision=='approve' else 'rejected'
+        c.execute('UPDATE inventory_supplier_invoice_matches SET status=?,reviewed_by=?,reviewed_at=?,review_note=? WHERE id=?',
+                  (status,user['id'],stamp(),note,match_id))
+        audit(c,user['id'],'inventory_supplier_invoice_'+status,'inventory_supplier_invoice',match_id,
+              {'receipt_id':match['receipt_id'],'no_new_journal':True})
+    return {'id':match_id,'status':status,'journal_id':None}
 
 
 @router.post('/issues')
@@ -917,6 +1192,15 @@ def month_close_inventory_issue(c,period):
         return 'أذون صرف مستلزمات تنتظر اعتماد مراجع مستقل'
     if c.execute("SELECT 1 FROM inventory_issue_returns WHERE substr(returned_on,1,7)=? AND status='pending' LIMIT 1",(period,)).fetchone():
         return 'محاضر مرتجع مستلزمات تنتظر اعتماد مراجع مستقل'
+    # Prevent orphaned outstanding PO reviews in a period which cannot be reopened.
+    if c.execute("SELECT 1 FROM inventory_purchase_orders WHERE status='pending' AND substr(ordered_on,1,7)=? LIMIT 1",(period,)).fetchone():
+        return 'أوامر شراء مستلزمات لم تراجع قبل إقفال الشهر'
+    # Pilot-only PO-linked GRNs demand resolved supplier invoice evidence before sealing.
+    if c.execute('''SELECT 1 FROM inventory_receipts r JOIN inventory_receipt_purchase_links l
+        ON l.receipt_id=r.id WHERE r.status='approved' AND substr(r.received_on,1,7)=?
+        AND NOT EXISTS(SELECT 1 FROM inventory_supplier_invoice_matches m
+           WHERE m.receipt_id=r.id AND m.status='approved') LIMIT 1''',(period,)).fetchone():
+        return 'استلام من أمر شراء معتمد دون مطابقة ثلاثية نهائية لفاتورة المورد'
     if c.execute("SELECT 1 FROM inventory_return_writeoffs WHERE substr(disposed_on,1,7)=? AND status='pending' LIMIT 1",(period,)).fetchone():
         return 'تسوية تلف أو إعدام مستلزمات تنتظر اعتماد مراجع مالي مستقل'
     # Before period closure, compare all approved inventory documents up to the month.

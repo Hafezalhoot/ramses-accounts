@@ -1,0 +1,1328 @@
+{
+  "project": "Ramses Accounts",
+  "baseline": "V8.1E-G3H synthetic PO/partial GRN/line-level vendor invoice match; TEST ONLY",
+  "date": "2026-11-01",
+  "audit_mode": "G3H isolated local branch; frozen G3G SHA-verified encrypted rollback; no hospital deployment",
+  "archive_sha256": null,
+  "baseline_findings": [
+    {
+      "id": "F-001",
+      "priority": "P0",
+      "area": "الداخلي/الإقامة",
+      "type": "missing",
+      "title": "غياب إدارة إشغال السرير وفترة الإقامة وتسعيرها",
+      "evidence": "CURRENT_RELEASE.md؛ لا جداول/وحدة إقامة في schema.sql أو وحدات الشحن",
+      "impact": "قد يُقفل ملف داخلي بدون حساب تكلفة أيام الإقامة أو النقل بين الأقسام",
+      "action": "جدول إقامة/سرير/نقل بسجلات مؤرخة، سياسة يوم/ساعة، أسعار تاريخية، توليد خدمات مؤكد قبل تصفية الملف",
+      "acceptance": "حجز سرير/نقل/خروج/نوبة منتصف الليل/تحويل أقسام، وعدم تكرار اليومية، قفل الملف عند خدمات غير مفوترة",
+      "phase": "M4",
+      "status": "open",
+      "g2t_status": "partially_implemented",
+      "g2t_change_note": "G2R/G2S: bed master, stay, nightly charges and transfers. Cross-month invoice P0 still broken; tariff/medical discharge not approved.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-002",
+      "priority": "P0",
+      "area": "العمليات والحضانات",
+      "type": "missing",
+      "title": "غياب باقات العمليات والحضانة وربط مستهلكاتها",
+      "evidence": "CURRENT_RELEASE.md؛ case_settlement.py يغلق الحساب ولا ينشئ استهلاكًا أو أمرًا سريريًا",
+      "impact": "الفاتورة قد لا تشمل مستلزمات الجراحة والحضانة أو تكلفة الإجراء",
+      "action": "كارت تكلفة إجراء، مكونات باقة قابلة للإصدار، أوامر خدمة معتمدة، خصم مستهلكات من المخزون",
+      "acceptance": "سيناريو عملية/حضانة يثبت الخدمات والمستلزمات والمرتجعات مرة واحدة فقط",
+      "phase": "M5",
+      "status": "open",
+      "g2t_status": "not_implemented",
+      "g2t_change_note": "Clinical OR/NICU packages, procedure costing and clinical authorisation not implemented; NICU bed case type != procedure costing.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-003",
+      "priority": "P0",
+      "area": "المخزون والمشتريات",
+      "type": "missing",
+      "title": "عدم وجود دورة متكاملة للمشتريات والمخازن والموردين",
+      "evidence": "CURRENT_RELEASE.md؛ schema.sql يركز على الخزن والتحصيل دون purchase orders/GRN/stock movements",
+      "impact": "لا توجد تكلفة أصناف أو جرد وعجز/هالك وذمم موردين محاسبية موثوقة",
+      "action": "مستند طلب شراء→أمر→إذن استلام→فاتورة مورد→صرف/إرجاع→مطابقة GL",
+      "acceptance": "اختبار استلام جزئي، مرتجع، ثلاثي المستندات، استحقاق مورد، صرف حالة، حركة سلبية مرفوضة",
+      "phase": "M6",
+      "status": "open",
+      "g2t_status": "partially_implemented",
+      "g2t_change_note": "G2T single central non-drug stock receipts, vendors, FIFO issues and GL posted; no PO, returns, physical count, multiwarehouse, payment or pharmacy.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-004",
+      "priority": "P0",
+      "area": "أتعاب الأطباء",
+      "type": "missing",
+      "title": "غياب احتساب واستحقاق وصرف أتعاب الأطباء",
+      "evidence": "CURRENT_RELEASE.md؛ الرواتب الحالية للموظفين وليست اتفاقيات مستحقات الأطباء",
+      "impact": "خطر حساب نسبة أو حصة الطبيب يدويًا بدون استحقاق موحد",
+      "action": "عقود طبيب بنسب/مبالغ/أقسام وتاريخ سريان؛ استحقاق بعد الخدمة/التحصيل وفق السياسة؛ كشف مراجعة وتسوية",
+      "acceptance": "طبيب متعدد نسب، خصومات، إشعارات دائنة، رد مبلغ، استقطاع، منع صرف مكرر",
+      "phase": "M7",
+      "status": "open",
+      "g2t_status": "not_implemented",
+      "g2t_change_note": "Doctor-fee payment expense category exists, not a contract/accrual/settlement subledger.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-005",
+      "priority": "P0",
+      "area": "الصلاحيات/الخصوصية",
+      "type": "partial",
+      "title": "الصلاحيات ما زالت أدوارًا عامة مع استثناءات للنقطة/البنك لا مصفوفة شاملة",
+      "evidence": "app.py:47 ROLES؛ app.py:131 require؛ ACCESS_CONTROL_RBAC_PLAN_AR.md",
+      "impact": "موظف مفوض جزئيًا قد يطّلع على بيانات تتجاوز أقل صلاحية لازمة في شاشات غير مدققة",
+      "action": "مصفوفة أدوار/عمليات/نطاق قسم/نقطة/خزنة/موظف؛ فحص IDOR لكل 165 API؛ إدارة أدوار معطلة افتراضيًا",
+      "acceptance": "اختبار owner/reviewer/clerk/viewer/بدون تفويض/بعد سحب تفويض لكل endpoint؛ جميع الحالات تمنع حسب النطاق",
+      "phase": "M2",
+      "status": "open",
+      "g2t_status": "partially_implemented",
+      "g2t_change_note": "Fund/bank, billing-point, inventory permissions exist; viewer/report/review queue scoping defects confirmed in G2T-N02/N03/N04.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-006",
+      "priority": "P0",
+      "area": "الاستعادة/الأمان",
+      "type": "blocked",
+      "title": "النسخ خارج الجهاز واستعادة كاملة على جهاز آخر غير مثبتتين",
+      "evidence": "scripts/secure_backup.py؛ scripts/backup_local.sh؛ RELEASE_GATE_AR.md",
+      "impact": "فقد أو تعطل جهاز الخادم قد يفقد حسابات المستشفى رغم وجود نسخ محلية",
+      "action": "تشفير + نسخة خارج الجهاز مع مراقبة وفصل مفاتيح + تجارب استعادة موثقة + RPO/RTO معتمد",
+      "acceptance": "استعادة مستقلة تتحقق من التوافق والتواريخ والقيود وملفات المرفقات، مع اختبار انقطاع الطاقة",
+      "phase": "M1",
+      "status": "open",
+      "g2t_status": "blocked",
+      "g2t_change_note": "Encrypted backup tool tested locally, independent offsite restore/recovery exercises NOT verified.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-007",
+      "priority": "P0",
+      "area": "الترقية/البيانات",
+      "type": "blocked",
+      "title": "اختبار V8.0 التاريخي لم يكتمل",
+      "evidence": "tests/test_billing_upgrade_v81.py:43؛ FRESH_TEST_RESULTS.tsv — ملف V8.0 الأصلي غير متاح",
+      "impact": "لا يمكن إثبات توافق نسخة V8.0 أو ترحيل بياناتها قبل التشغيل",
+      "action": "استلام الأرشيف الحقيقي والتحقق من SHA، تشغيل ترقية متدرجة على نسخة معزولة، مقارنة عينات الأرصدة والعلاقات",
+      "acceptance": "اختبار الترحيل من الأرشيف الحقيقي PASS، ومعه تقرير قبل/بعد وrollback",
+      "phase": "M0",
+      "status": "open",
+      "g2t_status": "blocked",
+      "g2t_change_note": "Genuine V8.0 ZIP missing; historical migration test is BLOCKED, not PASS.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-008",
+      "priority": "P0",
+      "area": "اعتماد التشغيل",
+      "type": "blocked",
+      "title": "لا توجد تجربة استخدام مالية حقيقية أو توقيع محاسب ومدير نظم",
+      "evidence": "CURRENT_RELEASE.md؛ لم يُنشر G2P ولم يختبر على أجهزة رمسيس",
+      "impact": "نجاح الاختبارات المعزولة لا يثبت سلامة سير العمل الحقيقي أو صلاحيات المستخدمين الفعلية",
+      "action": "UAT مع محاسب مستقل وكاشير خارجي/داخلي، شبكة أجهزة، تعافٍ، إقفال شهر كامل بمحاكاة",
+      "acceptance": "اعتماد مالي وأمني وإداري مكتوب، مع عدم وجود P0/P1 غير مقبول",
+      "phase": "M10",
+      "status": "open",
+      "g2t_status": "blocked",
+      "g2t_change_note": "No independent signed hospital UAT/production rehearsal or deployment evidence.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-009",
+      "priority": "P1",
+      "area": "التصحيحات/الإقفال",
+      "type": "missing",
+      "title": "لا يوجد تصحيح رسمي بعد إغلاق الملف المالي",
+      "evidence": "RAMSES_V81E_G2P_CASE_CLEARANCE_QA_AR.md: قسم المتبقي؛ triggers في schema.sql:1127+",
+      "impact": "اكتشاف خدمة متأخرة بعد الإقفال قد يترك موظف الحسابات أمام حالة لا يمكن تصحيحها",
+      "action": "إجراء إضافة/إشعار دائن لاحق بموافقة مستقلة دون تعديل السجل المعتمد، وربط المستند بالحالة المغلقة",
+      "acceptance": "تصحيح بعد الإقفال يولد سند تعديل مستقل، أثرًا تدقيقيًا ويحافظ على شهر مغلق",
+      "phase": "M3",
+      "status": "open",
+      "g2t_status": "not_implemented",
+      "g2t_change_note": "Formal financially-posted adjustment after signed case clearance needs guarded workflow; no blanket unlock.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-010",
+      "priority": "P1",
+      "area": "POS والبنوك",
+      "type": "partial",
+      "title": "حالات الاسترداد والـchargeback والتسوية العابرة للشهور غير مكتملة",
+      "evidence": "pos_settlements.py؛ RAMSES_V81E_G2K_POS_SETTLEMENT_QA_AR.md",
+      "impact": "تحصيل بطاقة قد يُرتجع بعد اعتماد الشهر دون مسار معتمد لتسويته",
+      "action": "مسار chargeback/refund، تسوية نهاية الشهر المعلقة، رسوم التحصيل ومراجع البنك",
+      "acceptance": "تسوية قبل/بعد شهر، رد 1 من 3 إيصالات، رسوم وخصم دون تكرار AR أو الخزنة",
+      "phase": "M3",
+      "status": "open",
+      "g2t_status": "partially_implemented",
+      "g2t_change_note": "Card POS receipt/settlements exist; acquirer chargebacks, clearing cutoffs and late refunds incomplete.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-011",
+      "priority": "P1",
+      "area": "الرقابة المحاسبية",
+      "type": "partial",
+      "title": "المطابقة الرقابية ليست شاملة لجميع الدفاتر المساعدة",
+      "evidence": "financial_integrity.py:patient_reconciliation() نطاق 1200/2300/2310؛ treasury_integrity.py",
+      "impact": "اختلال مورد/طبيب/مخزون قد يمر دون منع إقفال الشهر",
+      "action": "مُطابقات مستقلة لكل subledger وGL control accounts + حالات استثناء موثقة",
+      "acceptance": "إقفال شهر يرفض mismatch في مخزون ومورد وأطباء وبنك وPOS والمرضى ويصدر فحصًا قابلًا للتصدير",
+      "phase": "M8",
+      "status": "open",
+      "g2t_status": "partially_implemented",
+      "g2t_change_note": "Ledger/treasury/patient/inventory G2T-source reconciliation; comprehensive AP, stock legacy, doctors, insurance/asset subledger not proven.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-012",
+      "priority": "P1",
+      "area": "أمان الحسابات",
+      "type": "confirmed",
+      "title": "إمكان قفل اسم مستخدم بهجمات كلمات سر بسبب حد محاولات مرتبط بالاسم فقط",
+      "evidence": "app.py:560-568: count(login_attempts WHERE username) 5 محاولات/15 دقيقة",
+      "impact": "قد يحجب مهاجم الوصول لموظف أو مالك بمعرفة اسم المستخدم",
+      "action": "معدل محاولات متعدد المفاتيح، backoff، حماية حسب المصدر والجلسة والتنبيه دون قفل اسم مستهدف بالكامل",
+      "acceptance": "اختبار محاولات موزعة ومكررة؛ لا يتم تعطيل مالك النظام بمجرد 5 محاولات من عميل آخر",
+      "phase": "M1",
+      "status": "locally_mitigated_residual_controls_pending_g2q",
+      "resolution": "See G2Q QA report. Fix is scoped to application-controlled paths; infrastructure residual risks remain.",
+      "g2t_status": "locally_mitigated",
+      "g2t_change_note": "G2Q login rate limits use trusted socket source plus username; multi-source attacks/rate limits still require infrastructure testing.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-013",
+      "priority": "P1",
+      "area": "خصوصية العاملين",
+      "type": "confirmed",
+      "title": "واجهة lookups ترسل جميع الموظفين النشطين لأي مستخدم مسجل",
+      "evidence": "app.py:591-598 → SELECT employees بلا فلترة دور/قسم",
+      "impact": "كشف أسماء ووظائف الموظفين لمن لا يحتاجها",
+      "action": "فصل القوائم إلى lookups حسب السياق والوظيفة، تقليل الحقول وحصر payroll للموظف المخوّل",
+      "acceptance": "كاشير/مشاهد غير مخول لا يحصل على قائمة موظفين كاملة؛ صاحب الحق يرى فقط المطلوب",
+      "phase": "M2",
+      "status": "locally_mitigated_residual_controls_pending_g2q",
+      "resolution": "See G2Q QA report. Fix is scoped to application-controlled paths; infrastructure residual risks remain.",
+      "g2t_status": "locally_mitigated_but_bypass_open",
+      "g2t_change_note": "G2Q /api/lookups hides employee list for viewer/clerk, but /api/employees still returns full HR directory for viewer, reproduced G2T-N02.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-014",
+      "priority": "P1",
+      "area": "تكامل خارجي",
+      "type": "risk",
+      "title": "مرآة Google Sheets تنقل أسماء الموظفين وكشوف المرتبات والـAudit إلى خدمة خارجية عند تفعيلها",
+      "evidence": "google_sync.py:datasets_for() — Ramses_Payroll/Ramses_Audit",
+      "impact": "تسرب غير مقصود للمعلومات أو اتساع المشاركة من إعدادات Google Sheets",
+      "action": "مراجعة موافقة الجهة، IAM وحصر المشاركة، تقليل الحقول، سياسة احتفاظ وإغلاق المزامنة افتراضيًا",
+      "acceptance": "اختبار مشاركة ورقة تجريبية ومراجعة صلاحيات المالك + عدم وجود PII غير ضرورية",
+      "phase": "M1",
+      "status": "partially_mitigated_explicit_export_approval_g2q",
+      "resolution": "Google mirror now requires opt-in before any network access, but an authorized external share still requires governance.",
+      "g2t_status": "partially_mitigated",
+      "g2t_change_note": "Sensitive Sheets sync now explicit opt-in; remote consent, minimization and audit need approval.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-015",
+      "priority": "P1",
+      "area": "النسخ والاحتفاظ",
+      "type": "confirmed",
+      "title": "ما زالت أداة backup.py وbackup_local.sh تنتجان ملف SQLite صريحًا على القرص",
+      "evidence": "backup.py:18؛ scripts/backup_local.sh:7 تنبيه صريح",
+      "impact": "استغلال خطأ نسخ ملف احتياطي أو فقد القرص قد يكشف البيانات المالية",
+      "action": "استبدال المسار الافتراضي بالنسخ المشفر، قصر النص الصريح على ترحيل معزول بأذونات وتوثيق",
+      "acceptance": "أمر النسخ الافتراضي لا يترك نسخة عارية، ويمكن اختبار نسخة مشفرة واستعادتها على جهاز ثان",
+      "phase": "M1",
+      "status": "default_backup_path_fixed_locally_old_backups_remain",
+      "resolution": "See G2Q QA report. Fix is scoped to application-controlled paths; infrastructure residual risks remain.",
+      "g2t_status": "partially_mitigated",
+      "g2t_change_note": "Operational backup defaults encrypted, BUT bootstrap.py pre-upgrade rollback snapshots still unencrypted SQLite files; G2T-N05.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect.",
+      "g2v_status": "default_backup_and_preupgrade_paths_locally_encrypted; operational_old_plaintext_remains"
+    },
+    {
+      "id": "F-016",
+      "priority": "P1",
+      "area": "التدقيق الجنائي",
+      "type": "confirmed",
+      "title": "audit_log ليس له Trigger مانع لتعديل/حذف السجل مباشرة",
+      "evidence": "schema.sql:267-270؛ لا يوجد trigger على audit_log",
+      "impact": "مسؤول نظام يملك قاعدة SQLite قد يغيّر سجل مراجعة بلا كشف تدقيق في التطبيق",
+      "action": "طبقة append-only/سلسلة تجزئة وتخزين سجل مستقل غير قابل لتعديل موظفي النظام",
+      "acceptance": "تغيير سجل تدقيق اختباري يُكشف في فحص السلامة والتحقق من نسخة خارجية",
+      "phase": "M1",
+      "status": "locally_mitigated_residual_controls_pending_g2q",
+      "resolution": "See G2Q QA report. Fix is scoped to application-controlled paths; infrastructure residual risks remain.",
+      "g2t_status": "partially_mitigated",
+      "g2t_change_note": "G2Q ordinary SQLite update/delete audit triggers; no remote tamper-evident anchor against OS administrator.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-017",
+      "priority": "P1",
+      "area": "إدارة الكود",
+      "type": "confirmed",
+      "title": "لا يوجد مستودع Git/CI ضمن الحزمة المسلّمة G2P",
+      "evidence": "git status داخل المصدر: not a git repository؛ لا .github/workflows",
+      "impact": "تراكم تعديلات ZIP بلا مراجعات أو اختبارات بناء تلقائية أو تتبع تغييرات",
+      "action": "تحويل الحزمة لمستودع خاص، Tag للإصدار الحالي، CI للاختبارات والفحص الأمني والمراجعة",
+      "acceptance": "كل PR يمر بالاختبارات، مراجعة تغيير DB، Manifest، إصدار موثوق وقابل للتراجع",
+      "phase": "M0",
+      "status": "partial_local_ci_added_remote_repo_pending",
+      "g2t_status": "prepared_not_live",
+      "g2t_change_note": "Local Git bundle with G2P-G2T history and CI YAML; no verified hospital private remote/PR checks.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-018",
+      "priority": "P1",
+      "area": "التصميم البرمجي",
+      "type": "confirmed",
+      "title": "app.py كبير وذو مسؤوليات واسعة وتوجد تبعيات متبادلة بين الوحدات",
+      "evidence": "CODE_INVENTORY_G2P.json: app.py 3216 سطر؛ billing.py يستورد app",
+      "impact": "الإصلاحات البسيطة قد تؤثر على وحدات غير مرتبطة وتصعب مراجعتها",
+      "action": "تحسين مواضع الفصل: auth, permission policy, posting, month-close, routes تدريجيًا بدون إعادة كتابة",
+      "acceptance": "انخفاض التداخل مع اختبارات حدود واضحة وتجارب ترقية دون تغيير قواعد المال",
+      "phase": "M0",
+      "status": "open",
+      "g2t_status": "open",
+      "g2t_change_note": "3243-line app.py, 145KB JS; split by deep module seams with regression tests.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-019",
+      "priority": "P1",
+      "area": "قاعدة البيانات",
+      "type": "risk",
+      "title": "SQLite WAL بخادم واحد يحتاج اختبار حمل وتزامن قبل تشغيل عدة كاشيرات",
+      "evidence": "bootstrap.py:connect()؛ Dockerfile --workers 1؛ compose.yaml",
+      "impact": "احتمال انتظار الكتابة أو تعارض التصحيحات/الإقفال تحت حمل حقيقي غير مقاس",
+      "action": "Benchmark محاكاة عدد موظفين وسيناريوهات تزاحم، وخطة نقل إلى PostgreSQL إذا تجاوز الحدود",
+      "acceptance": "أرقام P95 وملفات Deadlocks/timeout وقيود مالية سليمة تحت الحمل المحدد",
+      "phase": "M9",
+      "status": "open",
+      "g2t_status": "unverified_risk",
+      "g2t_change_note": "SQLite WAL works in tests; concurrent production cashiers and resilience not load tested.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-020",
+      "priority": "P1",
+      "area": "حماية التشغيل",
+      "type": "partial",
+      "title": "CSRF وCSP موجودان لكن MFA وIP-aware rate limit وفصل حساب الطوارئ غير مثبت",
+      "evidence": "app.py:114-129، app.py:556-574، middleware:3162؛ لا MFA في مخطط المستخدم",
+      "impact": "تعرّض الحساب الإداري لخطر أعلى لو سُرّبت بيانات تسجيل الدخول",
+      "action": "مراجعة المصادقة والجلسات وإضافة MFA/إعادة تحقق للإجراءات الحساسة وخطة break-glass",
+      "acceptance": "تجربة جلسة مسروقة/إلغاء جلسة/تغيير كلمة سر وMFA لجميع مالكي النظام",
+      "phase": "M1",
+      "status": "open",
+      "g2t_status": "partially_implemented",
+      "g2t_change_note": "CSRF, CSP, cookie flags, PBKDF2 and session checks present; MFA, breakglass, incident response, rate controls not verified.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-021",
+      "priority": "P1",
+      "area": "المالية القانونية",
+      "type": "missing",
+      "title": "الالتزام الضريبي/الفوترة الإلكترونية والعقود الطبية والتأمين غير مصمم نهائيًا",
+      "evidence": "billing.py:1215 TEST ONLY; no regulatory invoice/insurance payout status",
+      "impact": "لا يمكن اعتماد النظم كفاتورة قانونية أو تسجيل ذمم تأمين قبل تحديد العقود واللوائح",
+      "action": "قرار محاسبي/قانوني مصري؛ ضريبة وختم/إيصال، جهات تأمين، موافقات وأسعار متعاقد عليها",
+      "acceptance": "حالات خدمات مختلفة ضريبيًا وفواتير شركات وتأمين ومطالبات مرفوضة/مقبولة",
+      "phase": "M8",
+      "status": "open",
+      "g2t_status": "not_implemented",
+      "g2t_change_note": "Tax, e-invoice, insurer contracts/claims and approved policy need legal/accounting signoff.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-022",
+      "priority": "P1",
+      "area": "المرتبات",
+      "type": "partial",
+      "title": "نظام مرتبات الموظفين لا يساوي نظام تكاليف الموارد البشرية الكامل",
+      "evidence": "app.py:2153-2682؛ غياب الربط المنضبط مع الحضور المعتمد خارج النظام",
+      "impact": "صعوبة التحقق من الساعات الإضافية والمستحقات قبل الاعتماد",
+      "action": "تعريف مصدر حضور مرجعي وسياسات حسم/إضافي وامتثال وتكلفة لكل قسم",
+      "acceptance": "يُصادق صاحب الدور على ساعات وأجور، ويُمنع صرف راتب مرتين",
+      "phase": "M7",
+      "status": "open",
+      "g2t_status": "partially_implemented",
+      "g2t_change_note": "Payroll and approvals exist; official attendance, tax/social insurance and accrued HR close not fully integrated.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-023",
+      "priority": "P1",
+      "area": "سجل التغييرات/الهجرات",
+      "type": "risk",
+      "title": "ترقيات SQL تتم برمجيًا داخل bootstrap.py بدون سجل migrations مرقّم مستقل",
+      "evidence": "bootstrap.py:241+ PRAGMA/ALTER TABLE؛ schema.sql محفوظ مع عدد كبير من triggers",
+      "impact": "الترقية طويلة السلسلة قد تكون صعبة التراجع والفحص على قواعد مختلفة",
+      "action": "اعتماد نسخ قاعدة مُرقّمة وفحص قبل/بعد وترقية من V7/V8/G2P، فصل preflight عن التعديل",
+      "acceptance": "إعادة الترقية idempotent وتراجع متحكم به على جميع نسخ المصدر التاريخية",
+      "phase": "M0",
+      "status": "open",
+      "g2t_status": "open",
+      "g2t_change_note": "bootstrap.py additive migration blocks; no independently numbered migration ledger / migration rollback rehearsal.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-024",
+      "priority": "P2",
+      "area": "التجربة/التنقل",
+      "type": "confirmed",
+      "title": "القائمة تضم عددًا كبيرًا من مداخل التشغيل والتقارير ولا تستخدم روابط عميقة",
+      "evidence": "static/index.html:54-75 أزرار data-view، static/app.js state.view",
+      "impact": "صعوبة رجوع الموظف للصفحة نفسها بعد تحديث/مشاركة رابط، وتشتيت في المهام اليومية",
+      "action": "قوائم حسب الدور، مسارات/هاش قابلة للمشاركة، البحث والتنقل السريع",
+      "acceptance": "للمراجع/الكاشير صفحات أقل بحسب المهمة، رابط مباشر يعود للحالة ذاتها بعد refresh",
+      "phase": "M2",
+      "status": "open",
+      "g2t_status": "open",
+      "g2t_change_note": "UI navigation uses data-view buttons, no robust deep links; many operational modules.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-025",
+      "priority": "P2",
+      "area": "سهولة القراءة",
+      "type": "confirmed",
+      "title": "عدة تسميات ومعلومات مساعدة أقل من 12px في CSS",
+      "evidence": "static/styles.css:33,39 وغيرها؛ صورة G2P_FINANCIAL_CLEARANCE_375.png",
+      "impact": "إجهاد بصري وزيادة احتمالات الخطأ في مبالغ/تحذيرات حاسمة",
+      "action": "رفع الحد الأدنى للنص التشغيلي وتحسين تباين الحالات ومناطق اللمس",
+      "acceptance": "320px و375px وتكبير 200% بلا فقد تحذير أو زر اعتماد؛ اختبارات قارئ شاشة",
+      "phase": "M9",
+      "status": "open",
+      "g2t_status": "open",
+      "g2t_change_note": "CSS secondary microcopy often 10/11px; verify contrast and readability at real 200% zoom.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-026",
+      "priority": "P2",
+      "area": "إتاحة الوصول",
+      "type": "confirmed",
+      "title": "لا يظهر رابط تجاوز القائمة إلى المحتوى الرئيسي في HTML",
+      "evidence": "static/index.html يبدأ مباشرة login/shell، وmain id=content دون skip link",
+      "impact": "مستخدم لوحة المفاتيح يحتاج المرور بكل عناصر القائمة في كل انتقال",
+      "action": "إضافة رابط skip-to-content مرئي عند التركيز، وضبط focus بعد تغيير الصفحة",
+      "acceptance": "التنقل Tab/Shift+Tab وEscape في dialog مع إعلان الأخطاء لقارئ الشاشة",
+      "phase": "M9",
+      "status": "locally_fixed_and_browser_checked_g2q",
+      "resolution": "Skip-to-content link Tab and Enter tested at 375px with synthetic static Chromium.",
+      "g2t_status": "locally_mitigated",
+      "g2t_change_note": "G2Q skip link exists in static/index.html. Check focus and screen reader on actual devices.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-027",
+      "priority": "P2",
+      "area": "الأوقات والتواريخ",
+      "type": "risk",
+      "title": "بعض قيم التاريخ الافتراضية من تاريخ جهاز الموظف بدلاً من يوم القاهرة",
+      "evidence": "static/app.js:156 toLocaleDateString(\"sv-SE\") مقارنة بـcurrent_month Cairo في الخادم",
+      "impact": "قد يتسجل تاريخ وردية خطأ إذا ضبط جهاز موظف على منطقة زمنية أخرى",
+      "action": "تاريخ تشغيل معتمد من الخادم مع إمكانية التعديل المراقب وأسباب إدخال متأخر",
+      "acceptance": "اختبارات Cairo DST و00:00/08:00 و31/1 وتغيير ساعة الجهاز",
+      "phase": "M3",
+      "status": "open",
+      "g2t_status": "open",
+      "g2t_change_note": "Default date/month in JS uses local clock for some flows; must use server Cairo business date.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-028",
+      "priority": "P1",
+      "area": "الفصل الوظيفي",
+      "type": "risk",
+      "title": "المالك قد يجمع طلب واعتماد عمليات في حالات قليلة عند نقص الموظفين؛ يلزم سياسة استثناء مستقلة",
+      "evidence": "متطلبات المستشفى السابقة؛ فصل maker/checker جزئي في G2P",
+      "impact": "تعطّل العمليات عند غياب المراجع أو تسوية غير موثوقة عند تخطي الفصل",
+      "action": "وكيل مراجعة مستقل مؤقت وتفويض مقيد بالمدة مع تنبيه للمالك، دون تعطيل قيود المحاسبة",
+      "acceptance": "تجربة يوم مع مراجع واحد ثم غيابه؛ منع اعتماد الذات وحفظ سلسلة مسؤوليات",
+      "phase": "M2",
+      "status": "open",
+      "g2t_status": "policy_pending",
+      "g2t_change_note": "Maker/checker supports two actors for sensitive flows; real roster covers same cashier/reviewer temporarily; formal independent escalation missing.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-029",
+      "priority": "P1",
+      "area": "الدورة المحاسبية",
+      "type": "missing",
+      "title": "لا يوجد إقفال سنة متكامل وحسابات قياسية لكل أعمال المستشفى",
+      "evidence": "app.py:3036 إقفال شهر؛ subledgers للموردين/الأصول/المخزون غير موجودة",
+      "impact": "تقارير المركز المالي والنتائج قد تفتقد مراكز تكلفة وتخصيصات وإهلاك",
+      "action": "سنة مالية، إهلاك أصول، مصروفات مستحقة/مقدمة، مطابقة أستاذ، سياسة قيود الإقفال",
+      "acceptance": "قوائم محاسبية مصدّق عليها بعد نقل قيود المصروفات/الإهلاك وإقفال سنة",
+      "phase": "M8",
+      "status": "open",
+      "g2t_status": "not_implemented",
+      "g2t_change_note": "Year-end closing, trial balance full coverage, depreciation/tax/doctor/vendor subledgers not complete.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-030",
+      "priority": "P1",
+      "area": "أمان المستندات",
+      "type": "risk",
+      "title": "المرفقات والأدلة تحتاج سياسة احتفاظ وعزل وفحص محتوى وتسجيل وصول",
+      "evidence": "app.py:754-831، late_entry_api.py؛ لا دليل UAT لفحص برمجيات خبيثة",
+      "impact": "خطر وصول غير مبرر إلى مستندات مالية أو بقاء نسخة قديمة بلا حماية",
+      "action": "مراجعة MIME/size والمصادقة وربط التخزين والتشفير وسياسة retention وتسجيل التحميل",
+      "acceptance": "ملف غير مطابق/MIME مزيف يرفض، وسحب تفويض يمنع تحميل صورة ظرف",
+      "phase": "M1",
+      "status": "open",
+      "g2t_status": "partially_implemented",
+      "g2t_change_note": "File type/size/signature checks for voucher evidence, but signed supplier documents and retention/PII policy incomplete.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-031",
+      "priority": "P2",
+      "area": "الاختبارات/المراقبة",
+      "type": "blocked",
+      "title": "فحص المتصفح المتصل مباشرة بالخادم غير ممكن في بيئة التدقيق الحالية",
+      "evidence": "browser_smoke.py وbrowser_proxy_audit.py => ERR_BLOCKED_BY_ADMINISTRATOR",
+      "impact": "لا نستطيع الادعاء باكتمال رحلات UI→API→DB لكل الأدوار أو جميع مقاسات الأجهزة",
+      "action": "اختبار Chromium على شبكة تجريبية حقيقية مع 4 أدوار و3 مقاسات، traces وتقرير Console",
+      "acceptance": "تسجيل 50 رحلة ناجحة مع لقطات وقيود DB قبل/بعد واختبار خطأ شبكة",
+      "phase": "M9",
+      "status": "open",
+      "g2t_status": "unverified_risk",
+      "g2t_change_note": "Chromium synthetic API UI tests; no proven real hospital browser to live HTTP/DB/restore complete path.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    },
+    {
+      "id": "F-032",
+      "priority": "P1",
+      "area": "حوكمة البيانات",
+      "type": "missing",
+      "title": "لا توجد سياسة نهائية للاحتفاظ والخصوصية والأرشفة وإيقاف المستخدمين ومفاتيح النسخ",
+      "evidence": "CURRENT_RELEASE.md + غياب موافقات خصوصية تشغيلية؛ هناك جلسات وملفات مستخدمين",
+      "impact": "توسع بيانات حساسة دون سياسة حوكمة رسمية أو توزيع وصول موثق",
+      "action": "مصفوفة تصنيف البيانات، الاحتفاظ، الوصول، الإزالة القانونية، الموافقات والعقود والنسخ",
+      "acceptance": "محضر سياسة معتمد وأدلة مراجعة حسابات وتخزين ومتابعة شهريًا",
+      "phase": "M1",
+      "status": "open",
+      "g2t_status": "not_implemented",
+      "g2t_change_note": "Retention, deletion, compliance, role deactivation and backup key ownership policy not signed.",
+      "historical_evidence_warning": "The title/evidence describe the G2P baseline, not necessarily the current G2T defect."
+    }
+  ],
+  "new_g2t_findings": [
+    {
+      "id": "G2T-N01",
+      "priority": "P0",
+      "area": "الفوترة/الإقامة/الإقفال",
+      "phase": "M3/M4/M8",
+      "type": "confirmed_runtime",
+      "title": "حالة من شهر مقفل تعجز عن إصدار مسودة لخدمات إقامة الشهر الجديد",
+      "evidence": "FastAPI TestClient isolated synthetic: /mnt/data/RAMSES_G2T_CROSS_MONTH_REPRO.log; billing.py:401-419,516-532; app.py:2968-2979",
+      "impact": "يتعطل تحصيل وإصدار فاتورة الإقامة الطويلة رغم أن الخدمة وقعت في شهر مفتوح؛ وقد لا تظهر الخدمة في بعض فحوص الشهر.",
+      "action": "أضف business_date للخدمة والقيد/المسودة؛ اربط الليالي بفترة التنفيذ، احمِ إقفال الشهر حسب تاريخ الخدمة والقيد، ومراجعة حالات شهر قديم.",
+      "acceptance": "Sep case + closed Sep + Oct bed night => Oct draft and journal posting in Oct, no writes into Sep; unresolved Oct services block Oct close.",
+      "g2t_status": "confirmed_open",
+      "g2u_status": "locally_fixed",
+      "g2u_note": "Cross-month bed night Oct from Sep-closed case drafts/invoices/GL Oct; late past months still governed by exception policy."
+    },
+    {
+      "id": "G2T-N02",
+      "priority": "P1",
+      "area": "الخصوصية/الموظفون",
+      "phase": "M1/M2",
+      "type": "confirmed_runtime",
+      "title": "مشاهد غير مفوض يرى دليل الموظفين من endpoint بديل",
+      "evidence": "Synthetic TestClient /mnt/data/RAMSES_G2T_STAFF_PRIVACY_REPRO.log; app.py:626-635 /api/lookups and 2164-2168 /api/employees",
+      "impact": "أسماء ومسميات موظفين تظهر لدور viewer رغم إخفائها في endpoint الرئيسي.",
+      "action": "سياسة استعلام موحدة للموظفين ومنح HR/Payroll أو نطاق الدائرة فقط؛ اختبارات all read paths.",
+      "acceptance": "Viewer and clerk cannot list HR through any endpoint; reviewer limited to assigned payroll remit; owner supported.",
+      "g2t_status": "confirmed_open",
+      "g2u_status": "locally_fixed_scoped",
+      "g2u_note": "Viewer staff directory denied in lookups and employees; other staff-sensitive routes still need role matrix review."
+    },
+    {
+      "id": "G2T-N03",
+      "priority": "P1",
+      "area": "الخصوصية المالية/الخزن والبنوك",
+      "phase": "M1/M2",
+      "type": "confirmed_runtime",
+      "title": "دور المشاهد يقرأ أرصدة جميع الخزن والبنوك دون تفويض صندوق",
+      "evidence": "Synthetic TestClient /mnt/data/RAMSES_G2T_STAFF_PRIVACY_REPRO.log; app.py:1894-1904 and 3010-3035",
+      "impact": "يكشف أرصدة حسابات وحركات رقابية خارج نطاق التفويض المسموح للمشاهد.",
+      "action": "نطاق قراءة على الخزن والتقارير حسب موافقة المالك، وتصنيف تقارير hospital-wide as finance-only.",
+      "acceptance": "Viewer with no fund grant cannot see balances in funds, reports, treasury csv; allowed grant only exact fund.",
+      "g2t_status": "confirmed_open",
+      "g2u_status": "partially_fixed",
+      "g2u_note": "Balances denied to viewer; reviewer restricted fund grants and global treasury owner-only. Trial balance/general reports remain broader than accepted policy; full role matrix open."
+    },
+    {
+      "id": "G2T-N04",
+      "priority": "P1",
+      "area": "صلاحيات المراجع/قائمة السندات",
+      "phase": "M1/M2",
+      "type": "confirmed_runtime",
+      "title": "المراجع غير المفوض على بنك يستطيع رؤية سنداته المعلقة رغم رفض الاعتماد",
+      "evidence": "Synthetic TestClient /mnt/data/RAMSES_G2T_REVIEW_SCOPE_REPRO.log; app.py:844-853 /api/reviews and 858-892 /decision",
+      "impact": "تسريب مبالغ وبيان سند بنكي محمي عبر قراءة قائمة المراجعة.",
+      "action": "فلترة SELECT بجدول grants لكل fund قبل response; reuse single fund-scope policy for list/detail/download/decision.",
+      "acceptance": "No bank grant: queue excludes bank voucher; approval stays 403; grant then visible; revoke hides immediately.",
+      "g2t_status": "confirmed_open",
+      "g2u_status": "locally_fixed_scoped",
+      "g2u_note": "Pending review queue and alternate voucher list/export/dashboard/evidence deny ungranted restricted-bank records; tests include immediate revocation."
+    },
+    {
+      "id": "G2T-N05",
+      "priority": "P1",
+      "area": "النسخ الاحتياطي/الترقية",
+      "phase": "M0/M1",
+      "type": "confirmed_source",
+      "title": "نسخ تراجع الترقيات التاريخية تحفظ SQLite صريحًا رغم النسخ الاعتيادي المشفر",
+      "evidence": "bootstrap.py:145-236 pre_*_backups creates *.sqlite3 with sqlite backup and chmod 0600",
+      "impact": "بيانات مرضى ومحاسبة قد تبقى صريحة على وسيط المضيف/النسخ السحابية.",
+      "action": "تشفير snapshot قبل حفظه بمفتاح إدارة مستقل، أو fail closed وsecure temporary, keep last approved encrypted rollback.",
+      "acceptance": "Trigger legacy upgrade on copy: no plaintext db remains after crash/rollback; recover from encrypted snapshot.",
+      "g2t_status": "confirmed_open",
+      "g2u_status": "open",
+      "g2u_note": "Pre-upgrade SQLite local copies are not yet encrypted; must be fixed before deployment.",
+      "g2v_status": "implemented_local_encrypted_upgrade_needs_offsite_dr",
+      "g2v_note": "bootstrap/cashier old rollback paths now encrypted and authenticated; synthetic legacy restore and fail-closed tested, full CI pending, old pre-existing plaintext snapshots and transient scratch/offsite remain. G2V fresh full 101 scripts: 97 PASS / 3 SKIP / 1 V8.0 BLOCKED; CI 29/29 PASS."
+    },
+    {
+      "id": "G2T-N06",
+      "priority": "P1",
+      "area": "مصروفات/المستندات",
+      "phase": "M1/M3",
+      "type": "confirmed_source_policy",
+      "title": "إلزام مستند الإثبات للصرف معطل افتراضيًا",
+      "evidence": "app.py:896 uses RAMSES_REQUIRE_PAYMENT_EVIDENCE default 0",
+      "impact": "قد يُعتمد صرف دون صورة إثبات رغم أن نسخة الإنتاج تتطلب سياسة مستندية.",
+      "action": "اتفاق سياسة حسب نوع المصروف، مع تفعيل fail-closed في production وexception review بإذن مستقل.",
+      "acceptance": "Payment without mandatory evidence rejected 409 in production config; trace approved exceptions.",
+      "g2t_status": "confirmed_open",
+      "g2u_status": "open",
+      "g2u_note": "Payment evidence default not yet enforced."
+    },
+    {
+      "id": "G2T-N07",
+      "priority": "P1",
+      "area": "خدمات المرضى/التواريخ",
+      "phase": "M3/M4/M8",
+      "type": "confirmed_source",
+      "title": "billing_case_lines لا يحمل تاريخ خدمة محاسبي مستقلاً عن فتح الحالة",
+      "evidence": "schema.sql:398-408; billing.py:338-369 uses case business_date for price; G2T-N01 reproduces period issue",
+      "impact": "تعريفة وتوقيت الاستحقاق وإقفال الخدمات الطويلة غير مضبوطين إذا اختلف تاريخ الخدمة عن تاريخ فتح الحالة.",
+      "action": "Service date/date-effective price snapshot, clinical fulfillment timestamp, calendar business date, migration preserving originals.",
+      "acceptance": "Service ordered Sep, provided Oct, priced effective Oct and journal in Oct; no late backdating into closed Sep.",
+      "g2t_status": "confirmed_open",
+      "g2u_status": "partially_fixed",
+      "g2u_note": "Service date column + bed night date at fulfillment, price snapshots and month close. Legacy unknown service date preserved NULL; outside-period accrual and medical policy unresolved."
+    },
+    {
+      "id": "G2T-N08",
+      "priority": "P0",
+      "area": "الاعتماد السريري/التكلفة",
+      "phase": "M2/M5",
+      "type": "confirmed_source_missing_workflow",
+      "title": "تنفيذ الخدمة الطبية يتم عبر صاحب/مراجع مالي وليس عبر اعتماد دور طبي مستقل",
+      "evidence": "billing.py:360-367 require(owner,reviewer) with comment dedicated clinical role not yet added",
+      "impact": "عدم فصل إثبات أن الخدمة الطبية حدثت بالفعل عن من يفوتر ويعتمدها ماليًا.",
+      "action": "Clinical event source signed by appropriate medical role, cross-reference to medical ops, finance approval separate; do not infer service from cashier.",
+      "acceptance": "Cashier/reviewer cannot independently attest procedure completion; permitted clinician signs source and finance sees immutable evidence.",
+      "g2t_status": "confirmed_open",
+      "g2u_status": "open_p0_release",
+      "g2u_note": "Independent clinician/authorizer to certify service provision not implemented.",
+      "g2z_status": "pilot_locally_implemented_not_medically_certified",
+      "g2z_note": "Viewer-class users with explicit department grants may attest and gate invoices only after owner activation. Not a first-class clinician role, licensed identity or signed medical evidence. NO-GO remains."
+    },
+    {
+      "id": "G2T-N09",
+      "priority": "P1",
+      "area": "المخزون/دفتر الأستاذ",
+      "phase": "M0/M6/M8",
+      "type": "confirmed_source_design_debt",
+      "title": "قيود المخزون مرتبطة بالمصدر لكن أصل القيد في GL يظل manual",
+      "evidence": "inventory.py:100-106 manual journal, schema.sql:306-319 restrict journal origin",
+      "impact": "ضعف وضوح نسب القيود إلى دفتر المخزون في واجهات/تدقيق المنشأ وإمكان اختلاف معالجات عكس manual.",
+      "action": "Numbered additive migration for inventory origin, source_ref integrity, reversal rules, historical reconcile.",
+      "acceptance": "Inventory journals carry genuine inventory source, impossible generic reverse; GL/subledger matches after two migration reruns.",
+      "g2t_status": "confirmed_open",
+      "g2u_status": "open",
+      "g2u_note": "Inventory GL journal origin remains manual until numbered safe migration and reconciliation."
+    }
+  ],
+  "note": "G3B source fingerprint is file byte equality only; no legally valid medical signature or independent professional identity. Source bytes may touch OS spool temp storage; must secure host before any hospital test. Historical source missing V8.0/G2J/G2K/G2L remains blocked/skip. G3C adds narrow approved case cost report and date-order guards; does not claim full case costing or production go-live.",
+  "original_g2t_zip_sha256": "13834ea2f39a3df98fbbf724917d12f48dd7fe94fbc0c22cfa76aebbf0e4857d",
+  "new_g2u_changes": {
+    "G2T-N01": [
+      "locally_fixed",
+      "Cross-month bed night Oct from Sep-closed case drafts/invoices/GL Oct; late past months still governed by exception policy."
+    ],
+    "G2T-N02": [
+      "locally_fixed_scoped",
+      "Viewer staff directory denied in lookups and employees; other staff-sensitive routes still need role matrix review."
+    ],
+    "G2T-N03": [
+      "partially_fixed",
+      "Balances denied to viewer; reviewer restricted fund grants and global treasury owner-only. Trial balance/general reports remain broader than accepted policy; full role matrix open."
+    ],
+    "G2T-N04": [
+      "locally_fixed_scoped",
+      "Pending review queue and alternate voucher list/export/dashboard/evidence deny ungranted restricted-bank records; tests include immediate revocation."
+    ],
+    "G2T-N05": [
+      "open",
+      "Pre-upgrade SQLite local copies are not yet encrypted; must be fixed before deployment."
+    ],
+    "G2T-N06": [
+      "open",
+      "Payment evidence default not yet enforced."
+    ],
+    "G2T-N07": [
+      "partially_fixed",
+      "Service date column + bed night date at fulfillment, price snapshots and month close. Legacy unknown service date preserved NULL; outside-period accrual and medical policy unresolved."
+    ],
+    "G2T-N08": [
+      "open_p0_release",
+      "Independent clinician/authorizer to certify service provision not implemented."
+    ],
+    "G2T-N09": [
+      "open",
+      "Inventory GL journal origin remains manual until numbered safe migration and reconciliation."
+    ]
+  },
+  "new_g2v_changes": {
+    "G2T-N05": {
+      "status": "tested_locally_synthetic_not_production_authorized",
+      "summary": "Pre-schema-upgrade (V7/V8/V81/G2T and partial) consistent rollback is encrypted authenticated .rbe, fail-closed without strong private passphrase. Historical plaintext snapshots not automatically cleaned; ephemeral plaintext exists on local disk, requires encrypted volume. Offsite restore not tested."
+    },
+    "G2V-N01": {
+      "status": "tested_locally_synthetic_not_production_authorized",
+      "priority": "P1",
+      "summary": "Legacy shift table migration now emits encrypted, authenticated .rbe rollback; retains historical rows, denies unsafe/absent passphrase."
+    },
+    "G2V-N02": {
+      "status": "tested_locally_synthetic_not_production_authorized",
+      "priority": "P1",
+      "summary": "Source-detected incomplete schema upgrades take encrypted preflight before any new DDL; idempotent current schema emits no snapshot."
+    }
+  },
+  "new_g2w_changes": {
+    "G2W-GL-001": {
+      "status": "tested_locally_not_production_approved",
+      "priority": "P1",
+      "summary": "Viewer role denied full-hospital general ledger, trial balance JSON, CSV and detailed journal list. Reviewer global GL policy remains open."
+    }
+  },
+  "new_g2x_changes": {
+    "G2X-AUTH-001": {
+      "status": "locally_tested",
+      "priority": "P1",
+      "summary": "Restricted cash/bank/wallet shift visibility, station plans, coverage and day totals now require current reviewer fund grant; no other business-role grants auto-created.",
+      "evidence": "tests/test_v82_g2w_shift_fund_scope.py RED on G2W, GREEN after local fix"
+    },
+    "G2X-AUTH-002": {
+      "status": "locally_tested",
+      "priority": "P1",
+      "summary": "Restricted shift attachment IDs, download, count history, variance case/repayment read and review action guarded; reviewer approve requires current can_approve; revoke denies on next request."
+    },
+    "G2X-TEST-003": {
+      "status": "locally_tested",
+      "priority": "P2",
+      "summary": "Legacy general ledger regression expectation corrected for G2W viewer=403; G2X release labels consistent in HTTP/UI/Mac."
+    },
+    "G2X-RBAC-004": {
+      "status": "inventory_not_manual_review",
+      "priority": "P1",
+      "summary": "181 routes enumerated by static heuristic. 115 flagged potentially sensitive and 126 need manual object-scope review. Counts indicate worklist, NOT confirmed vulnerabilities nor production authorization."
+    },
+    "G2X-OPEN-005": {
+      "status": "not_started_requires_policy",
+      "priority": "P1",
+      "summary": "Reviewer global trial balance/journal details and viewer aggregated financial reports plus patient reconciliation require signed chief-accountant/global-role policy and rigorous per-data authorization."
+    },
+    "G2X-OPEN-006": {
+      "status": "not_started",
+      "priority": "P0",
+      "summary": "Clinical attestation must be independently signed, immutable, audited and kept separate from invoice/cashier settlement."
+    },
+    "G2X-OPEN-007": {
+      "status": "blocked_external_validation",
+      "priority": "P0",
+      "summary": "V8.0 historical archive not available. Encrypted offsite restore and clinical/finance/IT parallel UAT not done. Production remains NO-GO."
+    },
+    "G2X-QA-008": {
+      "status": "final_rerun_pass_first_attempt_sporadic_unresolved",
+      "priority": "P2",
+      "summary": "Initial 104-script run had one test_free_preview_e2e.py unauthed 401 assertion failure; manual isolated runs twice and full second 104-script run passed. Test now checks server release identity and prints actual HTTP status on future failure. Root cause unproven; track recurrence; not a production fix."
+    }
+  },
+  "g2y_changes": [
+    {
+      "id": "G2Y-01",
+      "priority": "P1",
+      "area": "monthly financial reports",
+      "state": "implemented_locally",
+      "finding": "Cash aggregates exposed protected bank/restricted funds before authorization",
+      "change": "Scope both voucher aggregations before grouping using live fund grants",
+      "evidence": "tests/test_v82_g2y_report_scope.py"
+    },
+    {
+      "id": "G2Y-02",
+      "priority": "P1",
+      "area": "viewer GL/privacy",
+      "state": "implemented_locally",
+      "finding": "Viewer obtained full-hospital GL and payroll totals through monthly report",
+      "change": "Cash-only report, GL/payroll fields null and patient reconciliation denied",
+      "evidence": "tests/test_v82_g2y_report_scope.py"
+    },
+    {
+      "id": "G2Y-03",
+      "priority": "P1",
+      "area": "accounting UI",
+      "state": "implemented_locally",
+      "finding": "Reviewer accounting screen requested owner-only vault totals",
+      "change": "No treasury fetch or CSV link for reviewer; owner retains view",
+      "evidence": "tests/browser_g2y_report_scope_offline.py"
+    },
+    {
+      "id": "G2Y-04",
+      "priority": "P1",
+      "area": "same-browser privacy",
+      "state": "implemented_locally",
+      "finding": "Previous-owner GL view persisted in DOM when viewer relogged",
+      "change": "Clear content and reset view at session loss/logout",
+      "evidence": "tests/browser_g2y_report_scope_offline.py"
+    },
+    {
+      "id": "G2Y-05",
+      "priority": "P1",
+      "area": "report integrity",
+      "state": "implemented_locally",
+      "finding": "Scoped reviewer cash combined with hospital-wide payroll to compute invalid margin",
+      "change": "Do not calculate reviewer/viewer margin without comparable global access",
+      "evidence": "tests/test_v82_g2y_report_scope.py"
+    },
+    {
+      "id": "G2Y-BLOCK",
+      "priority": "P0/P1",
+      "area": "production release",
+      "state": "NO_GO",
+      "finding": "Medical service attestation, signed finance RBAC, historical migration, offsite restore and UAT remain incomplete"
+    }
+  ],
+  "g2z_changes": [
+    {
+      "id": "G2Z-01",
+      "priority": "P0",
+      "state": "locally_implemented_pilot",
+      "finding": "Independent clinical service witness absent",
+      "change": "Owner-controlled department pilot; signed-reference event, role separation and invoice-time proof gate",
+      "evidence": "tests/test_v82_g2z_clinical_attestation.py"
+    },
+    {
+      "id": "G2Z-02",
+      "priority": "P0",
+      "state": "locally_implemented_pilot",
+      "finding": "Clinical evidence could be updated or backfilled without provenance",
+      "change": "Append-only SQLite record, validation triggers, no old fabricated history, G2Y migration encrypted backup",
+      "evidence": "tests/test_v82_g2z_upgrade.py"
+    },
+    {
+      "id": "G2Z-03",
+      "priority": "P1",
+      "state": "locally_tested",
+      "finding": "Grant enabled witness before department pilot activation",
+      "change": "Reject at API and SQL before policy is activated",
+      "evidence": "tests/test_v82_g2z_clinical_attestation.py"
+    },
+    {
+      "id": "G2Z-04",
+      "priority": "P1",
+      "state": "locally_tested",
+      "finding": "Frontend clinical pilot absent",
+      "change": "Test-only mobile/desktop clinical queue and role-limited admin options",
+      "evidence": "tests/browser_g2z_clinical_ui_offline.py"
+    },
+    {
+      "id": "G2Z-BLOCK",
+      "priority": "P0",
+      "state": "NO_GO",
+      "finding": "No verified clinician identity, legal medical attestation, hospital policy, approved real-world use, offsite restore or complete historical migrations",
+      "change": "Do not deploy or use patient/financial real data",
+      "evidence": "RAMSES_V81E_G2Z_CLINICAL_PILOT_QA_AR.md"
+    }
+  ],
+  "g3a_changes": [
+    {
+      "id": "G3A-01",
+      "priority": "P0",
+      "state": "locally_implemented_tested",
+      "finding": "Pilot medical witnesses used financial viewer logins",
+      "change": "Separate clinician login; deny nonclinical API by default; viewer never signs",
+      "evidence": "tests/test_v82_g3a_clinician_identity.py"
+    },
+    {
+      "id": "G3A-02",
+      "priority": "P0",
+      "state": "locally_implemented_tested",
+      "finding": "No clinical account credential-review gate or immediate revoke",
+      "change": "Owner password-confirmed manual review and per-dept live grant; no registry verification",
+      "evidence": "tests/test_v82_g3a_clinician_identity.py"
+    },
+    {
+      "id": "G3A-03",
+      "priority": "P0",
+      "state": "locally_implemented_tested",
+      "finding": "Legacy role CHECK and clinical viewer grants",
+      "change": "Encrypted rollback + FK-checked users table migration + suspend old viewer grants preserving evidence",
+      "evidence": "tests/test_v82_g3a_role_upgrade.py"
+    },
+    {
+      "id": "G3A-04",
+      "priority": "P1",
+      "state": "locally_implemented_tested",
+      "finding": "Clinical UI inherited finance lookups and viewer route",
+      "change": "Clinical-only navigation and no finance lookups, Chromium 320/375/1440",
+      "evidence": "tests/browser_g3a_clinician_ui_offline.py"
+    },
+    {
+      "id": "G3A-05",
+      "priority": "P0",
+      "state": "locally_implemented_tested",
+      "finding": "Old G2Z viewer role attestation could still authorize a new invoice after G3A migration",
+      "change": "New invoices for protected departments accept attestation signed by a genuine clinician account only; old viewer-signed rows remain immutable historical evidence; pending legacy cases require separately designed manual remediation, never automatic replacement",
+      "evidence": "tests/test_v82_g3a_role_upgrade.py"
+    },
+    {
+      "id": "G3A-06",
+      "priority": "P0",
+      "state": "locally_implemented_tested",
+      "finding": "Password reset or disable-then-reactivate left previous clinician identity approval active",
+      "change": "Credential reset or deactivation revokes clinician identity approval atomically; subsequent re-review required. Historical attestations retained.",
+      "evidence": "tests/test_v82_g3a_clinician_identity.py; tests/test_user_lifecycle.py"
+    },
+    {
+      "id": "G3A-07",
+      "priority": "P1",
+      "state": "locally_implemented_browser_checked",
+      "finding": "Bottom admin navigation item was outside reachable mobile sidebar viewport",
+      "change": "Make fixed-height sidebar independently vertically scrollable; owner manual medical credential review modal tested at 375px and 1440px with synthetic input.",
+      "evidence": "tests/browser_g3a_owner_review_offline.py; static/styles.css"
+    },
+    {
+      "id": "G3A-BLOCK",
+      "priority": "P0",
+      "state": "NO_GO",
+      "finding": "No external medical license verification, legal e-signature, original proof attachment, production UAT, offsite restore, V8.0 archive",
+      "change": "Do not deploy; manual review record is not legal proof",
+      "evidence": "RAMSES_V81E_G3A_CLINICIAN_ROLE_QA_AR.md"
+    }
+  ],
+  "g3b_changes": [
+    {
+      "id": "G3B-01",
+      "status": "implemented_tested_local",
+      "priority": "P0",
+      "topic": "Patient document fingerprint tied to clinician-only clinical attestation",
+      "evidence": "test_v82_g3b_clinical_document_hash.py; schema.sql; billing.py",
+      "limitations": "hash byte equality, not clinical authenticity; raw file may spool temporarily"
+    },
+    {
+      "id": "G3B-02",
+      "status": "implemented_tested_local",
+      "priority": "P0",
+      "topic": "One-way owner department doc policy with old-unbilled-witness check and invoice gate",
+      "evidence": "test_v82_g3b_clinical_document_hash.py; billing.py"
+    },
+    {
+      "id": "G3B-03",
+      "status": "implemented_tested_local",
+      "priority": "P1",
+      "topic": "Encrypted migration real G3A schema, no backfill, isolated restore",
+      "evidence": "tests/fixtures/schema_v8_1e_g3a_original.sql; test_v82_g3b_upgrade.py"
+    },
+    {
+      "id": "G3B-04",
+      "status": "implemented_tested_local",
+      "priority": "P1",
+      "topic": "Chromium pilot owner and clinician responsive source upload",
+      "evidence": "browser_g3b_source_hash_ui_offline.py"
+    },
+    {
+      "id": "G3B-05",
+      "status": "open_blocker",
+      "priority": "P0",
+      "topic": "Independent clinician registration/licensing and legally accepted signature, actual HIS source document retention, medical/finance/IT privacy approval"
+    },
+    {
+      "id": "G3B-06",
+      "status": "open_blocker",
+      "priority": "P0",
+      "topic": "Real off-device encrypted recovery, genuine original V8.0 source and historical G2J/K/L schema tests, complete hospital UAT"
+    },
+    {
+      "id": "G3B-07",
+      "status": "open_blocker",
+      "priority": "P1",
+      "topic": "Approved remediation for reference-only unbilled clinical witness; ledger submodules for inventory case cost, doctors and suppliers"
+    }
+  ],
+  "g3c_changes": [
+    {
+      "id": "G3C-01",
+      "status": "implemented-local-tested",
+      "detail": "case-linked approved FIFO cost drilldown, warehouse+case grants, deny after revocation"
+    },
+    {
+      "id": "G3C-02",
+      "status": "implemented-local-tested",
+      "detail": "API+SQLite reject later-approved same-item FIFO approval before an earlier business date; same-day follow commit order"
+    },
+    {
+      "id": "G3C-03",
+      "status": "implemented-local-tested",
+      "detail": "frozen G3B encrypted pre-DDL trigger upgrade, isolated recovery test"
+    },
+    {
+      "id": "G3C-04",
+      "status": "partially-addressed-in-G3D",
+      "detail": "G3D adds original-lot physical returns; still absent clinical issuance authority, drug/NICU/OR full costing, vendor AP, quarantine and approved historical FIFO correction"
+    },
+    {
+      "id": "G3C-05",
+      "status": "blocked-external",
+      "detail": "V8.0 original archive, off-device recovery, hospital UAT and medical/financial/IT approvals"
+    }
+  ],
+  "source_baseline": "Original G3G commit 4be7173 with frozen schema SHA-256 3716cbad68856b98a5a2c15611a3ef8078f5b6f55ca6815b61eb96b76cbaafaf",
+  "previous_g3c_archive_sha256": "13834ea2f39a3df98fbbf724917d12f48dd7fe94fbc0c22cfa76aebbf0e4857d",
+  "g3d_changes": [
+    {
+      "id": "G3D-01",
+      "status": "implemented-local-focused-tested",
+      "detail": "Original approved G2T issue FIFO allocation return by authorized clerk and independent reviewer; pending/rejected returns do not post GL or move stock"
+    },
+    {
+      "id": "G3D-02",
+      "status": "implemented-local-focused-tested",
+      "detail": "Approved exact-lot Dr1100/Cr5100 reversal, immutable return evidence, net case cost and as-of inventory and reconciliation, quantity/expiration/date guards"
+    },
+    {
+      "id": "G3D-03",
+      "status": "implemented-local-focused-tested",
+      "detail": "Pending returned stock blocks month close and financial case close in API and SQLite, no retroactive issue before physical return; case + inventory scope including replay grants"
+    },
+    {
+      "id": "G3D-04",
+      "status": "implemented-local-focused-tested",
+      "detail": "Frozen genuine G3C SQL migration with verified encrypted pre-upgrade rollback, isolated restore, preservation of historical case data"
+    },
+    {
+      "id": "G3D-05",
+      "status": "remaining",
+      "detail": "Physical safety/sterility and quarantine route, opening stock, drugs, multi-warehouse, patient invoice credit and supplier returns/AP; case consumables are partial cost only"
+    },
+    {
+      "id": "G3D-06",
+      "status": "blocked-external",
+      "detail": "Genuine V8.0 and intermediate historic archives, off-device recovery, medical/finance/IT UAT, real clinician credentials and HIS document custody"
+    },
+    {
+      "id": "G3D-07",
+      "status": "known-test-env-corrected",
+      "detail": "Three old tests assumed UTC day or instant absence after night shift; tests now align with Africa/Cairo and completed shift grace window; no production cash rule changed"
+    },
+    {
+      "id": "G3D-08",
+      "status": "fixed-in-G3E-local-tests",
+      "priority": "P1",
+      "area": "Case privacy in inventory dashboard",
+      "detail": "Inventory overview /api/inventory/overview returns all inventory_issues using SELECT * without case point-grant filtering (inventory.py overview issues list); an inventory-only employee may see unrelated case IDs and evidence refs. G3D returns list and case-cost endpoint ARE scoped. Add negative API test and scope issues list in next hardening slice. REMEDIATION G3E: server-side parameterized SQL per-case overview issue/return list and in-transaction issue reviewer billing-point grant check; verified RED/GREEN synthetic FastAPI."
+    }
+  ],
+  "full_qa": {
+    "run": "2026-11-01",
+    "scripts": 119,
+    "pass": 113,
+    "skip": 5,
+    "blocked_v80": 1,
+    "fail": 0,
+    "timeout": 0,
+    "full_suite_exit": 0,
+    "ci": "47/47 PASS exit0; independent smoke not full historical archive",
+    "deployment": "NO-GO"
+  },
+  "g3e_changes": [
+    {
+      "id": "G3E-01",
+      "priority": "P1",
+      "status": "implemented-local-full-regression-verified",
+      "area": "privacy",
+      "detail": "Restrict inventory overview issue and return patient case references by currently active billing point access; preserve owner and unlinked stock."
+    },
+    {
+      "id": "G3E-02",
+      "priority": "P1",
+      "status": "implemented-local-full-regression-verified",
+      "area": "case reviewer",
+      "detail": "Verify current case point grant when approving a case-linked inventory issue before any stock/GL posting; revocation applies in open session."
+    },
+    {
+      "id": "G3E-03",
+      "priority": "P0",
+      "status": "open",
+      "area": "medical safety",
+      "detail": "Physical quarantine, item acceptability, sterility/infection-control review and approved disposition before returned goods become reissuable remain not implemented; never use on live medical supplies."
+    },
+    {
+      "id": "G3E-04",
+      "priority": "P1",
+      "status": "open",
+      "area": "accounting",
+      "detail": "Audited exceptional FIFO financial corrections, supplier orders/payables, supplier returns and opening inventory accounting."
+    },
+    {
+      "id": "G3E-05",
+      "priority": "BLOCKED",
+      "status": "blocked-external",
+      "area": "release readiness",
+      "detail": "Original V8.0 source, independent device restore, hospital UAT and medical/financial/IT approvals needed for GO."
+    }
+  ],
+  "g3f_changes": [
+    {
+      "id": "G3F-01",
+      "priority": "P0",
+      "status": "fixed-local-test",
+      "area": "fifo-return-quarantine",
+      "detail": "Financially approved returned quantities are hospital-owned and reserved, not available FIFO until an immutable dated medical release; allocation and approval SQLite guards plus API enforcement."
+    },
+    {
+      "id": "G3F-02",
+      "priority": "P0",
+      "status": "fixed-local-test",
+      "area": "medical-access",
+      "detail": "Current manually reviewed clinician identity and live department grant required inside BEGIN IMMEDIATE, independent of financial return actors; medical queue omits patient identifiers, invoices, prices."
+    },
+    {
+      "id": "G3F-03",
+      "priority": "P0",
+      "status": "fixed-local-test",
+      "area": "legacy-upgrade",
+      "detail": "Frozen G3E SQLite schema upgraded only after verifiable encrypted pre-DDL rollback; old financial documents immutable; G3E reissued-before-inspection lots cannot be falsely certified; pending old allocations are not approvable."
+    },
+    {
+      "id": "G3F-04",
+      "priority": "P1",
+      "status": "fixed-local-test",
+      "area": "date-and-ui",
+      "detail": "Chromium clinician medical panel and inventory quarantine report. Medical inspection date must be derived in Africa/Cairo timezone; technical synthetic UI tested on 320/375/1440."
+    },
+    {
+      "id": "G3F-05",
+      "priority": "P0",
+      "status": "open-policy-gate",
+      "area": "clinical-safety",
+      "detail": "No hospital-approved infection-control policy, validated professional registration, sterile reprocessing standards, UDI/lot tracking or physical quarantine segregation. The UI attestation is not evidence of medical safety."
+    },
+    {
+      "id": "G3F-06",
+      "priority": "P1",
+      "status": "partially-implemented-in-G3G",
+      "area": "financial-loss-and-writeoff",
+      "detail": "Rejected or untraceable legacy returned assets need independently reviewed disposal, shrinkage/impairment accounting, reconciliation, approval role gates and immutable journals; no silent GL writeoff. G3G now implements independently reviewed rejected-return writeoff only; historical untraceable G3E or broader stocktake corrections still require separate policy and evidence."
+    },
+    {
+      "id": "G3F-07",
+      "priority": "P0",
+      "status": "blocked-external",
+      "area": "production-readiness",
+      "detail": "Original V8.0 archive, off-device restoration, hospital LAN/permissions/UAT and medical/finance/IT signoff remain absent. No real patient/financial deployment."
+    }
+  ],
+  "g3f_full_qa": {
+    "total": 121,
+    "pass": 115,
+    "skip": 5,
+    "blocked_no_v80": 1,
+    "fail": 0,
+    "timeout": 0,
+    "exit": 0,
+    "ci_pass": 49,
+    "ci_total": 49,
+    "ci_exit": 0,
+    "browser_synthetic_viewports": [
+      320,
+      375,
+      1440
+    ],
+    "status": "local_synthetic_verified_not_production"
+  },
+  "g3g_changes": [
+    {
+      "id": "G3G-01",
+      "priority": "P1",
+      "status": "implemented-local-test",
+      "area": "stock-loss-accounting",
+      "detail": "Partial independent writeoff of medically rejected physical FIFO return lines; posts Dr5195/Cr1100 at original cost; no mutation of return journal/case cost."
+    },
+    {
+      "id": "G3G-02",
+      "priority": "P1",
+      "status": "implemented-local-test",
+      "area": "authorization",
+      "detail": "Warehouse prepare/review checks live with BEGIN IMMEDIATE; reviewer cannot be preparer; medical role cannot post; sealed month blocks; no patient fields in worklist."
+    },
+    {
+      "id": "G3G-03",
+      "priority": "P0",
+      "status": "implemented-local-test",
+      "area": "sqlite-invariants",
+      "detail": "Immutable disposal vouchers; active pending+approved cumulative cap; document GL exact posting; month closure forbidden with pending disposal; suspicious historical reissue blocks approval."
+    },
+    {
+      "id": "G3G-04",
+      "priority": "P1",
+      "status": "implemented-local-test",
+      "area": "inventory-valuation",
+      "detail": "Only approved disposals reduce owned/quarantine stock and value; reconciliation includes separate loss GL and source document count."
+    },
+    {
+      "id": "G3G-05",
+      "priority": "P1",
+      "status": "implemented-local-test",
+      "area": "upgrade-ui",
+      "detail": "G3F frozen schema to G3G backed up with encrypted rollback and no auto backfill; RTL accounting review and synthetic 320/375/1440 browser flow."
+    },
+    {
+      "id": "G3G-06",
+      "priority": "P0",
+      "status": "open-requires-hospital-policy",
+      "area": "clinical-and-physical-governance",
+      "detail": "Clinical disposition licensing, physical destruction witness committee, accepted infection control policies and real stock verification are absent. No patient-facing use."
+    },
+    {
+      "id": "G3G-07",
+      "priority": "P1",
+      "status": "open-next-slice-G3H",
+      "area": "supplier-purchases",
+      "detail": "Purchase orders, approved vendor/GRN/invoice matching (three-way), partial delivery and supplier returns/credit notes; do not pay from warehouse approval."
+    },
+    {
+      "id": "G3G-08",
+      "priority": "P0",
+      "status": "blocked-external",
+      "area": "release-readiness",
+      "detail": "Original V8.0 archive, off-device recovery, hospital LAN security tests, UAT and signed medical/finance/IT acceptance required. No production deploy."
+    }
+  ],
+  "g3g_full_qa": {
+    "status": "local_synthetic_verified_not_production",
+    "total": 123,
+    "pass": 117,
+    "skip": 5,
+    "blocked_no_v80": 1,
+    "fail": 0,
+    "timeout": 0,
+    "exit": 0,
+    "ci_pass": 51,
+    "ci_total": 51,
+    "ci_exit": 0,
+    "chromium_tests_passed": 5,
+    "chromium_viewports": [
+      320,
+      375,
+      1440
+    ],
+    "aggregate_browser_timeout_recovered_by_isolated_g3a": true,
+    "off_device_restore": "not_tested"
+  },
+  "g3h_changes": [
+    {
+      "id": "G3H-01",
+      "status": "implemented_local",
+      "priority": "P1",
+      "title": "PO under independent review; no GL posting"
+    },
+    {
+      "id": "G3H-02",
+      "status": "implemented_local",
+      "priority": "P1",
+      "title": "Partial GRNs linked to PO, exact SKU, unit price, vendor and quantity cap; SQL guards"
+    },
+    {
+      "id": "G3H-03",
+      "status": "implemented_local",
+      "priority": "P1",
+      "title": "Supplier invoice exact line-level and header reference match, independent signoff, no new AP journal"
+    },
+    {
+      "id": "G3H-04",
+      "status": "implemented_local",
+      "priority": "P1",
+      "title": "GRN-backed supplier report and month-close blockers, legacy receipts unchanged"
+    },
+    {
+      "id": "G3H-05",
+      "status": "implemented_local",
+      "priority": "P1",
+      "title": "RTL purchasing forms + 320/375/1440 synthetic browser test"
+    },
+    {
+      "id": "G3H-06",
+      "status": "requires_policy",
+      "priority": "P0",
+      "title": "Invoices spanning multiple GRNs; GRN supplier invoice reference required at receipt; full original supplier evidence"
+    },
+    {
+      "id": "G3H-07",
+      "status": "requires_policy",
+      "priority": "P0",
+      "title": "VAT, supplier statements, due dates, net AP and bank/cash disbursements not implemented"
+    },
+    {
+      "id": "G3H-08",
+      "status": "production_no_go",
+      "priority": "P0",
+      "title": "Real V8.0 archive, off-device restore, purchasing governance and signed IT/medical/finance UAT missing"
+    }
+  ],
+  "g3h_qa": {
+    "full": {
+      "total": 126,
+      "pass": 120,
+      "skip": 5,
+      "blocked_v80": 1,
+      "fail": 0,
+      "timeout": 0,
+      "exit": 0
+    },
+    "ci": {
+      "passed": 54,
+      "total": 54,
+      "exit": 0
+    },
+    "chromium_independent_passed": 6,
+    "chromium_widths": [
+      320,
+      375,
+      1440
+    ]
+  }
+}

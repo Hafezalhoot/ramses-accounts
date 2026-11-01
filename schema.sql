@@ -1896,3 +1896,191 @@ CREATE TRIGGER IF NOT EXISTS inv_writeoff_pending_period_guard BEFORE INSERT ON 
  WHEN EXISTS(SELECT 1 FROM inventory_return_writeoffs w
      WHERE w.status='pending' AND substr(w.disposed_on,1,7)=NEW.period)
  BEGIN SELECT RAISE(ABORT,'Cannot seal month with pending inventory writeoff'); END;
+
+-- G3H (TEST ONLY): PO -> linked partial GRN -> evidence-only 3-way invoice match.
+-- GRN still posts Dr1100/Cr2200; matching must never create a second AP journal.
+-- Legacy unlinked GRNs are left untouched and explicitly excluded from PO matching.
+CREATE TABLE IF NOT EXISTS inventory_purchase_orders (
+ id INTEGER PRIMARY KEY,
+ vendor_id INTEGER NOT NULL REFERENCES inventory_vendors(id),
+ ordered_on TEXT NOT NULL,
+ order_ref TEXT NOT NULL,
+ evidence_ref TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL,
+ reviewed_by INTEGER REFERENCES users(id),reviewed_at TEXT,review_note TEXT,
+ UNIQUE(vendor_id,order_ref),
+ CHECK(status='pending' OR (reviewed_by IS NOT NULL AND reviewed_by!=created_by))
+);
+CREATE TABLE IF NOT EXISTS inventory_purchase_order_lines (
+ id INTEGER PRIMARY KEY,order_id INTEGER NOT NULL REFERENCES inventory_purchase_orders(id),
+ item_id INTEGER NOT NULL REFERENCES inventory_items(id),
+ quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 1000000),
+ unit_cost_piasters INTEGER NOT NULL CHECK(unit_cost_piasters BETWEEN 1 AND 100000000000),
+ UNIQUE(order_id,item_id)
+);
+CREATE TABLE IF NOT EXISTS inventory_receipt_purchase_links (
+ receipt_id INTEGER PRIMARY KEY REFERENCES inventory_receipts(id),
+ purchase_order_id INTEGER NOT NULL REFERENCES inventory_purchase_orders(id)
+);
+CREATE INDEX IF NOT EXISTS idx_inventory_po_links ON inventory_receipt_purchase_links(purchase_order_id);
+CREATE TABLE IF NOT EXISTS inventory_supplier_invoice_matches (
+ id INTEGER PRIMARY KEY,
+ receipt_id INTEGER NOT NULL REFERENCES inventory_receipts(id),
+ invoice_date TEXT NOT NULL,invoice_ref TEXT NOT NULL,
+ amount_piasters INTEGER NOT NULL CHECK(amount_piasters>0),
+ evidence_ref TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+ created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL,
+ reviewed_by INTEGER REFERENCES users(id),reviewed_at TEXT,review_note TEXT,
+ CHECK(status='pending' OR (reviewed_by IS NOT NULL AND reviewed_by!=created_by))
+);
+CREATE TABLE IF NOT EXISTS inventory_supplier_invoice_match_lines (
+ id INTEGER PRIMARY KEY,
+ match_id INTEGER NOT NULL REFERENCES inventory_supplier_invoice_matches(id),
+ item_id INTEGER NOT NULL REFERENCES inventory_items(id),
+ quantity INTEGER NOT NULL CHECK(quantity BETWEEN 1 AND 1000000),
+ unit_cost_piasters INTEGER NOT NULL CHECK(unit_cost_piasters BETWEEN 1 AND 100000000000),
+ UNIQUE(match_id,item_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_supplier_invoice_active_match
+ ON inventory_supplier_invoice_matches(receipt_id) WHERE status IN ('pending','approved');
+CREATE INDEX IF NOT EXISTS idx_inventory_invoice_match_status ON inventory_supplier_invoice_matches(status,invoice_date);
+
+CREATE TRIGGER IF NOT EXISTS inv_po_initial BEFORE INSERT ON inventory_purchase_orders
+ WHEN NEW.status!='pending' OR EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.ordered_on,1,7)) OR NOT EXISTS (
+   SELECT 1 FROM users u LEFT JOIN inventory_access a ON a.user_id=u.id
+   WHERE u.id=NEW.created_by AND u.active=1 AND (u.role='owner' OR
+     (u.role IN ('clerk','reviewer') AND a.can_prepare=1)))
+ BEGIN SELECT RAISE(ABORT,'Purchase order requires an authorized preparer'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_core_locked BEFORE UPDATE OF
+ vendor_id,ordered_on,order_ref,evidence_ref,created_by,created_at ON inventory_purchase_orders
+ BEGIN SELECT RAISE(ABORT,'Purchase order source immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_final_locked BEFORE UPDATE ON inventory_purchase_orders
+ WHEN OLD.status!='pending' BEGIN SELECT RAISE(ABORT,'Final purchase order immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_no_delete BEFORE DELETE ON inventory_purchase_orders
+ BEGIN SELECT RAISE(ABORT,'Purchase order immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_line_insert BEFORE INSERT ON inventory_purchase_order_lines
+ WHEN NOT EXISTS (SELECT 1 FROM inventory_purchase_orders p WHERE p.id=NEW.order_id AND p.status='pending')
+   OR NOT EXISTS(SELECT 1 FROM inventory_items i WHERE i.id=NEW.item_id AND i.active=1)
+ BEGIN SELECT RAISE(ABORT,'Purchase order line requires active item and pending order'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_line_no_update BEFORE UPDATE ON inventory_purchase_order_lines
+ BEGIN SELECT RAISE(ABORT,'Purchase order line immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_line_no_delete BEFORE DELETE ON inventory_purchase_order_lines
+ BEGIN SELECT RAISE(ABORT,'Purchase order line immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_approval BEFORE UPDATE OF status ON inventory_purchase_orders
+ WHEN NEW.status!='pending' AND (
+  EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.ordered_on,1,7)) OR
+  NEW.reviewed_by IS NULL OR NEW.reviewed_by=NEW.created_by OR NOT EXISTS (
+    SELECT 1 FROM users u LEFT JOIN inventory_access a ON a.user_id=u.id
+    WHERE u.id=NEW.reviewed_by AND u.active=1 AND (u.role='owner' OR
+      (u.role IN ('clerk','reviewer') AND a.can_approve=1))) OR
+  NOT EXISTS (SELECT 1 FROM inventory_purchase_order_lines l WHERE l.order_id=NEW.id))
+ BEGIN SELECT RAISE(ABORT,'Purchase order requires independent approved reviewer and nonempty lines'); END;
+
+CREATE TRIGGER IF NOT EXISTS inv_po_receipt_link_guard BEFORE INSERT ON inventory_receipt_purchase_links
+ WHEN NOT EXISTS (
+      SELECT 1 FROM inventory_receipts r JOIN inventory_purchase_orders p ON p.id=NEW.purchase_order_id
+      WHERE r.id=NEW.receipt_id AND r.status='pending' AND p.status='approved'
+      AND r.vendor_id=p.vendor_id AND r.received_on>=p.ordered_on)
+    OR NOT EXISTS(SELECT 1 FROM inventory_receipt_lines WHERE receipt_id=NEW.receipt_id)
+    OR EXISTS(SELECT 1 FROM inventory_receipt_lines repeated WHERE repeated.receipt_id=NEW.receipt_id
+          GROUP BY repeated.item_id HAVING COUNT(*)>1)
+    OR EXISTS(
+      SELECT 1 FROM inventory_receipt_lines rl
+      WHERE rl.receipt_id=NEW.receipt_id AND NOT EXISTS (
+        SELECT 1 FROM inventory_purchase_order_lines pl
+        WHERE pl.order_id=NEW.purchase_order_id AND pl.item_id=rl.item_id
+          AND pl.unit_cost_piasters=rl.unit_cost_piasters))
+    OR EXISTS(
+      SELECT 1 FROM inventory_receipt_lines rl
+      JOIN inventory_purchase_order_lines pl ON pl.order_id=NEW.purchase_order_id AND pl.item_id=rl.item_id
+      WHERE rl.receipt_id=NEW.receipt_id AND
+        rl.quantity+COALESCE((SELECT SUM(other.quantity) FROM inventory_receipt_purchase_links lnk
+           JOIN inventory_receipts r ON r.id=lnk.receipt_id AND r.status IN ('pending','approved')
+           JOIN inventory_receipt_lines other ON other.receipt_id=r.id AND other.item_id=rl.item_id
+           WHERE lnk.purchase_order_id=NEW.purchase_order_id),0)>pl.quantity)
+ BEGIN SELECT RAISE(ABORT,'GRN vendor, date, item, unit price or PO capacity mismatch'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_receipt_link_no_update BEFORE UPDATE ON inventory_receipt_purchase_links
+ BEGIN SELECT RAISE(ABORT,'Receipt PO association immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_receipt_link_no_delete BEFORE DELETE ON inventory_receipt_purchase_links
+ BEGIN SELECT RAISE(ABORT,'Receipt PO association immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_po_grn_approval BEFORE UPDATE OF status ON inventory_receipts
+ WHEN NEW.status='approved' AND EXISTS(
+   SELECT 1 FROM inventory_receipt_purchase_links l WHERE l.receipt_id=OLD.id) AND (
+     NOT EXISTS(SELECT 1 FROM inventory_receipt_purchase_links l
+       JOIN inventory_purchase_orders p ON p.id=l.purchase_order_id
+       WHERE l.receipt_id=OLD.id AND p.status='approved' AND p.vendor_id=NEW.vendor_id AND NEW.received_on>=p.ordered_on)
+     OR EXISTS(SELECT 1 FROM inventory_receipt_purchase_links l
+       JOIN inventory_receipt_lines rl ON rl.receipt_id=OLD.id
+       LEFT JOIN inventory_purchase_order_lines pl ON pl.order_id=l.purchase_order_id AND pl.item_id=rl.item_id
+       WHERE l.receipt_id=OLD.id AND (pl.id IS NULL OR rl.unit_cost_piasters!=pl.unit_cost_piasters
+          OR (SELECT COALESCE(SUM(other.quantity),0)
+             FROM inventory_receipt_purchase_links l2 JOIN inventory_receipts r2 ON r2.id=l2.receipt_id
+             JOIN inventory_receipt_lines other ON other.receipt_id=r2.id AND other.item_id=rl.item_id
+             WHERE l2.purchase_order_id=l.purchase_order_id AND r2.status IN ('pending','approved'))>pl.quantity)))
+ BEGIN SELECT RAISE(ABORT,'GRN approval violates approved purchase order'); END;
+
+CREATE TRIGGER IF NOT EXISTS inv_supplier_invoice_insert_guard BEFORE INSERT ON inventory_supplier_invoice_matches
+ WHEN NEW.status!='pending' OR EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.invoice_date,1,7)) OR NOT EXISTS (
+     SELECT 1 FROM inventory_receipts r
+     JOIN inventory_receipt_purchase_links l ON l.receipt_id=r.id
+     JOIN inventory_purchase_orders p ON p.id=l.purchase_order_id AND p.status='approved'
+     JOIN gl_journals j ON j.id=r.journal_id AND j.status='posted'
+     JOIN users u ON u.id=NEW.created_by AND u.active=1
+     LEFT JOIN inventory_access a ON a.user_id=u.id
+     WHERE r.id=NEW.receipt_id AND r.status='approved' AND NEW.invoice_ref=r.invoice_ref
+      AND NEW.invoice_date>=p.ordered_on AND NEW.amount_piasters=(
+        SELECT COALESCE(SUM(rl.quantity*rl.unit_cost_piasters),0)
+        FROM inventory_receipt_lines rl WHERE rl.receipt_id=r.id)
+      AND (u.role='owner' OR (u.role IN ('clerk','reviewer') AND a.can_prepare=1)))
+ BEGIN SELECT RAISE(ABORT,'Supplier invoice must match approved PO and posted GRN exactly'); END;
+CREATE TRIGGER IF NOT EXISTS inv_supplier_invoice_line_guard BEFORE INSERT ON inventory_supplier_invoice_match_lines
+ WHEN NOT EXISTS(SELECT 1 FROM inventory_supplier_invoice_matches m
+       JOIN inventory_receipt_lines grn ON grn.receipt_id=m.receipt_id AND grn.item_id=NEW.item_id
+       WHERE m.id=NEW.match_id AND m.status='pending' AND grn.quantity=NEW.quantity
+         AND grn.unit_cost_piasters=NEW.unit_cost_piasters)
+ BEGIN SELECT RAISE(ABORT,'Invoice line must exactly match GRN item, quantity and unit cost'); END;
+CREATE TRIGGER IF NOT EXISTS inv_supplier_invoice_line_no_update BEFORE UPDATE ON inventory_supplier_invoice_match_lines
+ BEGIN SELECT RAISE(ABORT,'Supplier invoice lines immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_supplier_invoice_line_no_delete BEFORE DELETE ON inventory_supplier_invoice_match_lines
+ BEGIN SELECT RAISE(ABORT,'Supplier invoice lines immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_supplier_invoice_core_locked BEFORE UPDATE OF
+ receipt_id,invoice_date,invoice_ref,amount_piasters,evidence_ref,created_by,created_at
+ ON inventory_supplier_invoice_matches
+ BEGIN SELECT RAISE(ABORT,'Supplier invoice evidence immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_supplier_invoice_final_locked BEFORE UPDATE ON inventory_supplier_invoice_matches
+ WHEN OLD.status!='pending' BEGIN SELECT RAISE(ABORT,'Final supplier invoice match immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_supplier_invoice_no_delete BEFORE DELETE ON inventory_supplier_invoice_matches
+ BEGIN SELECT RAISE(ABORT,'Supplier invoice match immutable'); END;
+CREATE TRIGGER IF NOT EXISTS inv_supplier_invoice_approval BEFORE UPDATE OF status ON inventory_supplier_invoice_matches
+ WHEN NEW.status!='pending' AND (
+   EXISTS(SELECT 1 FROM periods WHERE period=substr(NEW.invoice_date,1,7)) OR
+   NEW.reviewed_by IS NULL OR NEW.reviewed_by=NEW.created_by OR NOT EXISTS (
+      SELECT 1 FROM users u LEFT JOIN inventory_access a ON a.user_id=u.id
+      WHERE u.id=NEW.reviewed_by AND u.active=1 AND (u.role='owner' OR
+        (u.role IN ('clerk','reviewer') AND a.can_approve=1))) OR
+   (SELECT COUNT(*) FROM inventory_supplier_invoice_match_lines WHERE match_id=NEW.id)!=
+     (SELECT COUNT(*) FROM inventory_receipt_lines WHERE receipt_id=NEW.receipt_id) OR
+   EXISTS(SELECT 1 FROM inventory_supplier_invoice_match_lines il
+     WHERE il.match_id=NEW.id AND NOT EXISTS(SELECT 1 FROM inventory_receipt_lines grn
+       WHERE grn.receipt_id=NEW.receipt_id AND grn.item_id=il.item_id
+          AND grn.quantity=il.quantity AND grn.unit_cost_piasters=il.unit_cost_piasters)) OR
+   NOT EXISTS(SELECT 1 FROM inventory_receipts r JOIN inventory_receipt_purchase_links l ON l.receipt_id=r.id
+      JOIN inventory_purchase_orders p ON p.id=l.purchase_order_id AND p.status='approved'
+      JOIN gl_journals j ON j.id=r.journal_id AND j.status='posted'
+      WHERE r.id=NEW.receipt_id AND r.status='approved' AND r.created_by!=NEW.reviewed_by
+       AND NEW.invoice_ref=r.invoice_ref AND NEW.invoice_date>=p.ordered_on
+       AND NEW.amount_piasters=(SELECT COALESCE(SUM(rl.quantity*rl.unit_cost_piasters),0)
+          FROM inventory_receipt_lines rl WHERE rl.receipt_id=r.id)))
+ BEGIN SELECT RAISE(ABORT,'Three-way match requires independent reviewer, exact posted GRN and original PO'); END;
+
+CREATE TRIGGER IF NOT EXISTS inv_po_period_pending_invoice BEFORE INSERT ON periods
+ WHEN EXISTS(SELECT 1 FROM inventory_purchase_orders p WHERE p.status='pending' AND substr(p.ordered_on,1,7)=NEW.period)
+ OR EXISTS(SELECT 1 FROM inventory_supplier_invoice_matches m
+   JOIN inventory_receipts r ON r.id=m.receipt_id
+   WHERE m.status='pending' AND substr(r.received_on,1,7)=NEW.period)
+ OR EXISTS(SELECT 1 FROM inventory_receipts r JOIN inventory_receipt_purchase_links l ON l.receipt_id=r.id
+   WHERE r.status='approved' AND substr(r.received_on,1,7)=NEW.period
+    AND NOT EXISTS (SELECT 1 FROM inventory_supplier_invoice_matches m WHERE m.receipt_id=r.id AND m.status='approved'))
+ BEGIN SELECT RAISE(ABORT,'Cannot seal PO-linked GRN with unresolved supplier invoice'); END;

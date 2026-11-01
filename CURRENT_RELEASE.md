@@ -1,3 +1,12 @@
+# Ramses Accounts V8.1E-G3H — PO, partial GRN and invoice line-level matching / TEST ONLY
+
+- Based on original G3G commit `4be7173`; isolated local development `feat/g3h-purchase-order-invoice-match`.
+- Purchase order and signed reviewer do not post GL; GRN posts Dr1100/Cr2200 once, and the supplier invoice line-by-line match confirms evidence only. Separate reviewer and SQL guards prevent overreceipts, forged invoice totals, repeated item lines and closed-period edits.
+- Historical unlinked receipts and existing accounting/clinical journals remain unchanged. Frozen original G3G SQL schema is migrated after authenticated encrypted backup, restored independently to a separate database in testing.
+- **Final local QA:** 126 scripts = 120 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL (exit 0). Independent CI 54/54 PASS (exit 0); six Chromium flows G3H/G3G/G3F/G3D/G3B/G3A pass on 320/375/1440. Frozen G3G schema upgrade, encrypted rollback and independently verified restore pass locally. See `RAMSES_V81E_G3H_PURCHASE_QA_AR.md`; tests use synthetic data. **NO-GO hospital production**.
+
+---
+
 # Ramses Accounts V8.1E-G3G — Independent rejected-stock writeoffs (1 November 2026) / TEST ONLY
 
 - Based on original G3F commit `0e87a3b` on `feat/g3g-return-writeoffs`. No production deployment, live hospital database, patient or payment mutation.

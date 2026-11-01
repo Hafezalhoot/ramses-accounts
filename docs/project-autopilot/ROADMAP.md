@@ -1,3 +1,12 @@
+# G3H — purchasing + three-way document match (1 November 2026) / TEST ONLY
+
+- **Locally implemented:** independent PO approval, linked partial GRNs with exact item/price/quantity caps, independent invoice/GRN/PO match with NO new GL entry (GRN already booked Dr1100/Cr2200); read-only vendor GRN accrual/confirmed/unmatched reports; month-close gates; RTL test UI.
+- **Safety:** do NOT auto-post supplier invoice journal or claim AP is settled. Legacy unlinked GRNs are excluded from PO-level match, appear as unmatched GRN accrual; verify actual physical goods and original supplier invoice independent of this reference-only pilot.
+- **Next P0:** original V8.0 source/archive, encrypted rollback restore on off-device, real hospital purchase authority/medical/finance/IT signoff, approved procurement budget/custody, clinician verification, quarantine and insurance compliance.
+- **Next P1 (G3I):** controlled supplier settlements and debit/credit adjustments with verified bank/cash source, invoice aging/due dates, tax treatment, separate finance approval and prepayment reconciliation (no automatic transfer); later service/vendor pricing, clinicians, insurer claims and patient cost.
+
+---
+
 # حالة أولوية الخصوصية بعد G3E (1 نوفمبر 2026)
 
 - **G3D-08: تم تصحيح مسار الملخص ومراجعة إذن الصرف محليًا في G3E** مع اختبارات كشف المراجع والتفويض المسحوب، وليس قبولًا لإطلاق مستشفى.

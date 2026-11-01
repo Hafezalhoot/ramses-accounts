@@ -15,9 +15,9 @@
   function docTable(rows,type,canApprove,meId){
     if(!rows.length)return empty('لا توجد مستندات في هذا القسم.');
     return `<div class="table-wrap"><table class="data-table"><thead><tr><th>المستند</th><th>التاريخ</th><th>الحالة</th><th>القيمة</th><th>القرار</th></tr></thead><tbody>${rows.map(row=>{
-      const ref=type==='receipts'?row.invoice_ref:row.evidence_ref;
-      const date=type==='receipts'?row.received_on:type==='returns'?row.returned_on:type==='writeoffs'?row.disposed_on:row.used_on;
-      const amount=type==='receipts'?row.total_piasters:row.cost_piasters;
+      const ref=type==='receipts'||type==='supplier-invoices'?row.invoice_ref:type==='purchase-orders'?row.order_ref:row.evidence_ref;
+      const date=type==='receipts'?row.received_on:type==='purchase-orders'?row.ordered_on:type==='supplier-invoices'?row.invoice_date:type==='returns'?row.returned_on:type==='writeoffs'?row.disposed_on:row.used_on;
+      const amount=['receipts','purchase-orders'].includes(type)?row.total_piasters:type==='supplier-invoices'?row.amount_piasters:row.cost_piasters;
       const controls=canApprove&&row.status==='pending'&&Number(row.created_by)!==Number(meId)?
         `<div class="inv-actions"><button class="btn btn-small btn-primary" data-inv-decision="${type}:${row.id}:approve">اعتماد</button><button class="btn btn-small btn-outline" data-inv-decision="${type}:${row.id}:reject">رفض</button></div>`:'—';
       return `<tr><td><strong>${esc(ref)}</strong><small class="inv-muted">رقم ${Number(row.id)}</small></td><td>${esc(date)}</td><td><span class="chip ${esc(row.status)}">${statusName[row.status]||esc(row.status)}</span></td><td class="num">${fmt(amount)}</td><td>${controls}</td></tr>`;
@@ -36,6 +36,9 @@
     const canPrepare=isOwner||!!d.grants.can_prepare;
     const canApprove=isOwner||!!d.grants.can_approve;
     const items=d.items||[],vendors=d.vendors||[];
+    const approvedOrders=(d.purchase_orders||[]).filter(x=>x.status==='approved');
+    const invoiceReceipts=d.purchase_receipts||[];
+    const suppliers=d.supplier_summary||{};
     const totalValue=items.reduce((sum,x)=>sum+Number(x.value_piasters||0),0);
     const totalUnits=items.reduce((sum,x)=>sum+Number(x.quantity_on_hand||0),0);
     const totalQuarantine=items.reduce((sum,x)=>sum+Number(x.quarantined_quantity||0),0);
@@ -43,14 +46,40 @@
     const pending=(d.receipts||[]).filter(x=>x.status==='pending').length+(d.issues||[]).filter(x=>x.status==='pending').length+(d.returns||[]).filter(x=>x.status==='pending').length;
     const units=[['piece','قطعة'],['box','صندوق'],['pack','عبوة'],['bottle','زجاجة'],['meter','متر']];
     root.innerHTML=head('المخازن والمشتريات','المخزن المركزي للمستلزمات','قيود مخزون وموردين وتكلفة تشغيل، ولا يحدث صرف من الخزنة تلقائيًا.',isOwner?`<button type="button" class="btn btn-secondary" id="invGrant">${ico('shield')} إدارة تفويضات المخزن</button>`:'')+
-      `<div class="info-box warning" role="note">${ico('alert')}<div><strong>تجريبي — مستلزمات غير دوائية فقط.</strong> لا يشمل أدوية المرضى أو الصرف العلاجي أو مطابقة فواتير الموردين مع البنك أو ضريبة القيمة المضافة. التقرير لا يثبت قيمة مخزون افتتاحي تاريخي.</div></div>`+
+      `<div class="info-box warning" role="note">${ico('alert')}<div><strong>تجريبي — مستلزمات غير دوائية فقط.</strong> لا يشمل أدوية المرضى أو الصرف العلاجي أو سداد الموردين أو المطابقة البنكية أو ضريبة القيمة المضافة. التقرير لا يثبت قيمة مخزون افتتاحي تاريخي.</div></div>`+
       `<div class="inv-stats"><div><small>أصناف مسجلة</small><strong>${integer(items.length)}</strong></div><div><small>الرصيد الدفتري (يشمل الحجر)</small><strong>${integer(totalUnits)}</strong></div><div><small>الحجر الطبي</small><strong>${integer(totalQuarantine)}</strong></div><div><small>المتاح بعد الحجر*</small><strong>${integer(totalAvailable)}</strong></div><div><small>قيمة المخزون (تشمل الحجر)</small><strong>${fmt(totalValue)} ج.م</strong></div></div>`+
       `<div class="info-box warning" role="note">الموافقة المحاسبية على المرتجع لا تعني صلاحية إعادة الاستخدام. الكمية المحجوزة طبيًا لا تدخل FIFO إلا بقرار طبي مستقل، والرصيد غير المحجوز لا يضمن الصلاحية أو سلامة العبوة؛ يتم فحصهما عند الصرف. لا يجوز استخدام هذه الدورة مع مرضى حقيقيين قبل اعتماد مكافحة العدوى.</div>`+
+      `<section class="panel inv-panel"><div class="panel-header"><div><h2>مشتريات الموردين — أوامر ومطابقة ثلاثية</h2><p>أمر شراء معتمد ← استلام جزئي معتمد ← فاتورة بنفس الأصناف والسعر والكمية. الاستلام هو وحده الذي يُسجّل دين المورد.</p></div></div>`+
+      `<div class="inv-stats"><div><small>استحقاق موردين من محاضر الاستلام فقط</small><strong>${fmt(suppliers.total_grn_accrued_piasters)} ج.م</strong></div><div><small>مطابق مع فاتورة مورد</small><strong>${fmt(suppliers.confirmed_piasters)} ج.م</strong></div><div><small>غير مطابق / قديم خارج دورة الشراء</small><strong>${fmt(suppliers.unmatched_piasters)} ج.م</strong></div></div>`+
+      (suppliers.vendors?.length?table(['المورد','محاضر معتمدة','استحقاق محاضر الاستلام','مطابق','غير مطابق'],suppliers.vendors.map(v=>`<tr><td>${esc(v.vendor_name)}</td><td class="num">${integer(v.approved_grns)}</td><td class="num">${fmt(v.grn_accrued_piasters)}</td><td class="num">${fmt(v.confirmed_piasters)}</td><td class="num">${fmt(v.unmatched_piasters)}</td></tr>`).join('')):empty('لا توجد استلامات مورّدين معتمدة بعد.'))+
+      `<p class="section-subtitle">هذه قيم مستندات GRN فقط، وليست رصيد المورد بعد المدفوعات أو ضريبة القيمة المضافة. المطابقة لا تُنشئ قيدًا ماليًا ثانيًا.</p></section>`+
+      `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>أوامر الشراء</h2><p>مراجعة مستقلة قبل بدء استلام الكميات</p></div></div>${docTable(d.purchase_orders||[],'purchase-orders',canApprove,state.me.id)}</section>`+
+      `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقات فواتير الموردين</h2><p>الرفض لا يغيّر قيود الاستلام، ويمكن إعادة التقديم بمستند صحيح</p></div></div>${docTable(d.supplier_invoice_matches||[],'supplier-invoices',canApprove,state.me.id)}</section></div>`+
+      (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">طلب أمر شراء</h2><p class="section-subtitle">لا يصرف أموالًا ولا ينشئ مخزونًا. مثال الواجهة لصنف واحد؛ الـAPI يقبل عدة أصناف.</p><form id="invPurchaseOrderForm" class="inv-form">`+
+        field('','المورد',`<select name="vendor_id" required>${options(vendors,'اختر المورد')}</select>`)+
+        field('','تاريخ الأمر',input('ordered_on','date',`value="${today()}"`))+
+        field('','رقم أمر الشراء',input('order_ref','text','minlength="6" maxlength="90" placeholder="PO-001"'))+
+        field('','مرجع اعتماد الاحتياج',input('evidence_ref','text','minlength="8" maxlength="180" placeholder="مرجع طلب القسم المعتمد"'))+
+        field('','الصنف',`<select name="item_id" required>${options(items,'اختر صنفًا')}</select>`)+
+        field('','الكمية',input('quantity','number','min="1" step="1" max="1000000"'))+
+        field('','السعر المتفق عليه / وحدة بالجنيه',input('unit_cost','number','min="0.01" step="0.01"'))+
+        `<button type="submit" class="btn btn-primary" ${!vendors.length||!items.length?'disabled':''}>إرسال أمر الشراء لاعتماد مستقل</button></form></section>`+
+        `<section class="panel panel-pad"><h2 class="section-title">مطابقة فاتورة مورد مع الاستلام</h2><p class="section-subtitle">بعد اعتماد محضر الاستلام المرتبط بأمر شراء. لا يضاف قيد جديد للموردين.</p>`+
+        (invoiceReceipts.length?`<form id="invSupplierInvoiceForm" class="inv-form">`+
+          field('','محضر الاستلام المرتبط',`<select name="receipt_id" required>${invoiceReceipts.map(x=>`<option value="${Number(x.id)}">${esc(x.invoice_ref)} — ${esc(x.vendor_name)} (GRN #${integer(x.id)})</option>`).join('')}</select>`)+
+          `<p class="section-subtitle">أدخل كمية وسعر <strong>كل بند من فاتورة المورد الأصلية</strong> بنفسك؛ لا تفترض صحة بيانات المخزن.</p><div id="invInvoiceLines"></div>`+
+          field('','تاريخ فاتورة المورد',input('invoice_date','date',`value="${today()}"`))+
+          field('','رقم الفاتورة',input('invoice_ref','text','minlength="6" maxlength="90"'))+
+          field('','إجمالي الفاتورة بالجنيه',input('amount','number','min="0.01" step="0.01"'))+
+          field('','مرجع أصل الفاتورة',input('evidence_ref','text','minlength="8" maxlength="180"'))+
+          `<button type="submit" class="btn btn-primary">إرسال للمطابقة المستقلة</button></form>`:empty('لا توجد محاضر استلام مرتبطة بأوامر شراء ومعتمدة تنتظر مطابقة فاتورة.'))+
+        `</section></div>`:'')+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>الأرصدة حسب الصنف</h2><p>الرصيد الدفتري يشمل المرتجعات بالحجر حتى اعتماد تسويتها؛ لا يساوي جردًا ماديًا.</p></div>${isOwner?`<div class="inv-actions"><button id="invVendor" class="btn btn-small btn-outline">مورد جديد</button><button id="invItem" class="btn btn-small btn-primary">صنف جديد</button></div>`:''}</div>`+
       (items.length?table(['الكود','الصنف','الوحدة','المملوك','بالحجر','غير محجوز*','القيمة'],items.map(x=>`<tr><td>${esc(x.code)}</td><td><strong>${esc(x.name)}</strong></td><td>${esc(unitName[x.unit]||x.unit)}</td><td class="num">${integer(x.quantity_on_hand)}</td><td class="num">${integer(x.quarantined_quantity)}</td><td class="num">${integer(x.available_quantity)}</td><td class="num">${fmt(x.value_piasters)}</td></tr>`).join('')):empty('سجّل موردًا وصنفًا أولًا ثم أنشئ محضر توريد.'))+
       `</section>`+
       (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">محضر استلام من مورد</h2><p class="section-subtitle">القيد المالي والكمية يترحلان فقط بعد اعتماد موظف آخر.</p><form id="invReceiptForm" class="inv-form">`+
         field('','المورد',`<select name="vendor_id" required>${options(vendors,'اختر المورد')}</select>`)+
+        field('','أمر الشراء المعتمد (اختياري للترحيل التاريخي فقط)',`<select name="purchase_order_id"><option value="">قديم / غير مرتبط بأمر شراء</option>${approvedOrders.map(x=>`<option value="${Number(x.id)}">${esc(x.order_ref)} — ${esc(x.vendor_name)}</option>`).join('')}</select>`)+
         field('','تاريخ الاستلام',input('received_on','date',`value="${today()}"`))+
         field('','مرجع فاتورة المورد',input('invoice_ref','text','minlength="6" maxlength="90" placeholder="رقم فاتورة المورد"'))+
         field('','مرجع محضر استلام المخزن',input('evidence_ref','text','minlength="8" maxlength="180" placeholder="مرجع GRN موقع"'))+
@@ -180,10 +209,53 @@
       const selected=(d.writeoff_candidates||[]).find(x=>Number(x.return_line_id)===Number(event.target.value));
       const qty=$('#invWriteoffForm [name="quantity"]');if(qty&&selected)qty.max=Number(selected.remaining_quantity);
     });
+    $('#invPurchaseOrderForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();const el=event.currentTarget,b=el.querySelector('button[type="submit"]');b.disabled=true;
+      const f=Object.fromEntries(new FormData(el));
+      await apply('/api/inventory/purchase-orders',{
+        vendor_id:Number(f.vendor_id),ordered_on:f.ordered_on,order_ref:f.order_ref,
+        evidence_ref:f.evidence_ref,request_id:requestId(),
+        lines:[{item_id:Number(f.item_id),quantity:Number(f.quantity),unit_cost:f.unit_cost}]},
+        'أُرسل أمر الشراء لاعتماد مستقل؛ لم يتم تسجيل دين أو مخزون');b.disabled=false;
+    });
+    const invoiceMatchForm=$('#invSupplierInvoiceForm');
+    function syncInvoiceSource(){
+      if(!invoiceMatchForm)return;
+      const r=invoiceReceipts.find(x=>Number(x.id)===Number(invoiceMatchForm.elements.receipt_id.value));
+      if(r){
+        invoiceMatchForm.elements.invoice_ref.value=r.invoice_ref;
+        invoiceMatchForm.elements.amount.value='';
+        const lines=(d.purchase_receipt_lines||[]).filter(x=>Number(x.receipt_id)===Number(r.id));
+        const holder=$('#invInvoiceLines');
+        holder.innerHTML=lines.length?lines.map(x=>`<div class="inv-match-row" data-item-id="${Number(x.item_id)}">`+
+          `<p class="section-subtitle">${esc(x.item_code)} — ${esc(x.item_name)} (محضر الاستلام: ${integer(x.quantity)} × ${fmt(x.unit_cost_piasters)} جنيه)</p>`+
+          field('','كمية البند من فاتورة المورد',input('quantity','number','min="1" step="1" max="1000000"'))+
+          field('','سعر الوحدة في فاتورة المورد',input('unit_cost','number','min="0.01" step="0.01"'))+
+          `</div>`).join(''):empty('لم تتوفر تفاصيل الأصناف لهذا الاستلام؛ لا يمكن تقديم مطابقة موثوقة.');
+      }
+    }
+    invoiceMatchForm?.elements.receipt_id.addEventListener('change',syncInvoiceSource);
+    syncInvoiceSource();
+    invoiceMatchForm?.addEventListener('submit',async event=>{
+      event.preventDefault();const el=event.currentTarget,b=el.querySelector('button[type="submit"]');b.disabled=true;
+      const f=Object.fromEntries(new FormData(el));
+      const lines=[...el.querySelectorAll('#invInvoiceLines .inv-match-row')].map(row=>({
+        item_id:Number(row.dataset.itemId),quantity:Number(row.querySelector('[name="quantity"]').value),
+        unit_cost:row.querySelector('[name="unit_cost"]').value}));
+      if(!lines.length||lines.some(x=>!Number.isSafeInteger(x.item_id)||!Number.isSafeInteger(x.quantity)||x.quantity<1||!x.unit_cost)){
+        toast('أدخل بنود فاتورة المورد الأصلية بالكامل قبل المطابقة',true);b.disabled=false;return;
+      }
+      await apply('/api/inventory/supplier-invoices',{
+        receipt_id:Number(f.receipt_id),invoice_date:f.invoice_date,invoice_ref:f.invoice_ref,
+        amount:f.amount,evidence_ref:f.evidence_ref,lines,request_id:requestId()},
+        'أُرسلت فاتورة المورد للمطابقة المستقلة دون أي قيد إضافي');b.disabled=false;
+    });
     $('#invReceiptForm')?.addEventListener('submit',async event=>{
       event.preventDefault();const el=event.currentTarget, b=el.querySelector('button[type="submit"]');b.disabled=true;
       const f=Object.fromEntries(new FormData(el));
-      const data={vendor_id:Number(f.vendor_id),received_on:f.received_on,invoice_ref:f.invoice_ref,evidence_ref:f.evidence_ref,
+      const data={vendor_id:Number(f.vendor_id),received_on:f.received_on,
+        purchase_order_id:f.purchase_order_id?Number(f.purchase_order_id):null,
+        invoice_ref:f.invoice_ref,evidence_ref:f.evidence_ref,
         request_id:requestId(),lines:[{item_id:Number(f.item_id),quantity:Number(f.quantity),unit_cost:f.unit_cost,
           batch_ref:f.batch_ref,expiry_date:f.expiry_date||null}]};
       await apply('/api/inventory/receipts',data,'تم إرسال محضر الاستلام للمراجعة؛ لم يُرحّل بعد');b.disabled=false;
@@ -198,7 +270,9 @@
     $$('#content [data-inv-decision]').forEach(button=>button.addEventListener('click',async()=>{
       const [kind,id,decision]=button.dataset.invDecision.split(':');
       const fields=[{name:'note',label:'سبب الاعتماد أو الرفض (8 أحرف على الأقل)',required:true}];
+      const procurement=['purchase-orders','supplier-invoices'].includes(kind);
       const data=await modal(decision==='approve'?'اعتماد مستند المخزن':'رفض مستند المخزن',
+        procurement?'الاعتماد هنا إداري ومطابقة مستندات فقط: لا تنشأ قيود نقدية أو ديون جديدة، ويُشترط مراجع مستقل.':
         'الاعتماد ينشئ قيدًا ماليًا ويمس كمية المخزون، ويُشترط أن تكون مراجعًا مختلفًا عن مقدم الطلب.',fields);
       if(!data)return;
       await apply(`/api/inventory/${kind}/${Number(id)}/decision`,{decision,note:data.note},'تم تسجيل قرار المراجعة');
