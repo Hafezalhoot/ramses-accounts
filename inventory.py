@@ -8,7 +8,7 @@ The existing GL has a closed origin enum: source-linked system journals use
 from __future__ import annotations
 
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends
@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from app import audit, c_piasters, db, fail, get_user, month_open, require, stamp, valid_date, valid_month
 from billing import case_scope, cairo_today, remember, repeat, request_key, trim, CODE_PATTERN, require_clinical_grant
 import ledger
-from supplier_subledger import supplier_control_ledger
+from supplier_subledger import supplier_control_ledger, supplier_opening_snapshot
 import financial_integrity
 
 router=APIRouter(prefix='/api/inventory',tags=['central-consumables'])
@@ -100,6 +100,15 @@ class SupplierPaymentRequestForm(BaseModel):
 class SupplierAttributionForm(BaseModel):
     journal_id:int=Field(gt=0)
     vendor_id:int=Field(gt=0)
+    evidence_ref:str=Field(min_length=8,max_length=180)
+    reason:str=Field(min_length=12,max_length=300)
+    request_id:str
+
+
+class SupplierOpeningStatementForm(BaseModel):
+    vendor_id:int=Field(gt=0)
+    as_of:str
+    statement_balance:str
     evidence_ref:str=Field(min_length=8,max_length=180)
     reason:str=Field(min_length=12,max_length=300)
     request_id:str
@@ -381,6 +390,7 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
             'supplier_settlements':supplier_settlement_documents(c),
             'supplier_control_ledger':supplier_control_ledger(c,cairo_today()),
             'supplier_attribution_documents':supplier_attribution_documents(c,user),
+            'supplier_opening_statements':supplier_opening_docs(c,user),
             'supplier_payment_eligible_lines':payment_requests['eligible_lines'],
             'purchase_receipts':[dict(r) for r in c.execute('''SELECT r.id,r.vendor_id,r.invoice_ref,r.received_on,
               r.created_by,l.purchase_order_id,v.name vendor_name,
@@ -1252,6 +1262,104 @@ def review_supplier_attribution(attribution_id:int,body:ReviewForm,user=Depends(
         audit(c,user['id'],'supplier_attribution_'+status,'supplier_journal_attribution',attribution_id,
               {'source_gl_journal_id':doc['gl_journal_id'],'no_gl_posting':True})
     return {'id':attribution_id,'status':status,'money_moved':False}
+
+
+def opening_month_end(value: str) -> str:
+    day=valid_date(value)
+    current=date.fromisoformat(cairo_today())
+    if day>=current.replace(day=1) or (day+timedelta(days=1)).day!=1:
+        fail('محضر رصيد افتتاحي يُعد فقط بنهاية شهر سابق مكتمل',409)
+    return day.isoformat()
+
+
+def supplier_opening_docs(c, user=None):
+    rows=[dict(x) for x in c.execute('''SELECT s.*,v.name vendor_name,v.code vendor_code,
+            v.active vendor_active FROM supplier_opening_statements s
+            JOIN inventory_vendors v ON v.id=s.vendor_id ORDER BY s.id DESC LIMIT 100''')]
+    visible=[row for row in rows if user is None or user['role']!='clerk' or row['created_by']==user['id']]
+    cache={}
+    for doc in visible:
+        key=(doc['as_of'],doc['vendor_id'])
+        if key not in cache:cache[key]=supplier_opening_snapshot(c,*key)
+        snap=cache[key]
+        doc['source_changed']=snap['source_digest']!=doc['source_digest']
+        doc['current_ledger_piasters']=snap['ledger_piasters']
+        doc['review_blocked']=(doc['source_changed'] or doc['statement_piasters']!=snap['ledger_piasters']
+                    or not snap['reconciled'] or snap['ledger_piasters']<0)
+    return visible
+
+
+@router.get('/supplier-opening-statements')
+def supplier_opening_statements(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'read')
+    docs=supplier_opening_docs(c,user)
+    return {'documents':docs,'money_moved':False,
+        'notice':'مطابقة مستند كشف مورد لآخر شهر مكتمل. هذه مراجعة رقابية لا تنشئ رصيداً افتتاحياً أو قيداً مالياً.'}
+
+
+@router.post('/supplier-opening-statements')
+def propose_supplier_opening(body:SupplierOpeningStatementForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'prepare')
+    if user['role'] not in ('owner','clerk'):fail('إعداد مستند المورد لموظف مفوض فقط',403)
+    cutoff=opening_month_end(body.as_of)
+    amount=c_piasters(body.statement_balance,allow_zero=True)
+    evidence=trim(body.evidence_ref,'مرجع كشف المورد الموقع',8,180)
+    reason=trim(body.reason,'سبب اعتماد المطابقة الافتتاحية',12,300)
+    key=request_key(body.request_id)
+    payload={'vendor_id':body.vendor_id,'as_of':cutoff,'statement_piasters':amount,
+             'evidence_ref':evidence,'reason':reason}
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'prepare')
+        old,digest=repeat(c,key,'supplier_opening_statement',user['id'],payload)
+        if old:
+            previous=c.execute('SELECT status FROM supplier_opening_statements WHERE id=?',(old,)).fetchone()
+            return {'id':old,'status':previous['status'],'replayed':True,'money_moved':False}
+        vendor=c.execute('SELECT id FROM inventory_vendors WHERE id=? AND active=1',(body.vendor_id,)).fetchone()
+        if not vendor:fail('المورد غير موجود أو موقوف',409)
+        if c.execute("SELECT 1 FROM supplier_opening_statements WHERE vendor_id=? AND as_of=? AND status IN ('pending','approved')",
+                     (body.vendor_id,cutoff)).fetchone():fail('يوجد محضر قائم لهذا المورد في نهاية هذا الشهر',409)
+        snap=supplier_opening_snapshot(c,cutoff,body.vendor_id)
+        cur=c.execute('''INSERT INTO supplier_opening_statements
+            (vendor_id,as_of,statement_piasters,ledger_piasters,control_piasters,
+             attributed_piasters,unattributed_count,anomaly_count,source_digest,
+             evidence_ref,reason,created_by,created_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+             (body.vendor_id,cutoff,amount,snap['ledger_piasters'],snap['control_piasters'],
+              snap['attributed_piasters'],snap['unattributed_count'],snap['anomaly_count'],
+              snap['source_digest'],evidence,reason,user['id'],stamp()))
+        remember(c,key,'supplier_opening_statement',user['id'],digest,cur.lastrowid)
+        audit(c,user['id'],'supplier_opening_proposed','supplier_opening_statement',cur.lastrowid,
+            {'vendor_id':body.vendor_id,'cutoff':cutoff,'no_gl_posting':True})
+    return {'id':cur.lastrowid,'status':'pending','money_moved':False}
+
+
+@router.post('/supplier-opening-statements/{statement_id}/decision')
+def decide_supplier_opening(statement_id:int,body:ReviewForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'approve')
+    if user['role'] not in ('owner','reviewer'):fail('المراجع المالي المستقل فقط يمكنه اتخاذ القرار',403)
+    note=trim(body.note,'سبب قرار مراجعة كشف المورد',8,300)
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'approve')
+        doc=c.execute('SELECT * FROM supplier_opening_statements WHERE id=?',(statement_id,)).fetchone()
+        if not doc:fail('مستند مراجعة الرصيد غير موجود',404)
+        if doc['status']!='pending':fail('تمت مراجعة المستند بالفعل',409)
+        if doc['created_by']==user['id']:fail('لا يجوز اعتماد مستند أعددته بنفسك',403)
+        if body.decision=='approve':
+            snap=supplier_opening_snapshot(c,doc['as_of'],doc['vendor_id'])
+            if snap['source_digest']!=doc['source_digest']:
+                fail('مصادر حساب المورد تغيرت بعد تقديم المستند؛ ارفض وأعد التقديم بكشف جديد',409)
+            if not snap['reconciled'] or snap['ledger_piasters']<0 or doc['statement_piasters']!=snap['ledger_piasters']:
+                fail('لا يمكن اعتماد رصيد افتتاحي مع فرق أو قيد غير منسوب أو كشف مورد غير مطابق',409)
+            if not c.execute('SELECT 1 FROM inventory_vendors WHERE id=? AND active=1',(doc['vendor_id'],)).fetchone():
+                fail('المورد موقوف ولا يجوز اعتماد المحضر',409)
+        result='approved' if body.decision=='approve' else 'rejected'
+        c.execute('''UPDATE supplier_opening_statements SET status=?,reviewed_by=?,reviewed_at=?,review_note=?
+                     WHERE id=?''',(result,user['id'],stamp(),note,statement_id))
+        audit(c,user['id'],'supplier_opening_'+result,'supplier_opening_statement',statement_id,
+              {'vendor_id':doc['vendor_id'],'as_of':doc['as_of'],'no_gl_posting':True})
+    return {'id':statement_id,'status':result,'money_moved':False}
 
 
 @router.get('/supplier-control-ledger')

@@ -1,3 +1,11 @@
+# Ramses Accounts V8.1E-G3N — Supplier Opening Statement Control / TEST ONLY
+
+Latest development: signed-source-reference supplier prior-month-end statement comparison to posted GL 2200, source SHA-256, separate maker/checker, no GL/cash change. Details `README_G3N_AR.md`; production NO-GO.
+
+- Latest full regression 138: **132 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT**, exit 0. Independent CI 66/66 PASS; 12/12 real Chromium UI flows PASS; delivery archive evidence is recorded separately.
+
+---
+
 # Ramses Accounts V8.1E-G3M — Evidence-based historical supplier AP attribution / TEST ONLY
 
 - Based on verified G3L source commit `981f7adeff554707e3aa91792882b915f2631122`; branch `feat/g3m-supplier-attribution`.

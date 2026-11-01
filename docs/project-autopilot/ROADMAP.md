@@ -1,3 +1,12 @@
+# Ramses V8.1E-G3N — supplier signed statement control / TEST ONLY
+
+- G3M source preserved. Review a *prior completed month-end* supplier statement against the source-attributed GL 2200 balance, including source digest and independent maker-checker. This review does not post opening balance, tax, debit/credit note or bank movement.
+- A changed old journal, unmatched AP or discrepancy must remain visible and prevent approval; reject/recreate instead of mutating audit history.
+- Local full regression 138 = 132 PASS + 5 SKIP + 1 BLOCKED_NO_V80; zero failures after final source fixes. Independent CI 66/66 PASS; 12/12 browser flows PASS at 320/375/1440; signed release evidence to be attached.
+- **Next after G3N:** signed source artifact retention, policy-approved supplier corrections/credit/debit notes and tax accounting, approved independent accounting reconciliation. Production gated on external backup restore, genuine V8.0 and UAT/signoffs.
+
+---
+
 # Ramses Accounts V8.1E-G3I — Gross supplier maturity scheduling / TEST ONLY
 
 - Restored and verified the original G3H source commit `b3cdcd2` and independently developed G3I on `feat/g3i-supplier-maturity` with only synthetic accounts, cases and invoices.

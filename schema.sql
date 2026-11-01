@@ -2385,3 +2385,78 @@ CREATE TRIGGER IF NOT EXISTS supplier_attribution_review_fields_locked
  BEFORE UPDATE OF reviewed_by,reviewed_at,review_note ON supplier_journal_attributions
  WHEN NEW.status=OLD.status
  BEGIN SELECT RAISE(ABORT,'Reviewer evidence cannot change without final decision'); END;
+
+-- G3N: signed prior-month-end supplier opening evidence. NEVER posts accounting entries.
+CREATE TABLE IF NOT EXISTS supplier_opening_statements (
+  id INTEGER PRIMARY KEY,
+  vendor_id INTEGER NOT NULL REFERENCES inventory_vendors(id),
+  as_of TEXT NOT NULL CHECK(length(as_of)=10 AND date(as_of,'+0 days') IS NOT NULL AND date(as_of,'+0 days')=as_of),
+  statement_piasters INTEGER NOT NULL CHECK(statement_piasters>=0 AND statement_piasters<=1000000000000),
+  ledger_piasters INTEGER NOT NULL,
+  control_piasters INTEGER NOT NULL,
+  attributed_piasters INTEGER NOT NULL,
+  unattributed_count INTEGER NOT NULL CHECK(unattributed_count>=0),
+  anomaly_count INTEGER NOT NULL CHECK(anomaly_count>=0),
+  source_digest TEXT NOT NULL CHECK(length(source_digest)=64),
+  evidence_ref TEXT NOT NULL CHECK(length(trim(evidence_ref)) BETWEEN 8 AND 180),
+  reason TEXT NOT NULL CHECK(length(trim(reason)) BETWEEN 12 AND 300),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL,
+  reviewed_by INTEGER REFERENCES users(id),
+  reviewed_at TEXT,
+  review_note TEXT,
+  CHECK(status!='approved' OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS supplier_opening_one_active
+ ON supplier_opening_statements(vendor_id,as_of) WHERE status IN ('pending','approved');
+CREATE INDEX IF NOT EXISTS supplier_opening_by_state
+ ON supplier_opening_statements(status,as_of,vendor_id);
+CREATE TRIGGER IF NOT EXISTS supplier_opening_insert_guard
+ BEFORE INSERT ON supplier_opening_statements
+ WHEN NEW.status!='pending' OR NEW.reviewed_by IS NOT NULL OR NEW.reviewed_at IS NOT NULL
+   OR NEW.review_note IS NOT NULL
+   OR strftime('%Y-%m',NEW.as_of)>=strftime('%Y-%m','now','+3 hours')
+   OR date(NEW.as_of,'+1 day')!=date(NEW.as_of,'start of month','+1 month')
+   OR NOT EXISTS(SELECT 1 FROM inventory_vendors v WHERE v.id=NEW.vendor_id AND v.active=1)
+   OR NOT EXISTS(SELECT 1 FROM users u LEFT JOIN inventory_access g ON g.user_id=u.id
+      WHERE u.id=NEW.created_by AND u.active=1 AND
+        (u.role='owner' OR (u.role='clerk' AND g.can_prepare=1)))
+ BEGIN SELECT RAISE(ABORT,'Unauthorized or invalid supplier opening evidence'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_opening_immutable_details
+ BEFORE UPDATE OF vendor_id,as_of,statement_piasters,ledger_piasters,control_piasters,
+  attributed_piasters,unattributed_count,anomaly_count,source_digest,evidence_ref,reason,created_by,created_at
+ ON supplier_opening_statements
+ BEGIN SELECT RAISE(ABORT,'Supplier signed opening evidence cannot change'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_opening_final_locked
+ BEFORE UPDATE ON supplier_opening_statements WHEN OLD.status!='pending'
+ BEGIN SELECT RAISE(ABORT,'Supplier opening review is final'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_opening_no_delete
+ BEFORE DELETE ON supplier_opening_statements
+ BEGIN SELECT RAISE(ABORT,'Supplier opening audit trail cannot be deleted'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_opening_review_guard
+ BEFORE UPDATE OF status ON supplier_opening_statements
+ WHEN OLD.status!='pending' OR NEW.status NOT IN ('approved','rejected')
+   OR NEW.reviewed_by IS NULL OR NEW.reviewed_by=OLD.created_by
+   OR NEW.reviewed_at IS NULL OR length(trim(COALESCE(NEW.review_note,'')))<8
+   OR substr(NEW.reviewed_at,1,10)<substr(OLD.created_at,1,10)
+   OR substr(NEW.reviewed_at,1,10)>date('now','+1 day')
+   OR NOT EXISTS(SELECT 1 FROM users u LEFT JOIN inventory_access g ON g.user_id=u.id
+        WHERE u.id=NEW.reviewed_by AND u.active=1 AND
+           (u.role='owner' OR (u.role='reviewer' AND g.can_approve=1)))
+   OR (NEW.status='approved' AND (
+        OLD.statement_piasters!=OLD.ledger_piasters OR
+        OLD.unattributed_count!=0 OR OLD.anomaly_count!=0 OR
+        OLD.control_piasters!=OLD.attributed_piasters OR
+        OLD.control_piasters!=(SELECT COALESCE(SUM(l.credit_piasters-l.debit_piasters),0)
+            FROM gl_lines l JOIN gl_journals j ON j.id=l.journal_id AND j.status='posted'
+            JOIN gl_accounts a ON a.id=l.account_id AND a.code='2200'
+            WHERE j.entry_date<=OLD.as_of) OR
+        OLD.ledger_piasters<0 OR
+        NOT EXISTS(SELECT 1 FROM inventory_vendors v WHERE v.id=OLD.vendor_id AND v.active=1)
+   ))
+ BEGIN SELECT RAISE(ABORT,'Opening statement requires independent review and clean supplier GL'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_opening_review_fields_locked
+ BEFORE UPDATE OF reviewed_by,reviewed_at,review_note ON supplier_opening_statements
+ WHEN NEW.status=OLD.status
+ BEGIN SELECT RAISE(ABORT,'Opening evidence reviewer fields cannot be prefilled'); END;

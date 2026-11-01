@@ -188,3 +188,52 @@ def supplier_control_ledger(c: sqlite3.Connection, as_of: str) -> dict:
                  'القيود التاريخية تُنسب فقط بعد دليل ومراجعة مستقلة بدءًا من تاريخ الموافقة؛ وما لم يُراجع يبقى غير منسوب. '
                  'مطابقة حساب الأستاذ ليست إثبات وصول تحويل للمستفيد ولا اعتمادًا نهائيًا للأرصدة التاريخية.'),
     }
+
+
+def supplier_opening_snapshot(c: sqlite3.Connection, as_of: str, vendor_id: int) -> dict:
+    """Evidence-only prior-period snapshot: not a new AP opening journal.
+
+    Hash the complete 2200 journal/source set, not the report's truncated event preview.
+    Any backdated journal, source linkage, or later attribution that changes the
+    as-of result requires rejection and a newly prepared signed control document.
+    """
+    import hashlib
+    import json
+    report = supplier_control_ledger(c, as_of)
+    vendor = next((v for v in report['vendors'] if int(v['vendor_id']) == vendor_id), None)
+    evidence = {
+        'cutoff': as_of,
+        'report': {
+            name: report[name] for name in (
+                'control_2200_piasters','attributed_2200_piasters',
+                'unattributed_2200_piasters','unattributed_journals','anomalies',
+                'vendors','event_count','reconciled')
+        },
+        'gl_2200': [tuple(r) for r in c.execute('''
+          SELECT j.id,j.entry_date,j.status,j.origin,j.source_id,j.memo,
+                 l.id,l.debit_piasters,l.credit_piasters
+            FROM gl_journals j JOIN gl_lines l ON l.journal_id=j.id
+            JOIN gl_accounts a ON a.id=l.account_id AND a.code='2200'
+           WHERE j.entry_date<=? ORDER BY j.id,l.id''', (as_of,))],
+        'receipts': [tuple(r) for r in c.execute('''
+          SELECT id,vendor_id,journal_id,status,received_on FROM inventory_receipts
+           WHERE received_on<=? ORDER BY id''',(as_of,))],
+        'bank_links': [tuple(r) for r in c.execute('''
+          SELECT b.voucher_id,b.payment_request_id,v.status,v.date,v.reversal_of_id
+            FROM inventory_supplier_bank_vouchers b JOIN vouchers v ON v.id=b.voucher_id
+           WHERE v.date<=? ORDER BY b.voucher_id''',(as_of,))],
+        'attributions': [tuple(r) for r in c.execute('''
+          SELECT id,gl_journal_id,vendor_id,status,reviewed_at
+            FROM supplier_journal_attributions ORDER BY id''')],
+    }
+    digest=hashlib.sha256(json.dumps(evidence,sort_keys=True,ensure_ascii=False,
+                     separators=(',',':')).encode('utf-8')).hexdigest()
+    return {
+        'ledger_piasters':int(vendor['balance_piasters']) if vendor else 0,
+        'control_piasters':int(report['control_2200_piasters']),
+        'attributed_piasters':int(report['attributed_2200_piasters']),
+        'unattributed_count':len(report['unattributed_journals']),
+        'anomaly_count':len(report['anomalies']),
+        'reconciled':bool(report['reconciled']),
+        'source_digest':digest,
+    }

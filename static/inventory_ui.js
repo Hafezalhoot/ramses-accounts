@@ -53,6 +53,33 @@
         (canPrepare?`<p class="section-subtitle">لا توجد قيود 2200 غير منسوبة صالحة للاختيار أو موردون نشطون.</p>`:''))+
       `</section>`;
   }
+  function supplierOpeningPanel(docs,vendors,canPrepare,canReview,meId){
+    const priorEnd=(()=>{const [y,m]=today().split('-').map(Number);return new Date(Date.UTC(y,m-1,0)).toISOString().slice(0,10);})();
+    const rows=(docs||[]).map(d=>{
+      const diff=Number(d.statement_piasters)-Number(d.current_ledger_piasters);
+      const pending=d.status==='pending';
+      const reviewer=canReview&&pending&&Number(d.created_by)!==Number(meId);
+      const approve=reviewer&&d.review_blocked===false&&Number(d.vendor_active)===1;
+      const actions=reviewer?`<div class="inv-actions">${approve?`<button type="button" class="btn btn-small btn-primary" data-inv-opening-decision="${Number(d.id)}:approve">مراجعة مطابقة</button>`:'<span class="chip rejected">فرق أو مصدر متغير — الرفض فقط</span>'}<button type="button" class="btn btn-small btn-outline" data-inv-opening-decision="${Number(d.id)}:reject">رفض</button></div>`:'—';
+      return `<tr data-inv-opening="${Number(d.id)}"><td>${esc(d.vendor_name)}<small class="inv-muted">${esc(d.vendor_code)}</small></td>`+
+        `<td>${esc(d.as_of)}</td><td class="num">${fmt(d.statement_piasters)}</td><td class="num">${fmt(d.ledger_piasters)}</td>`+
+        `<td class="num">${fmt(diff)}</td><td><strong>${esc(d.evidence_ref)}</strong><small class="inv-muted">${esc(d.reason)}</small></td>`+
+        `<td><span class="chip ${esc(d.status)}">${statusName[d.status]||esc(d.status)}</span>${d.source_changed?'<small class="inv-muted">تغير المصدر بعد الإعداد</small>':''}</td><td>${actions}</td></tr>`;
+    }).join('');
+    return `<section class="panel inv-panel" id="invOpeningPanel"><div class="panel-header"><div>`+
+      `<h2>G3N — مطابقة كشوف أرصدة الموردين الافتتاحية</h2><p>مراجعة وثائق نهاية شهر سابق، وليست تسجيل رصيد افتتاحي أو قيد مالي أو شهادة باستلام تحويلات البنك.</p></div></div>`+
+      `<div class="info-box warning" role="note">اعتماد المطابقة يتطلب كشف مورد موقعًا ومطابقة حساب 2200 بالكامل؛ وجود قيود غير منسوبة أو تغير مصادر القيود أو فرق في القيمة يمنع الاعتماد. هذا المستند لا يصحح الفروق.</div>`+
+      ((docs||[]).length?table(['المورد','نهاية الشهر','كشف المورد بالجنيه','رصيد دفتر المورد حين الإعداد','الفرق الحالي','مرجع الإثبات والمبرر','حالة المستند','مراجعة'],rows):empty('لا توجد كشوف مطابقة افتتاحية مقدمة حتى الآن.'))+
+      (canPrepare&&vendors.length?`<form id="invOpeningForm" class="inv-form">`+
+         field('','المورد',`<select name="vendor_id" required>${options(vendors,'اختر المورد من السجل')}</select>`)+
+         field('','تاريخ نهاية شهر سابق',`<input name="as_of" type="date" max="${esc(priorEnd)}" value="${esc(priorEnd)}" required>`)+
+         field('','الرصيد الوارد في كشف المورد الموقع (بالجنيه)',`<input name="statement_balance" type="number" min="0" step="0.01" required>`)+
+         field('','مرجع أصل كشف المورد الموقع',input('evidence_ref','text','minlength="8" maxlength="180" placeholder="رقم أو بصمة مستند المورد الأصلي"'))+
+         field('','شرح سبب المطابقة',`<textarea name="reason" minlength="12" maxlength="300" rows="3" required placeholder="راجع مصدر كشف المورد وقيمة 2200 في التاريخ المحدد"></textarea>`)+
+         `<button class="btn btn-primary" type="submit">إرسال كشف المورد للمراجع — بدون ترحيل</button></form>`:'')+
+      `</section>`;
+  }
+
   function supplierControlPanel(report){
     const r=report||{},vendors=r.vendors||[],unassigned=r.unattributed_journals||[],alerts=r.anomalies||[];
     const rows=vendors.map(v=>`<tr><td><strong>${esc(v.vendor_name)}</strong><small class="inv-muted">${esc(v.vendor_code)}</small></td>`+
@@ -232,6 +259,8 @@
       bankPanel+
       (controlLedger?supplierControlPanel(controlLedger):'')+
       supplierAttributionPanel(d.supplier_attribution_documents||[],controlLedger,vendors,
+        canPrepare&&['owner','clerk'].includes(state.me.role),canApprove&&['owner','reviewer'].includes(state.me.role),state.me.id)+
+      supplierOpeningPanel(d.supplier_opening_statements||[],vendors,
         canPrepare&&['owner','clerk'].includes(state.me.role),canApprove&&['owner','reviewer'].includes(state.me.role),state.me.id)+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>أوامر الشراء</h2><p>مراجعة مستقلة قبل بدء استلام الكميات</p></div></div>${docTable(d.purchase_orders||[],'purchase-orders',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقات فواتير الموردين</h2><p>الرفض لا يغيّر قيود الاستلام، ويمكن إعادة التقديم بمستند صحيح</p></div></div>${docTable(d.supplier_invoice_matches||[],'supplier-invoices',canApprove,state.me.id)}</section></div>`+
@@ -488,6 +517,23 @@
       });
     }
     bindControlAsOf();
+    $('#invOpeningForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
+      const v=Object.fromEntries(new FormData(form));button.disabled=true;
+      try{await apply('/api/inventory/supplier-opening-statements',{
+        vendor_id:Number(v.vendor_id),as_of:v.as_of,statement_balance:v.statement_balance,
+        evidence_ref:v.evidence_ref,reason:v.reason,request_id:requestId()},
+        'تم إرسال كشف المورد للتدقيق دون إنشاء أي قيد أو حركة أموال');}
+      finally{button.disabled=false;}
+    });
+    $$('[data-inv-opening-decision]').forEach(button=>button.addEventListener('click',async()=>{
+      const [id,decision]=button.dataset.invOpeningDecision.split(':');
+      const data=await modal(decision==='approve'?'مطابقة كشف المورد':'رفض كشف المورد',
+        'تحقق بنفسك من كشف المورد الأصلي ورصيد 2200؛ المطابقة الرقابية لا تنشئ افتتاحية أو قيدًا محاسبيًا.',
+        [{name:'note',label:'ملاحظات المراجع (8 أحرف على الأقل)',required:true}]);
+      if(data)await apply(`/api/inventory/supplier-opening-statements/${Number(id)}/decision`,
+        {decision,note:data.note},'حُفظ قرار المراجعة دون تسجيل حركة مالية');
+    }));
     $('#invSupplierAttributionForm')?.addEventListener('submit',async event=>{
       event.preventDefault();const form=event.currentTarget,btn=form.querySelector('button[type="submit"]');
       const values=Object.fromEntries(new FormData(form));btn.disabled=true;
