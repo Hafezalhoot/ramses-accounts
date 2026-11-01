@@ -95,6 +95,13 @@ class SupplierPaymentRequestForm(BaseModel):
     request_id:str
 
 
+class SupplierBankVoucherForm(BaseModel):
+    booked_on:str
+    bank_fund_id:int=Field(gt=0)
+    bank_reference:str=Field(min_length=8,max_length=100)
+    request_id:str
+
+
 class SupplierDueForm(BaseModel):
     invoice_match_id:int=Field(gt=0)
     scheduled_on:str
@@ -361,6 +368,7 @@ def overview(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
             'supplier_due_eligible_invoices':due_docs['eligible_invoices'],
             'supplier_aging':supplier_due_aging(c,cairo_today()),
             'supplier_payment_requests':payment_requests['requests'],
+            'supplier_settlements':supplier_settlement_documents(c),
             'supplier_payment_eligible_lines':payment_requests['eligible_lines'],
             'purchase_receipts':[dict(r) for r in c.execute('''SELECT r.id,r.vendor_id,r.invoice_ref,r.received_on,
               r.created_by,l.purchase_order_id,v.name vendor_name,
@@ -764,11 +772,15 @@ def supplier_due_aging(c,as_of):
         vendors[vendor_lookup[row['match_id']]['vendor_id']][key+'_piasters']+=row['amount_piasters']
     total=sum(r['amount_piasters'] for r in approved)
     unscheduled=sum(v['unscheduled_total_piasters'] for v in vendors.values())
+    finance=supplier_settlement_documents(c)
     return {'as_of':point.isoformat(),'approved_invoice_total_piasters':total,
        'scheduled_total_piasters':total-unscheduled,'unscheduled_total_piasters':unscheduled,
        **totals,'over_30_piasters':sum(totals[k+'_piasters'] for k in ('over_31_60','over_61_90','over_90')),
-       'payment_posted_piasters':0,'vendors':list(vendors.values()),
-       'notice':'إجمالي استحقاقات الموردين المجدولة قبل أي سداد؛ لا يمثل الرصيد الفعلي غير المدفوع ولا إذن صرف.'}
+       'payment_posted_piasters':finance['supplier_booked_piasters'],
+       'bank_confirmed_piasters':finance['bank_confirmed_piasters'],
+       'scoped_outstanding_book_piasters':finance['supplier_outstanding_book_piasters'],
+       'vendors':list(vendors.values()),
+       'notice':'فئات التأخر هنا بقيمة الأقساط الإجمالية قبل خصم السداد. راجع تسويات G3K لمعرفة المسجل دفتريًا أو المؤكد بكشف بنك معتمد.'}
 
 
 @router.get('/supplier-due-schedules')
@@ -967,6 +979,177 @@ def decide_supplier_payment_request(payment_request_id:int,body:ReviewForm,user=
         audit(c,user['id'],'supplier_payment_request_'+status,'supplier_payment_request',payment_request_id,
               {'money_moved':False,'journal_id':None})
     return {'id':payment_request_id,'status':status,'money_moved':False,'journal_id':None}
+
+
+# G3K: supplier AP settlement uses the EXISTING voucher and signed bank evidence.
+# A posted cashbook voucher is NOT the same as bank-confirmed beneficiary payment.
+def check_supplier_bank_voucher_approval(c,v,user):
+    row=c.execute('''SELECT link.voucher_id,p.created_by request_creator,p.reviewed_by request_reviewer,
+       s.created_by schedule_creator,im.created_by invoice_creator,r.created_by receipt_creator,
+       p.amount_piasters,p.requested_on,p.status request_status,
+       s.status schedule_status,im.status invoice_status,r.status receipt_status,
+       vendor.active vendor_active
+       FROM inventory_supplier_bank_vouchers link
+       JOIN inventory_supplier_payment_requests p ON p.id=link.payment_request_id
+       JOIN inventory_supplier_due_lines l ON l.id=p.due_line_id
+       JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id
+       JOIN inventory_supplier_invoice_matches im ON im.id=s.invoice_match_id
+       JOIN inventory_receipts r ON r.id=im.receipt_id
+       JOIN inventory_vendors vendor ON vendor.id=r.vendor_id
+       WHERE link.voucher_id=?''',(v['id'],)).fetchone()
+    if not row or user['id'] in tuple(row[k] for k in (
+         'request_creator','request_reviewer','schedule_creator','invoice_creator','receipt_creator')):
+        fail('اعتماد سند المورد يتطلب مراجعًا ماليًا مستقلًا عن مستندات المورد',403)
+    if v['kind']!='payment' or row['amount_piasters']!=v['amount_piasters'] or v['date']<row['requested_on']:
+        fail('سند المورد غير مطابق للطلب المعتمد',409)
+    if any(row[k]!=expected for k,expected in (('request_status','approved'),('schedule_status','approved'),
+            ('invoice_status','approved'),('receipt_status','approved'),('vendor_active',1))):
+        fail('أصل المستند غير معتمد أو المورد متوقف',409)
+
+
+@router.post('/supplier-payment-requests/{payment_request_id}/bank-voucher')
+def create_supplier_bank_voucher(payment_request_id:int,body:SupplierBankVoucherForm,
+                                 user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    # Posting occurs only from the existing /api/vouchers/{id}/decision.
+    from app import authorize_cashbook_fund, shift_for_posting
+    permission(c,user,'prepare')
+    day=business_day(body.booked_on)
+    reference=trim(body.bank_reference,'مرجع تعليمات صرف المورد البنكية',8,100)
+    key=request_key(body.request_id)
+    payload={'payment_request_id':payment_request_id,'bank_fund_id':body.bank_fund_id,
+             'booked_on':day,'bank_reference':reference}
+    with c:
+        c.execute('BEGIN IMMEDIATE')
+        permission(c,user,'prepare')
+        previous,digest=repeat(c,key,'inventory_supplier_bank_voucher',user['id'],payload)
+        if previous:
+            return {'voucher_id':previous,'status':c.execute('SELECT status FROM vouchers WHERE id=?',
+                   (previous,)).fetchone()[0],'replayed':True,'bank_transfer_initiated':False}
+        month_open(c,day[:7])
+        fund=c.execute("SELECT * FROM funds WHERE id=? AND active=1 AND kind='bank'",
+                       (body.bank_fund_id,)).fetchone()
+        if not fund:fail('صرف المورد مربوط فقط بحساب بنكي نشط',409)
+        if c.execute("SELECT 1 FROM billing_payment_channels WHERE method='card' AND fund_id=?",
+                     (body.bank_fund_id,)).fetchone():
+            fail('لا يجوز استخدام حساب تحصيل POS لتسوية الموردين',409)
+        authorize_cashbook_fund(c,user,body.bank_fund_id)
+        shift_for_posting(c,body.bank_fund_id,day,'central')
+        row=c.execute('''SELECT p.*,s.created_by schedule_creator,im.created_by invoice_creator,
+           r.created_by receipt_creator,v.name vendor_name,v.active vendor_active,
+           r.status receipt_status,im.status invoice_status,s.status schedule_status
+           FROM inventory_supplier_payment_requests p
+           JOIN inventory_supplier_due_lines l ON l.id=p.due_line_id
+           JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id
+           JOIN inventory_supplier_invoice_matches im ON im.id=s.invoice_match_id
+           JOIN inventory_receipts r ON r.id=im.receipt_id
+           JOIN inventory_vendors v ON v.id=r.vendor_id WHERE p.id=?''',(payment_request_id,)).fetchone()
+        if not row:fail('طلب سداد المورد غير موجود',404)
+        if row['status']!='approved' or row['receipt_status']!='approved' or row['invoice_status']!='approved' or row['schedule_status']!='approved' or row['vendor_active']!=1:
+            fail('سند البنك يحتاج طلبًا معتمدًا وموردًا نشطًا',409)
+        if user['id'] in (row['created_by'],row['reviewed_by'],row['schedule_creator'],
+                          row['invoice_creator'],row['receipt_creator']):
+            fail('منفذ سند البنك يجب أن يستقل عن معدّي ومراجعي مستندات المورد',403)
+        if day<row['requested_on']:fail('تاريخ سند البنك لا يسبق الطلب المعتمد',409)
+        if c.execute("""SELECT 1 FROM inventory_supplier_bank_vouchers link
+            JOIN vouchers old_voucher ON old_voucher.id=link.voucher_id
+            WHERE old_voucher.status!='rejected' AND old_voucher.from_fund_id=?
+              AND UPPER(TRIM(old_voucher.reference_no))=UPPER(?)""",
+            (body.bank_fund_id,reference)).fetchone():
+            fail('مرجع تعليمات البنك مستخدم بالفعل لسند مورد نشط',409)
+        if c.execute('''SELECT 1 FROM inventory_supplier_bank_vouchers link
+              JOIN vouchers v ON v.id=link.voucher_id
+              WHERE link.payment_request_id=? AND v.status NOT IN ('rejected','reversed') ''',(payment_request_id,)).fetchone():
+            fail('طلب المورد له سند بنك معلّق أو معتمد بالفعل',409)
+        category=c.execute("SELECT id FROM categories WHERE code='supplier_ap_settlement' AND active=1").fetchone()
+        department=c.execute("SELECT id FROM departments WHERE code='ADMIN' AND active=1").fetchone()
+        if not category or not department:fail('تصنيف سداد المورد أو القسم الإداري غير مفعل',409)
+        import secrets
+        cur=c.execute('''INSERT INTO vouchers(voucher_no,date,kind,department_id,category_id,from_fund_id,
+           shift,amount_piasters,description,reference_no,status,created_by,created_at)
+           VALUES (?,?,'payment',?, ?,?,'central',?,?,?,'pending',?,?)''',
+           ('PENDING-'+secrets.token_hex(8),day,department[0],category[0],body.bank_fund_id,
+            row['amount_piasters'],'سداد التزام مورد: '+row['vendor_name'],reference,user['id'],stamp()))
+        voucher_id=cur.lastrowid
+        voucher_no=f'RAM-{day[:4]}-{voucher_id:06d}'
+        c.execute('UPDATE vouchers SET voucher_no=? WHERE id=?',(voucher_no,voucher_id))
+        c.execute('INSERT INTO inventory_supplier_bank_vouchers(payment_request_id,voucher_id,created_by,created_at) VALUES (?,?,?,?)',
+                  (payment_request_id,voucher_id,user['id'],stamp()))
+        remember(c,key,'inventory_supplier_bank_voucher',user['id'],digest,voucher_id)
+        audit(c,user['id'],'supplier_bank_voucher_requested','voucher',voucher_id,
+              {'payment_request_id':payment_request_id,'amount_piasters':row['amount_piasters'],
+               'bank_transfer_initiated':False})
+    return {'voucher_id':voucher_id,'voucher_no':voucher_no,'status':'pending',
+            'bank_transfer_initiated':False}
+
+
+def supplier_settlement_documents(c):
+    """Separate posted cashbook, active statement match, and SIGNED reference match."""
+    records=[dict(r) for r in c.execute('''SELECT p.id payment_request_id,p.amount_piasters,
+       p.due_line_id,im.invoice_ref,im.amount_piasters invoice_piasters,
+       ven.id vendor_id,ven.name vendor_name,link.voucher_id,
+       v.voucher_no,v.status voucher_status,v.date booked_on,v.reference_no bank_reference,
+       v.from_fund_id,
+       (SELECT j.id FROM gl_journals j WHERE j.origin='voucher' AND j.source_id=v.id AND j.status='posted') posted_journal_id,
+       fm.id movement_id,fm.amount_piasters movement_piasters,
+       bm.id match_id,bl.reference statement_reference,bl.id statement_line_id,
+       bs.id statement_batch_id,bs.status bank_statement_status
+       FROM inventory_supplier_payment_requests p
+       JOIN inventory_supplier_due_lines l ON l.id=p.due_line_id
+       JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id
+       JOIN inventory_supplier_invoice_matches im ON im.id=s.invoice_match_id
+       JOIN inventory_receipts r ON r.id=im.receipt_id
+       JOIN inventory_vendors ven ON ven.id=r.vendor_id
+       LEFT JOIN inventory_supplier_bank_vouchers link ON link.payment_request_id=p.id
+       LEFT JOIN vouchers v ON v.id=link.voucher_id
+       LEFT JOIN fund_movements fm ON fm.voucher_id=v.id AND fm.fund_id=v.from_fund_id
+       LEFT JOIN bank_statement_matches bm ON bm.movement_id=fm.id AND bm.status='active'
+       LEFT JOIN bank_statement_lines bl ON bl.id=bm.line_id
+       LEFT JOIN bank_statement_batches bs ON bs.id=bl.batch_id AND bs.status!='voided'
+       WHERE p.status='approved' ORDER BY p.id DESC''')]
+    for item in records:
+        booked=bool(item['voucher_status']=='approved' and item['posted_journal_id']
+            and item['movement_piasters']==-item['amount_piasters'])
+        item['booked_piasters']=item['amount_piasters'] if booked else 0
+        item['bank_matched_piasters']=item['amount_piasters'] if booked and item['match_id'] and item['bank_statement_status'] else 0
+        ref_ok=(bool(item['statement_reference']) and
+                str(item['statement_reference']).strip().upper()==str(item['bank_reference']).strip().upper())
+        item['bank_reference_verified']=ref_ok
+        item['bank_confirmed_piasters']=item['amount_piasters'] if booked and ref_ok and item['bank_statement_status']=='approved' else 0
+    # Count invoices from G3H only. Do not pretend this is the global control-account balance.
+    invoices=[dict(r) for r in c.execute('''SELECT im.amount_piasters,ven.id vendor_id,ven.name vendor_name
+       FROM inventory_supplier_invoice_matches im
+       JOIN inventory_receipts r ON r.id=im.receipt_id
+       JOIN inventory_vendors ven ON ven.id=r.vendor_id
+       WHERE im.status='approved' ''')]
+    total=sum(r['amount_piasters'] for r in invoices)
+    booked=sum(r['booked_piasters'] for r in records)
+    matched=sum(r['bank_matched_piasters'] for r in records)
+    confirmed=sum(r['bank_confirmed_piasters'] for r in records)
+    by_vendor={}
+    for row in invoices:
+        v=by_vendor.setdefault(row['vendor_id'],{'vendor_id':row['vendor_id'],
+          'vendor_name':row['vendor_name'],'invoice_piasters':0,'booked_piasters':0,
+          'bank_confirmed_piasters':0})
+        v['invoice_piasters']+=row['amount_piasters']
+    for row in records:
+        v=by_vendor[row['vendor_id']]
+        v['booked_piasters']+=row['booked_piasters']
+        v['bank_confirmed_piasters']+=row['bank_confirmed_piasters']
+    for v in by_vendor.values():
+        v['outstanding_book_piasters']=v['invoice_piasters']-v['booked_piasters']
+        v['outstanding_confirmed_piasters']=v['invoice_piasters']-v['bank_confirmed_piasters']
+    return {'items':records,'vendors':list(by_vendor.values()),
+      'supplier_invoice_total_piasters':total,'supplier_booked_piasters':booked,
+      'bank_matched_piasters':matched,'bank_confirmed_piasters':confirmed,
+      'supplier_outstanding_book_piasters':total-booked,
+      'supplier_outstanding_confirmed_piasters':total-confirmed,
+      'notice':'إجمالي مطابقات المخزون فقط. القيد البنكي ليس إثبات تحويل للمستفيد؛ تأكيد البنك هنا يعني كشفًا معتمدًا بمرجع مطابق، ولا يغني عن إثبات اسم المستفيد.'}
+
+
+@router.get('/supplier-settlements')
+def supplier_settlements(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
+    permission(c,user,'read')
+    return supplier_settlement_documents(c)
 
 
 @router.post('/issues')

@@ -2234,3 +2234,86 @@ CREATE TRIGGER IF NOT EXISTS inv_payment_req_pending_period_guard BEFORE INSERT 
  WHEN EXISTS(SELECT 1 FROM inventory_supplier_payment_requests p
   WHERE p.status='pending' AND substr(p.requested_on,1,7)=NEW.period)
  BEGIN SELECT RAISE(ABORT,'Cannot close month with pending supplier pre-payment requests'); END;
+
+-- G3K: proof of provenance for a bank voucher settling ONE independently approved
+-- G3J request. Does not initiate a transfer; booked != bank-confirmed.
+CREATE TABLE IF NOT EXISTS inventory_supplier_bank_vouchers (
+ id INTEGER PRIMARY KEY,
+ payment_request_id INTEGER NOT NULL REFERENCES inventory_supplier_payment_requests(id),
+ voucher_id INTEGER NOT NULL UNIQUE REFERENCES vouchers(id),
+ created_by INTEGER NOT NULL REFERENCES users(id), created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS supplier_bank_request_history ON inventory_supplier_bank_vouchers(payment_request_id);
+CREATE TRIGGER IF NOT EXISTS supplier_bank_link_guard BEFORE INSERT ON inventory_supplier_bank_vouchers
+ WHEN EXISTS(SELECT 1 FROM inventory_supplier_bank_vouchers previous
+   JOIN vouchers old_voucher ON old_voucher.id=previous.voucher_id
+   WHERE previous.payment_request_id=NEW.payment_request_id AND old_voucher.status NOT IN ('rejected','reversed'))
+ OR EXISTS(SELECT 1 FROM inventory_supplier_bank_vouchers other_link
+   JOIN vouchers old_voucher ON old_voucher.id=other_link.voucher_id AND old_voucher.status!='rejected'
+   JOIN vouchers new_voucher ON new_voucher.id=NEW.voucher_id
+   WHERE old_voucher.from_fund_id=new_voucher.from_fund_id
+     AND UPPER(TRIM(old_voucher.reference_no))=UPPER(TRIM(new_voucher.reference_no)))
+ OR NOT EXISTS (
+   SELECT 1 FROM inventory_supplier_payment_requests p
+   JOIN inventory_supplier_due_lines l ON l.id=p.due_line_id
+   JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id AND s.status='approved'
+   JOIN inventory_supplier_invoice_matches im ON im.id=s.invoice_match_id AND im.status='approved'
+   JOIN inventory_receipts r ON r.id=im.receipt_id AND r.status='approved'
+   JOIN inventory_vendors vendor ON vendor.id=r.vendor_id AND vendor.active=1
+   JOIN vouchers v ON v.id=NEW.voucher_id AND v.kind='payment' AND v.status='pending'
+   JOIN categories cat ON cat.id=v.category_id AND cat.code='supplier_ap_settlement'
+   JOIN funds f ON f.id=v.from_fund_id AND f.active=1 AND f.kind='bank'
+   JOIN users maker ON maker.id=NEW.created_by AND maker.active=1
+   LEFT JOIN inventory_access ia ON ia.user_id=maker.id
+   LEFT JOIN user_fund_grants bg ON bg.user_id=maker.id AND bg.fund_id=f.id
+   WHERE p.id=NEW.payment_request_id AND p.status='approved'
+     AND v.amount_piasters=p.amount_piasters AND v.created_by=NEW.created_by
+     AND v.date>=p.requested_on AND LENGTH(TRIM(v.reference_no))>=8
+     AND v.department_id=(SELECT id FROM departments WHERE code='ADMIN')
+     AND maker.id NOT IN (p.created_by,p.reviewed_by,s.created_by,im.created_by,r.created_by)
+     AND (maker.role='owner' OR (maker.role IN ('clerk','reviewer')
+          AND ia.can_prepare=1 AND bg.can_submit=1))
+     AND NOT EXISTS(SELECT 1 FROM periods WHERE period=substr(v.date,1,7))
+ ) BEGIN SELECT RAISE(ABORT,'Invalid protected supplier bank voucher link'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_bank_linked_voucher_terms_lock BEFORE UPDATE OF
+ voucher_no,date,kind,department_id,category_id,from_fund_id,to_fund_id,shift,
+ employee_id,salary_period,amount_piasters,description,reference_no,created_by
+ ON vouchers WHEN EXISTS(SELECT 1 FROM inventory_supplier_bank_vouchers link WHERE link.voucher_id=OLD.id)
+ BEGIN SELECT RAISE(ABORT,'Linked supplier bank voucher core is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_bank_direct_approved_insert_guard BEFORE INSERT ON vouchers
+ WHEN NEW.status='approved' AND EXISTS(SELECT 1 FROM categories cat
+   WHERE cat.id=NEW.category_id AND cat.code='supplier_ap_settlement')
+ AND (NEW.reversal_of_id IS NULL OR NOT EXISTS(SELECT 1 FROM inventory_supplier_bank_vouchers link
+     WHERE link.voucher_id=NEW.reversal_of_id))
+ BEGIN SELECT RAISE(ABORT,'Protected supplier bank payment cannot be inserted approved'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_bank_link_no_update BEFORE UPDATE ON inventory_supplier_bank_vouchers
+ BEGIN SELECT RAISE(ABORT,'Supplier bank voucher link is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_bank_link_no_delete BEFORE DELETE ON inventory_supplier_bank_vouchers
+ BEGIN SELECT RAISE(ABORT,'Supplier bank voucher link cannot be deleted'); END;
+-- Even direct UPDATE bypassing FastAPI cannot approve an unlinked bank payment
+-- or allow approval by the previous request reviewer / invoice or receipt preparer.
+CREATE TRIGGER IF NOT EXISTS supplier_bank_voucher_approval_guard BEFORE UPDATE OF status ON vouchers
+ WHEN NEW.status='approved' AND EXISTS(SELECT 1 FROM categories cat
+   WHERE cat.id=NEW.category_id AND cat.code='supplier_ap_settlement')
+ AND NOT EXISTS (
+   SELECT 1 FROM inventory_supplier_bank_vouchers link
+   JOIN inventory_supplier_payment_requests p ON p.id=link.payment_request_id AND p.status='approved'
+   JOIN inventory_supplier_due_lines l ON l.id=p.due_line_id
+   JOIN inventory_supplier_due_schedules s ON s.id=l.schedule_id AND s.status='approved'
+   JOIN inventory_supplier_invoice_matches im ON im.id=s.invoice_match_id AND im.status='approved'
+   JOIN inventory_receipts r ON r.id=im.receipt_id AND r.status='approved'
+   JOIN inventory_vendors vendor ON vendor.id=r.vendor_id AND vendor.active=1
+   JOIN users reviewer ON reviewer.id=NEW.reviewed_by AND reviewer.active=1
+   JOIN funds f ON f.id=NEW.from_fund_id AND f.kind='bank' AND f.active=1
+   LEFT JOIN user_fund_grants g ON g.user_id=reviewer.id AND g.fund_id=f.id
+   WHERE link.voucher_id=NEW.id AND NEW.kind='payment' AND OLD.status='pending'
+     AND NEW.amount_piasters=p.amount_piasters AND NEW.date>=p.requested_on
+     AND reviewer.id NOT IN (p.created_by,p.reviewed_by,s.created_by,im.created_by,r.created_by,NEW.created_by)
+     AND (reviewer.role='owner' OR (reviewer.role='reviewer' AND g.can_approve=1))
+ ) BEGIN SELECT RAISE(ABORT,'Protected supplier bank voucher independent approval denied'); END;
+CREATE TRIGGER IF NOT EXISTS supplier_bank_voucher_reversal_guard BEFORE UPDATE OF status ON vouchers
+ WHEN OLD.status='approved' AND NEW.status='reversed'
+ AND EXISTS(SELECT 1 FROM inventory_supplier_bank_vouchers link WHERE link.voucher_id=OLD.id)
+ AND EXISTS(SELECT 1 FROM fund_movements fm JOIN bank_statement_matches bm
+   ON bm.movement_id=fm.id AND bm.status='active' WHERE fm.voucher_id=OLD.id)
+ BEGIN SELECT RAISE(ABORT,'Unmatch supplier bank statement before voucher reversal'); END;

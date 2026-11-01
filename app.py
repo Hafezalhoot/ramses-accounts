@@ -562,7 +562,7 @@ def health():
             fail("قاعدة البيانات غير جاهزة", 503)
     except sqlite3.Error:
         fail("قاعدة البيانات غير جاهزة", 503)
-    return {"status":"ok","name":"Ramses Accounts V8.1E G3J Cairo and Supplier Pre-Payment Requests Development - Test Only"}
+    return {"status":"ok","name":"Ramses Accounts V8.1E G3K Supplier Bank Settlement and Cairo Development - Test Only"}
 
 
 @app.post("/api/login")
@@ -612,7 +612,7 @@ def me(user=Depends(get_user)):
 @app.get("/api/lookups")
 def lookups(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     return {"departments":[dict(r) for r in c.execute("SELECT * FROM departments WHERE active=1 ORDER BY id")],
-            "categories":[dict(r) for r in c.execute("SELECT * FROM categories WHERE active=1 ORDER BY direction,name")],
+            "categories":[dict(r) for r in c.execute("SELECT * FROM categories WHERE active=1 AND code!='supplier_ap_settlement' ORDER BY direction,name")],
             "funds":[dict(r) for r in c.execute("SELECT id,code,name,kind,active FROM funds WHERE active=1 ORDER BY id")],
             # Staff directory is financial/HR data, not a public authenticated lookup.
             # Reviewers retain it for assigned payroll review; clerks/viewers do not.
@@ -637,8 +637,8 @@ def create_voucher(body:VoucherForm,user=Depends(get_user),c:sqlite3.Connection=
         dept=lookup(c,"departments",body.department_id)
         cat=lookup(c,"categories",body.category_id)
         if dept is None or cat is None: fail("اختر القسم والتصنيف")
-        if cat['code'] in ('billing_invoice_receipt','billing_advance_receipt','billing_credit_refund','billing_advance_refund','cash_shortage_recovery','cash_overage_return','pos_processing_fee'):
-            fail('تحصيل فواتير المرضى يتم فقط من شاشة الكاشير المرتبطة بالوردية',403)
+        if cat['code'] in ('billing_invoice_receipt','billing_advance_receipt','billing_credit_refund','billing_advance_refund','cash_shortage_recovery','cash_overage_return','pos_processing_fee','supplier_ap_settlement'):
+            fail('التصنيف محمي؛ استخدم شاشة العملية المالية المتخصصة وليس السند العام',403)
         if cat['code']=='late_cash_unallocated':
             if user['role'] not in ('owner','reviewer') or source['kind']!='cash':
                 fail('إثبات النقدية غير المخصصة متاح فقط للحسابات المختصة وعلى خزنة نقدية',403)
@@ -931,6 +931,11 @@ def decide(voucher_id:int,body:Decision,user=Depends(get_user),c:sqlite3.Connect
         if body.decision=="approve" and v["kind"]=="payment" and os.getenv("RAMSES_REQUIRE_PAYMENT_EVIDENCE", "0")=="1":
             if not c.execute("SELECT 1 FROM voucher_attachments WHERE voucher_id=? LIMIT 1",(voucher_id,)).fetchone():
                 fail("يجب إرفاق مستند إثبات قبل اعتماد الصرف",409)
+        if body.decision=="approve" and v['category_id']:
+            protected=c.execute("SELECT code FROM categories WHERE id=?",(v['category_id'],)).fetchone()
+            if protected and protected['code']=='supplier_ap_settlement':
+                from inventory import check_supplier_bank_voucher_approval
+                check_supplier_bank_voucher_approval(c,v,user)
         if body.decision=="approve":
             maker=c.execute('SELECT id,role,active FROM users WHERE id=?',(v['created_by'],)).fetchone()
             if not maker or not maker['active']:
@@ -962,6 +967,10 @@ def reverse(voucher_id:int,body:ReverseForm,user=Depends(get_user),c:sqlite3.Con
         original=c.execute("SELECT * FROM vouchers WHERE id=?",(voucher_id,)).fetchone()
         if not original or original["status"]!="approved" or original["reversal_of_id"] is not None:
             fail("لا يمكن عكس هذا السند",409)
+        if c.execute("SELECT 1 FROM inventory_supplier_bank_vouchers WHERE voucher_id=?",(voucher_id,)).fetchone():
+            if c.execute("""SELECT 1 FROM fund_movements fm JOIN bank_statement_matches bm
+                ON bm.movement_id=fm.id AND bm.status='active' WHERE fm.voucher_id=?""",(voucher_id,)).fetchone():
+                fail('فك مطابقة البنك مطلوب قبل عكس سند مورد؛ كشف بنك معتمد لا يُفك',409)
         # Billing receipts are indivisibly linked to invoices/advance balances.
         # A generic reversal would corrupt AR while leaving the billing receipt unchanged.
         if c.execute('SELECT 1 FROM billing_refund_requests WHERE voucher_id=?',(voucher_id,)).fetchone():

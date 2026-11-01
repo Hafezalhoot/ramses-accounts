@@ -1,3 +1,14 @@
+# Ramses Accounts V8.1E-G3K — Supplier AP Bank Voucher Link / Cairo / TEST ONLY
+
+- Based on authenticated G3J commit `d26d77afdc139e444a0d55c30e2d423f2cec36a4`, branch `feat/g3k-supplier-ap-bank-link`; only synthetic test data.
+- Pending bank voucher linked to independently approved G3J supplier request, bank fund grants, protected category, immutable SQL lineage and independent bank voucher reviewer. Approved voucher: Dr2200 / Cr Bank once, not inventory and not another supplier accrual. No bank transfer is initiated.
+- Report separately identifies posted book vouchers, active bank statement matches, and signed-bank-statement with matching reference. Do not equate bank statement reference match to receipt by the named beneficiary.
+- Retry rejected or reversed vouchers with auditable history, block generic reversal while a bank match remains active. Cairo RTL font remains nonblocking, with offline fallback.
+- **Full source-owned regression: 133 tests = 127 PASS / 5 SKIP / 1 BLOCKED_NO_V80 / 0 FAIL / 0 TIMEOUT, exit 0.** Independent CI 61/61 PASS, Chromium 9/9 synthetic UI flows PASS at widths 320/375/1440.
+- **NO-GO production** pending original V8.0 archive, actual bank beneficiary evidence, independent off-device restore, real hospital trial and medical/finance/IT signoff. See `README_G3K_AR.md`, `RAMSES_V81E_G3K_SUPPLIER_BANK_QA_AR.md`.
+
+---
+
 # Ramses Accounts V8.1E-G3J — Cairo / Supplier Pre-Payment Requests / TEST ONLY
 
 - Development continues from genuine G3I Git history, isolated on `feat/g3j-cairo-payment-requests`. Synthetic data only; no production posting.

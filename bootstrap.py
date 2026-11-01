@@ -33,6 +33,7 @@ CATEGORIES = [
  ("marketing", "تسويق وإعلانات", "payment", "expense"),
  ("hospitality", "ضيافة ومصروفات إدارية", "payment", "expense"),
  ("equipment", "شراء أجهزة وتجهيزات", "payment", "asset"),
+ ("supplier_ap_settlement", "سداد دائنين موردين من كشف الاستحقاق - رابط محمي", "payment", "liability"),
  ("debt_installment", "سداد أصل دين/قسط", "payment", "liability"),
  ("owner_draw", "مسحوبات ملاك", "payment", "equity"),
  ("salary_payment", "صرف راتب مستحق", "payment", "payroll_payment"),

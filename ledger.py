@@ -44,6 +44,7 @@ ACCOUNTS = (
 CATEGORY_TO_ACCOUNT = {
  'medical_revenue':'4100','other_revenue':'4190','owner_funding':'3100',
  'loan_proceeds':'2100','expense_medical':'5100','inventory_buy':'1100',
+ 'supplier_ap_settlement':'2200',
  'doctor_fees':'5110','lab_external':'5120','rent':'5130','utilities':'5140',
  'maintenance':'5150','marketing':'5160','hospitality':'5170','equipment':'1110',
  'debt_installment':'2100','owner_draw':'3190','salary_payment':'2110',

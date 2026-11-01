@@ -46,6 +46,10 @@
     const aging=d.supplier_aging||{};
     const paymentRequests=d.supplier_payment_requests||[];
     const paymentEligible=(d.supplier_payment_eligible_lines||[]).filter(x=>Number(x.available_to_request_piasters)>0);
+    const settlement=d.supplier_settlements||null;
+    const bankFunds=(state.lookups?.funds||[]).filter(f=>f.kind==='bank'&&f.active!==0);
+    const bankLinked=new Set((settlement?.items||[]).filter(x=>x.voucher_id&&!['rejected','reversed'].includes(x.voucher_status)).map(x=>Number(x.payment_request_id)));
+    const payableRequests=paymentRequests.filter(x=>x.status==='approved'&&Number(x.vendor_active)===1&&!bankLinked.has(Number(x.id)));
     const installmentRow=(minimum=today())=>`<div class="inv-match-row inv-due-line">`+
       field('','تاريخ الاستحقاق',input('due_on','date',`min="${esc(minimum)}" value="${today()}"`))+
       field('','قيمة القسط بالجنيه',input('amount','number','min="0.01" step="0.01"'))+
@@ -124,6 +128,30 @@
           empty('لا توجد أقساط معتمدة ذات سعة متبقية لطلب الصرف التمهيدي.'))+
         `</section>`:'');
 
+    const bankPanel=!settlement?'':`<section class="panel inv-panel" id="invSupplierSettlementsPanel"><div class="panel-header"><div>`+
+      `<h2>سندات الموردين ومطابقة البنك — G3K</h2><p>السند المرحل يُخفض حساب الموردين، ولا يمثل إثباتًا نهائيًا لوصول التحويل للمستفيد. الإثبات البنكي يحتاج كشف حساب معتمدًا ومرجعًا مطابقًا.</p></div></div>`+
+      `<div class="inv-stats"><div><small>إجمالي الفواتير المطابقة</small><strong>${fmt(settlement.supplier_invoice_total_piasters)} جنيه</strong></div>`+
+      `<div><small>سندات بنكية مُرحَّلة</small><strong>${fmt(settlement.supplier_booked_piasters)} جنيه</strong></div>`+
+      `<div><small>المؤكد بنكيًا بكشف معتمد ومرجع مطابق</small><strong>${fmt(settlement.bank_confirmed_piasters)} جنيه</strong></div>`+
+      `<div><small>متبقٍّ بالدفاتر (في نطاق الفواتير المطابقة)</small><strong>${fmt(settlement.supplier_outstanding_book_piasters)} جنيه</strong></div>`+
+      `<div><small>متبقٍّ قبل إثبات البنك النهائي</small><strong>${fmt(settlement.supplier_outstanding_confirmed_piasters)} جنيه</strong></div></div>`+
+      `<p class="section-subtitle">${esc(settlement.notice||'لا تبدأ أي تحويل تلقائي من هذه الشاشة.')}</p>`+
+      ((settlement.items||[]).length?table(['المورد والفاتورة','طلب الموافقة','سند البنك','مرحّل بالدفتر','مطابق مبدئيًا','مؤكد بنكيًا'],
+        settlement.items.map(x=>`<tr><td>${esc(x.vendor_name)} <small class="inv-muted">${esc(x.invoice_ref)}</small></td>`+
+          `<td class="num">${fmt(x.amount_piasters)} جنيه</td>`+
+          `<td>${x.voucher_no?esc(x.voucher_no):'لم يُنشأ سند'} <small class="inv-muted">${esc(x.voucher_status||'')}</small></td>`+
+          `<td class="num">${fmt(x.booked_piasters)}</td><td class="num">${fmt(x.bank_matched_piasters)}</td>`+
+          `<td class="num">${fmt(x.bank_confirmed_piasters)}</td></tr>`).join('')):empty('لا توجد طلبات موردين معتمدة حاليًا.'))+
+      `</section>`+
+      (canPrepare&&payableRequests.length&&bankFunds.length?`<section class="panel panel-pad"><h2 class="section-title">إنشاء سند بنك مرتبط بطلب مورد معتمد</h2>`+
+        `<p class="section-subtitle">السند ينتظر مراجع البنك المستقل، ولا يطلق تحويلًا بنكيًا من النظام. المبلغ يثبت مدين 2200 / دائن البنك فقط بعد اعتماد السند.</p>`+
+        `<form id="invSupplierBankVoucherForm" class="inv-form">`+
+        field('','طلب المورد المعتمد',`<select name="payment_request_id" required>${payableRequests.map(r=>
+           `<option value="${Number(r.id)}">${esc(r.vendor_name)} — ${esc(r.invoice_ref)} — ${fmt(r.amount_piasters)} جنيه</option>`).join('')}</select>`)+
+        field('','حساب البنك المفوض',`<select name="bank_fund_id" required>${bankFunds.map(f=>`<option value="${Number(f.id)}">${esc(f.name)}</option>`).join('')}</select>`)+
+        field('','تاريخ سند البنك',input('booked_on','date',`value="${today()}" max="${today()}"`))+
+        field('','مرجع تعليمات التحويل أو المستند البنكي',input('bank_reference','text','minlength="8" maxlength="100"'))+
+        `<button class="btn btn-primary" type="submit">إنشاء سند معلّق للمراجع — بدون تحويل</button></form></section>`:'');
     const totalValue=items.reduce((sum,x)=>sum+Number(x.value_piasters||0),0);
     const totalUnits=items.reduce((sum,x)=>sum+Number(x.quantity_on_hand||0),0);
     const totalQuarantine=items.reduce((sum,x)=>sum+Number(x.quarantined_quantity||0),0);
@@ -131,7 +159,7 @@
     const pending=(d.receipts||[]).filter(x=>x.status==='pending').length+(d.issues||[]).filter(x=>x.status==='pending').length+(d.returns||[]).filter(x=>x.status==='pending').length;
     const units=[['piece','قطعة'],['box','صندوق'],['pack','عبوة'],['bottle','زجاجة'],['meter','متر']];
     root.innerHTML=head('المخازن والمشتريات','المخزن المركزي للمستلزمات','قيود مخزون وموردين وتكلفة تشغيل، ولا يحدث صرف من الخزنة تلقائيًا.',isOwner?`<button type="button" class="btn btn-secondary" id="invGrant">${ico('shield')} إدارة تفويضات المخزن</button>`:'')+
-      `<div class="info-box warning" role="note">${ico('alert')}<div><strong>تجريبي — مستلزمات غير دوائية فقط.</strong> لا يشمل أدوية المرضى أو الصرف العلاجي أو سداد الموردين أو المطابقة البنكية أو ضريبة القيمة المضافة. التقرير لا يثبت قيمة مخزون افتتاحي تاريخي.</div></div>`+
+      `<div class="info-box warning" role="note">${ico('alert')}<div><strong>تجريبي — مستلزمات غير دوائية فقط.</strong> لا يشمل أدوية المرضى أو الصرف العلاجي أو ضريبة القيمة المضافة. سندات الموردين البنكية تستلزم اعتمادًا مستقلًا ومطابقة كشف البنك. التقرير لا يثبت قيمة مخزون افتتاحي تاريخي.</div></div>`+
       `<div class="inv-stats"><div><small>أصناف مسجلة</small><strong>${integer(items.length)}</strong></div><div><small>الرصيد الدفتري (يشمل الحجر)</small><strong>${integer(totalUnits)}</strong></div><div><small>الحجر الطبي</small><strong>${integer(totalQuarantine)}</strong></div><div><small>المتاح بعد الحجر*</small><strong>${integer(totalAvailable)}</strong></div><div><small>قيمة المخزون (تشمل الحجر)</small><strong>${fmt(totalValue)} ج.م</strong></div></div>`+
       `<div class="info-box warning" role="note">الموافقة المحاسبية على المرتجع لا تعني صلاحية إعادة الاستخدام. الكمية المحجوزة طبيًا لا تدخل FIFO إلا بقرار طبي مستقل، والرصيد غير المحجوز لا يضمن الصلاحية أو سلامة العبوة؛ يتم فحصهما عند الصرف. لا يجوز استخدام هذه الدورة مع مرضى حقيقيين قبل اعتماد مكافحة العدوى.</div>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مشتريات الموردين — أوامر ومطابقة ثلاثية</h2><p>أمر شراء معتمد ← استلام جزئي معتمد ← فاتورة بنفس الأصناف والسعر والكمية. الاستلام هو وحده الذي يُسجّل دين المورد.</p></div></div>`+
@@ -140,6 +168,7 @@
       `<p class="section-subtitle">هذه قيم مستندات GRN فقط، وليست رصيد المورد بعد المدفوعات أو ضريبة القيمة المضافة. المطابقة لا تُنشئ قيدًا ماليًا ثانيًا.</p></section>`+
       duePanel+
       paymentPanel+
+      bankPanel+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>أوامر الشراء</h2><p>مراجعة مستقلة قبل بدء استلام الكميات</p></div></div>${docTable(d.purchase_orders||[],'purchase-orders',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقات فواتير الموردين</h2><p>الرفض لا يغيّر قيود الاستلام، ويمكن إعادة التقديم بمستند صحيح</p></div></div>${docTable(d.supplier_invoice_matches||[],'supplier-invoices',canApprove,state.me.id)}</section></div>`+
       (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">طلب أمر شراء</h2><p class="section-subtitle">لا يصرف أموالًا ولا ينشئ مخزونًا. مثال الواجهة لصنف واحد؛ الـAPI يقبل عدة أصناف.</p><form id="invPurchaseOrderForm" class="inv-form">`+
@@ -369,6 +398,15 @@
       if(data)await apply(`/api/inventory/supplier-payment-requests/${Number(id)}/decision`,
         {decision,note:data.note},'تم تسجيل قرار المراجعة دون أي حركة مالية');
     }));
+    $('#invSupplierBankVoucherForm')?.addEventListener('submit',async event=>{
+      event.preventDefault();const form=event.currentTarget,button=form.querySelector('button[type="submit"]');
+      const f=Object.fromEntries(new FormData(form));button.disabled=true;
+      try{await apply(`/api/inventory/supplier-payment-requests/${Number(f.payment_request_id)}/bank-voucher`,{
+          bank_fund_id:Number(f.bank_fund_id),booked_on:f.booked_on,
+          bank_reference:f.bank_reference,request_id:requestId()},
+          'تم إنشاء سند بنك معلّق؛ لا يتم تنفيذ تحويل أو تخفيض المورد إلا بعد الاعتماد');}
+      finally{button.disabled=false;}
+    });
     $('#invPurchaseOrderForm')?.addEventListener('submit',async event=>{
       event.preventDefault();const el=event.currentTarget,b=el.querySelector('button[type="submit"]');b.disabled=true;
       const f=Object.fromEntries(new FormData(el));

@@ -18,6 +18,11 @@ def run():
    reviewer=c.execute("SELECT id FROM users WHERE username='reviewer-old'").fetchone()[0]
    bank=c.execute("SELECT id FROM funds WHERE kind='bank'").fetchone()[0]
    c.execute("INSERT INTO user_fund_grants(user_id,fund_id,can_submit,changed_by,changed_at,reason) VALUES (?,?,?,?,?,?)",(reviewer,bank,1,owner,'2026-10-01','legacy submit-only grant'))
+   # Simulate the original pre-review-permissions schema: G3K-only triggers
+   # did not exist at that historical point. SQLite refuses to DROP a column
+   # referenced by a future trigger, even though that trigger is unrelated
+   # to the old G0 migration being exercised here.
+   c.execute('DROP TRIGGER IF EXISTS supplier_bank_voucher_approval_guard')
    c.execute('ALTER TABLE user_fund_grants DROP COLUMN can_approve')
    assert 'can_approve' not in [r[1] for r in c.execute('PRAGMA table_info(user_fund_grants)')]
   initialize()
