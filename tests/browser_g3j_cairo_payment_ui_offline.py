@@ -14,6 +14,7 @@ def run():
         try:
             for width in (320,375,1440):
                 page=browser.new_page(viewport={'width':width,'height':900})
+                page.set_default_timeout(5500)
                 errors=[];page.on('pageerror',lambda err:errors.append(str(err)))
                 page.set_content('<!doctype html><html lang="ar" dir="rtl"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main id="content"></main></body></html>')
                 page.add_style_tag(content=(ROOT/'static/styles.css').read_text())
@@ -32,6 +33,7 @@ def run():
                 }''')
                 page.add_script_tag(content=(ROOT/'static/inventory_ui.js').read_text())
                 page.evaluate('renderInventory()')
+                page.locator('[data-inv-tab="suppliers"]').click()
                 page.locator('#invPaymentRequestForm').wait_for(timeout=7000)
                 font=page.evaluate('getComputedStyle(document.body).fontFamily')
                 assert 'Cairo' in font,(width,font)

@@ -34,6 +34,7 @@ def run():
                 }''')
                 page.add_script_tag(content=(ROOT/'static/inventory_ui.js').read_text())
                 page.evaluate('renderInventory()')
+                page.locator('[data-inv-tab="purchasing"]').click()
                 page.locator('#invPurchaseOrderForm').wait_for(timeout=6000)
                 assert page.locator('#invSupplierInvoiceForm').count()==1
                 assert page.locator('#invReceiptForm select[name="purchase_order_id"]').count()==1
@@ -49,6 +50,7 @@ def run():
                 assert page.evaluate('lastRequest.data.lines[0].quantity')==5
                 assert page.evaluate('lastRequest.data.ordered_on')==page.evaluate("new Date().toLocaleDateString('sv-SE',{timeZone:'Africa/Cairo'})")
                 page.evaluate('lastRequest=null')
+                page.locator('[data-inv-tab="stock"]').click()
                 page.locator('#invReceiptForm select[name="purchase_order_id"]').select_option('17')
                 page.locator('#invReceiptForm select[name="vendor_id"]').select_option('1')
                 page.locator('#invReceiptForm [name="invoice_ref"]').fill('NEW-INV-003')
@@ -60,6 +62,7 @@ def run():
                 page.wait_for_function('lastRequest?.path==="/api/inventory/receipts"')
                 assert page.evaluate('lastRequest.data.purchase_order_id')==17
                 page.evaluate('lastRequest=null')
+                page.locator('[data-inv-tab="purchasing"]').click()
                 page.locator('#invSupplierInvoiceForm select[name="receipt_id"]').select_option('21')
                 assert page.locator('#invInvoiceLines .inv-match-row').count()==1
                 page.locator('#invInvoiceLines .inv-match-row [name="quantity"]').fill('2')

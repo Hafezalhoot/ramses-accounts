@@ -1,3 +1,9 @@
+# Ramses Accounts V8.1E-G3N / S1 — Operational Stabilization / TEST ONLY
+
+Latest UI/QA improvement: six task-specific warehouse workspaces replace the 23-panel mega-view; genuine Chromium-to-FastAPI TestClient-to-SQLite acceptance verifies synthetic independent receipt approval and Dr1100/Cr2200, but not network HTTP. **NO DB migration, new GL schema, bank action or production deployment.** Full regression 138 = 132 PASS/5 SKIP/1 BLOCKED V8.0/0 FAIL. Independent CI 66/66 PASS. See `README_S1_AR.md`, `STABILIZATION_S1_STATUS_AR.md`. **NO-GO hospital production.**
+
+---
+
 # Ramses Accounts V8.1E-G3N — Supplier Opening Statement Control / TEST ONLY
 
 Latest development: signed-source-reference supplier prior-month-end statement comparison to posted GL 2200, source SHA-256, separate maker/checker, no GL/cash change. Details `README_G3N_AR.md`; production NO-GO.

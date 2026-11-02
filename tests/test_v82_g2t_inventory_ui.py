@@ -49,6 +49,7 @@ def run():
                 page.add_script_tag(content=BOOT)
                 page.add_script_tag(content=(ROOT/'static/inventory_ui.js').read_text())
                 page.evaluate('renderInventory()')
+                page.locator('[data-inv-tab="stock"]').click()
                 assert page.get_by_text('المخزن المركزي للمستلزمات').count()==1
                 assert page.get_by_text('قفازات فحص تجريبية').count()>=1
                 assert page.get_by_text('80.00').count()>=1

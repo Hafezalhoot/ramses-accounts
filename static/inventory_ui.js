@@ -110,6 +110,45 @@
       (alerts.length?`<p class="section-subtitle" role="alert">يوجد ${integer(alerts.length)} خلل في ربط مصدر القيد أو قيمته؛ لا تعتمد حالة التطابق دون تدقيق مستندات الأصل.</p>`:'')+
       `<p class="section-subtitle">${esc(r.scope||'هذه مطابقة مصادر محدودة وليست حسابات موردين تاريخية معتمدة.')}</p></section>`;
   }
+
+  // S1: One operating task at a time. Data/permissions still come from the existing API.
+  const invTaskAreas=[
+    ['overview','نظرة عامة'],['stock','المخزون والحركات'],['purchasing','المشتريات'],
+    ['suppliers','الموردون والسداد'],['returns','المرتجعات والتلف'],['reports','التقارير والمطابقة']
+  ];
+  let invActiveArea='overview';
+  function wireInventoryTaskAreas(root){
+    const tabs=[...root.querySelectorAll('[data-inv-tab]')];
+    if(!tabs.length)return;
+    const setArea=(area,moveFocus=false)=>{
+      if(!invTaskAreas.some(item=>item[0]===area))area='overview';
+      invActiveArea=area;
+      tabs.forEach(tab=>{
+        const active=tab.dataset.invTab===area;
+        tab.setAttribute('aria-selected',String(active));
+        tab.tabIndex=active?0:-1;
+        if(active&&moveFocus)tab.focus();
+      });
+      root.querySelectorAll('[data-inv-workspace]').forEach(panel=>{
+        panel.hidden=panel.dataset.invWorkspace!==area;
+      });
+    };
+    tabs.forEach((tab,index)=>{
+      tab.addEventListener('click',()=>setArea(tab.dataset.invTab));
+      tab.addEventListener('keydown',event=>{
+        const offset=event.key==='ArrowRight'?-1:event.key==='ArrowLeft'?1:0;
+        if(!offset&&event.key!=='Home'&&event.key!=='End')return;
+        event.preventDefault();
+        const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:
+          (index+offset+tabs.length)%tabs.length;
+        setArea(tabs[next].dataset.invTab,true);
+      });
+    });
+    root.querySelectorAll('[data-inv-go]').forEach(button=>button.addEventListener('click',()=>{
+      setArea(button.dataset.invGo,true);
+    }));
+    setArea(invActiveArea);
+  }
   window.renderInventory=async function renderInventory(){
     const root=$('#content');
     if(!root)return;
@@ -248,12 +287,21 @@
     const units=[['piece','قطعة'],['box','صندوق'],['pack','عبوة'],['bottle','زجاجة'],['meter','متر']];
     root.innerHTML=head('المخازن والمشتريات','المخزن المركزي للمستلزمات','قيود مخزون وموردين وتكلفة تشغيل، ولا يحدث صرف من الخزنة تلقائيًا.',isOwner?`<button type="button" class="btn btn-secondary" id="invGrant">${ico('shield')} إدارة تفويضات المخزن</button>`:'')+
       `<div class="info-box warning" role="note">${ico('alert')}<div><strong>تجريبي — مستلزمات غير دوائية فقط.</strong> لا يشمل أدوية المرضى أو الصرف العلاجي أو ضريبة القيمة المضافة. سندات الموردين البنكية تستلزم اعتمادًا مستقلًا ومطابقة كشف البنك. التقرير لا يثبت قيمة مخزون افتتاحي تاريخي.</div></div>`+
+      `<nav id="invWorkspaces" class="inv-task-nav" role="tablist" aria-label="اختر مساحة عمل المخزن">`+
+      invTaskAreas.map(([key,label])=>`<button type="button" id="invTab${key}" role="tab" class="inv-task-tab" data-inv-tab="${key}" aria-controls="invArea${key}" aria-selected="false" tabindex="-1">${esc(label)}</button>`).join('')+
+      `</nav>`+
+      `<section id="invAreaoverview" class="inv-workspace" data-inv-workspace="overview" role="tabpanel" aria-labelledby="invTaboverview">`+
+      `<div class="inv-work-brief"><strong>ابدأ من المهمة، لا من قائمة المستندات.</strong><p>اختر مساحة العمل المناسبة. جميع الأرصدة والاعتمادات متاحة في أقسامها الأصلية؛ لا توجد عمليات مالية جديدة.</p></div>`+
+      `<div class="inv-work-actions">`+
+      `<button type="button" class="inv-jump" data-inv-go="stock">حركات المخزون <strong>${integer(pending)}</strong> للمراجعة</button>`+
+      `<button type="button" class="inv-jump" data-inv-go="purchasing">طلبات المشتريات <strong>${integer((d.purchase_orders||[]).filter(x=>x.status==='pending').length+(d.supplier_invoice_matches||[]).filter(x=>x.status==='pending').length)}</strong> للمراجعة</button>`+
+      `<button type="button" class="inv-jump" data-inv-go="suppliers">مستندات الموردين <strong>${integer(dueDocs.filter(x=>x.status==='pending').length+paymentRequests.filter(x=>x.status==='pending').length+(d.supplier_attribution_documents||[]).filter(x=>x.status==='pending').length+(d.supplier_opening_statements||[]).filter(x=>x.status==='pending').length)}</strong> للمراجعة</button>`+
+      `<button type="button" class="inv-jump" data-inv-go="returns">مرتجعات وتلف <strong>${integer((d.returns||[]).filter(x=>x.status==='pending').length+(d.writeoffs||[]).filter(x=>x.status==='pending').length)}</strong> للمراجعة</button>`+
+      `</div>`+
       `<div class="inv-stats"><div><small>أصناف مسجلة</small><strong>${integer(items.length)}</strong></div><div><small>الرصيد الدفتري (يشمل الحجر)</small><strong>${integer(totalUnits)}</strong></div><div><small>الحجر الطبي</small><strong>${integer(totalQuarantine)}</strong></div><div><small>المتاح بعد الحجر*</small><strong>${integer(totalAvailable)}</strong></div><div><small>قيمة المخزون (تشمل الحجر)</small><strong>${fmt(totalValue)} ج.م</strong></div></div>`+
       `<div class="info-box warning" role="note">الموافقة المحاسبية على المرتجع لا تعني صلاحية إعادة الاستخدام. الكمية المحجوزة طبيًا لا تدخل FIFO إلا بقرار طبي مستقل، والرصيد غير المحجوز لا يضمن الصلاحية أو سلامة العبوة؛ يتم فحصهما عند الصرف. لا يجوز استخدام هذه الدورة مع مرضى حقيقيين قبل اعتماد مكافحة العدوى.</div>`+
-      `<section class="panel inv-panel"><div class="panel-header"><div><h2>مشتريات الموردين — أوامر ومطابقة ثلاثية</h2><p>أمر شراء معتمد ← استلام جزئي معتمد ← فاتورة بنفس الأصناف والسعر والكمية. الاستلام هو وحده الذي يُسجّل دين المورد.</p></div></div>`+
-      `<div class="inv-stats"><div><small>استحقاق موردين من محاضر الاستلام فقط</small><strong>${fmt(suppliers.total_grn_accrued_piasters)} ج.م</strong></div><div><small>مطابق مع فاتورة مورد</small><strong>${fmt(suppliers.confirmed_piasters)} ج.م</strong></div><div><small>غير مطابق / قديم خارج دورة الشراء</small><strong>${fmt(suppliers.unmatched_piasters)} ج.م</strong></div></div>`+
-      (suppliers.vendors?.length?table(['المورد','محاضر معتمدة','استحقاق محاضر الاستلام','مطابق','غير مطابق'],suppliers.vendors.map(v=>`<tr><td>${esc(v.vendor_name)}</td><td class="num">${integer(v.approved_grns)}</td><td class="num">${fmt(v.grn_accrued_piasters)}</td><td class="num">${fmt(v.confirmed_piasters)}</td><td class="num">${fmt(v.unmatched_piasters)}</td></tr>`).join('')):empty('لا توجد استلامات مورّدين معتمدة بعد.'))+
-      `<p class="section-subtitle">هذه قيم مستندات GRN فقط، وليست رصيد المورد بعد المدفوعات أو ضريبة القيمة المضافة. المطابقة لا تُنشئ قيدًا ماليًا ثانيًا.</p></section>`+
+      `</section>`+
+      `<section id="invAreasuppliers" class="inv-workspace" data-inv-workspace="suppliers" role="tabpanel" aria-labelledby="invTabsuppliers">`+
       duePanel+
       paymentPanel+
       bankPanel+
@@ -262,6 +310,12 @@
         canPrepare&&['owner','clerk'].includes(state.me.role),canApprove&&['owner','reviewer'].includes(state.me.role),state.me.id)+
       supplierOpeningPanel(d.supplier_opening_statements||[],vendors,
         canPrepare&&['owner','clerk'].includes(state.me.role),canApprove&&['owner','reviewer'].includes(state.me.role),state.me.id)+
+      `</section>`+
+      `<section id="invAreapurchasing" class="inv-workspace" data-inv-workspace="purchasing" role="tabpanel" aria-labelledby="invTabpurchasing">`+
+      `<section class="panel inv-panel"><div class="panel-header"><div><h2>مشتريات الموردين — أوامر ومطابقة ثلاثية</h2><p>أمر شراء معتمد ← استلام جزئي معتمد ← فاتورة بنفس الأصناف والسعر والكمية. الاستلام هو وحده الذي يُسجّل دين المورد.</p></div></div>`+
+      `<div class="inv-stats"><div><small>استحقاق موردين من محاضر الاستلام فقط</small><strong>${fmt(suppliers.total_grn_accrued_piasters)} ج.م</strong></div><div><small>مطابق مع فاتورة مورد</small><strong>${fmt(suppliers.confirmed_piasters)} ج.م</strong></div><div><small>غير مطابق / قديم خارج دورة الشراء</small><strong>${fmt(suppliers.unmatched_piasters)} ج.م</strong></div></div>`+
+      (suppliers.vendors?.length?table(['المورد','محاضر معتمدة','استحقاق محاضر الاستلام','مطابق','غير مطابق'],suppliers.vendors.map(v=>`<tr><td>${esc(v.vendor_name)}</td><td class="num">${integer(v.approved_grns)}</td><td class="num">${fmt(v.grn_accrued_piasters)}</td><td class="num">${fmt(v.confirmed_piasters)}</td><td class="num">${fmt(v.unmatched_piasters)}</td></tr>`).join('')):empty('لا توجد استلامات مورّدين معتمدة بعد.'))+
+      `<p class="section-subtitle">هذه قيم مستندات GRN فقط، وليست رصيد المورد بعد المدفوعات أو ضريبة القيمة المضافة. المطابقة لا تُنشئ قيدًا ماليًا ثانيًا.</p></section>`+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>أوامر الشراء</h2><p>مراجعة مستقلة قبل بدء استلام الكميات</p></div></div>${docTable(d.purchase_orders||[],'purchase-orders',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقات فواتير الموردين</h2><p>الرفض لا يغيّر قيود الاستلام، ويمكن إعادة التقديم بمستند صحيح</p></div></div>${docTable(d.supplier_invoice_matches||[],'supplier-invoices',canApprove,state.me.id)}</section></div>`+
       (canPrepare?`<div class="inv-grid"><section class="panel panel-pad"><h2 class="section-title">طلب أمر شراء</h2><p class="section-subtitle">لا يصرف أموالًا ولا ينشئ مخزونًا. مثال الواجهة لصنف واحد؛ الـAPI يقبل عدة أصناف.</p><form id="invPurchaseOrderForm" class="inv-form">`+
@@ -283,6 +337,8 @@
           field('','مرجع أصل الفاتورة',input('evidence_ref','text','minlength="8" maxlength="180"'))+
           `<button type="submit" class="btn btn-primary">إرسال للمطابقة المستقلة</button></form>`:empty('لا توجد محاضر استلام مرتبطة بأوامر شراء ومعتمدة تنتظر مطابقة فاتورة.'))+
         `</section></div>`:'')+
+      `</section>`+
+      `<section id="invAreastock" class="inv-workspace" data-inv-workspace="stock" role="tabpanel" aria-labelledby="invTabstock">`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>الأرصدة حسب الصنف</h2><p>الرصيد الدفتري يشمل المرتجعات بالحجر حتى اعتماد تسويتها؛ لا يساوي جردًا ماديًا.</p></div>${isOwner?`<div class="inv-actions"><button id="invVendor" class="btn btn-small btn-outline">مورد جديد</button><button id="invItem" class="btn btn-small btn-primary">صنف جديد</button></div>`:''}</div>`+
       (items.length?table(['الكود','الصنف','الوحدة','المملوك','بالحجر','غير محجوز*','القيمة'],items.map(x=>`<tr><td>${esc(x.code)}</td><td><strong>${esc(x.name)}</strong></td><td>${esc(unitName[x.unit]||x.unit)}</td><td class="num">${integer(x.quantity_on_hand)}</td><td class="num">${integer(x.quarantined_quantity)}</td><td class="num">${integer(x.available_quantity)}</td><td class="num">${fmt(x.value_piasters)}</td></tr>`).join('')):empty('سجّل موردًا وصنفًا أولًا ثم أنشئ محضر توريد.'))+
       `</section>`+
@@ -308,6 +364,8 @@
         `<button class="btn btn-primary" type="submit" ${!items.length?'disabled':''}>إرسال إذن الصرف للمراجعة</button></form></section></div>`:'')+
       `<div class="inv-grid"><section class="panel inv-panel"><div class="panel-header"><div><h2>فواتير توريد الموردين</h2><p>تثبيت مخزون وموردين بعد مراجعة المستند</p></div></div>${docTable(d.receipts||[],'receipts',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>أذون صرف المستلزمات</h2><p>تكاليف حالة أو قسم، وليس تحصيلًا نقديًا</p></div></div>${docTable(d.issues||[],'issues',canApprove,state.me.id)}</section></div>`+
+      `</section>`+
+      `<section id="invAreareturns" class="inv-workspace" data-inv-workspace="returns" role="tabpanel" aria-labelledby="invTabreturns">`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>مرتجعات مستلزمات</h2><p>الاعتماد المالي يعيد الملكية إلى المخزون المحجوز، ولا يجعل المرتجع متاحًا حتى يجيزه طبيب مفوض مستقل.</p></div></div>${docTable(d.returns||[],'returns',canApprove,state.me.id)}</section>`+
       `<section class="panel inv-panel"><div class="panel-header"><div><h2>تسويات تلف وإعدام المستلزمات</h2><p>تسوية مستقلة للوحدات المرتجعة المرفوضة طبيًا فقط. الاعتماد يخصم من أصل المخزون ويثبت خسارة، ولا يغير تكلفة الحالة.</p></div></div>${docTable(d.writeoffs||[],'writeoffs',canApprove,state.me.id)}</section>`+
       (canPrepare?`<section class="panel panel-pad"><h2 class="section-title">طلب شطب مستلزم محجوز</h2>`+
@@ -328,13 +386,16 @@
         field('','رقم إذن الصرف الأصلي',`<input name="issue_id" type="number" min="1" step="1" required aria-label="رقم إذن الصرف الأصلي">`)+
         `<button type="submit" class="btn btn-secondary">عرض الدفعات القابلة للإرجاع</button></form>`+
       `<div id="invReturnSource" role="status" aria-live="polite"></div></section>`:'')+
+      `</section>`+
+      `<section id="invAreareports" class="inv-workspace" data-inv-workspace="reports" role="tabpanel" aria-labelledby="invTabreports">`+
       `<section class="panel panel-pad"><h2 class="section-title">تكلفة مستهلكات الحالة</h2>`+
       `<p class="section-subtitle">استعلام مقيد بتفويض المخزن ونقطة تحصيل الحالة. يعرض أذون الصرف المعتمدة فقط؛ لا يشمل الأدوية أو أتعاب الأطباء أو ربح الحالة.</p>`+
       `<form id="invCaseCostForm" class="inv-form">`+
       field('','رقم ملف الحالة',`<input name="case_id" type="number" min="1" step="1" required aria-label="رقم ملف الحالة">`)+
       `<button type="submit" class="btn btn-primary">عرض المستهلكات المعتمدة</button></form>`+
       `<div id="invCaseCostResult" role="status" aria-live="polite"></div></section>`+
-      `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقة مخزون المستلزمات مع الأستاذ</h2><p>حتى شهر ${esc(state.month)} · لا تشمل الرصيد التاريخي غير المُسجل في هذه الدورة</p></div><span class="chip ${rec.matched?'approved':'rejected'}">${rec.matched?'مطابقة مصدر المستندات ناجحة':'فروقات تحتاج مراجعة'}</span></div><div class="inv-recon"><span>رصيد سجل الأصناف: <strong>${fmt(rec.value_piasters)} جنيه</strong></span><span>رصيد القيود المرتبطة: <strong>${fmt(rec.inventory_gl_piasters)} جنيه</strong></span></div>${(rec.errors||[]).map(e=>`<div class="info-box warning" role="alert">${esc(e)}</div>`).join('')}</section>`;
+      `<section class="panel inv-panel"><div class="panel-header"><div><h2>مطابقة مخزون المستلزمات مع الأستاذ</h2><p>حتى شهر ${esc(state.month)} · لا تشمل الرصيد التاريخي غير المُسجل في هذه الدورة</p></div><span class="chip ${rec.matched?'approved':'rejected'}">${rec.matched?'مطابقة مصدر المستندات ناجحة':'فروقات تحتاج مراجعة'}</span></div><div class="inv-recon"><span>رصيد سجل الأصناف: <strong>${fmt(rec.value_piasters)} جنيه</strong></span><span>رصيد القيود المرتبطة: <strong>${fmt(rec.inventory_gl_piasters)} جنيه</strong></span></div>${(rec.errors||[]).map(e=>`<div class="info-box warning" role="alert">${esc(e)}</div>`).join('')}</section></section>`;
+    wireInventoryTaskAreas(root);
     $('#invCaseCostForm')?.addEventListener('submit',async event=>{
       event.preventDefault();
       const form=event.currentTarget, button=form.querySelector('button[type="submit"]');

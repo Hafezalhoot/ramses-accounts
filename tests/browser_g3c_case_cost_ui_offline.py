@@ -35,6 +35,7 @@ def run():
                 page.add_script_tag(content=CASE_FIXTURE)
                 page.add_script_tag(content=(ROOT/'static/inventory_ui.js').read_text())
                 page.evaluate('renderInventory()')
+                page.locator('[data-inv-tab="reports"]').click()
                 form=page.locator('#invCaseCostForm')
                 assert form.count()==1, ('missing cost lookup form',width)
                 form.locator('[name="case_id"]').fill('42')

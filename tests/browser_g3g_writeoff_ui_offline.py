@@ -14,6 +14,7 @@ def run():
         try:
             for width in (320,375,1440):
                 page=browser.new_page(viewport={'width':width,'height':860})
+                page.set_default_timeout(5500)
                 errors=[];page.on('pageerror',lambda exc:errors.append(str(exc)))
                 page.set_content('<!doctype html><html dir="rtl" lang="ar"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main id="content"></main></body></html>')
                 page.add_style_tag(content=(ROOT/'static/styles.css').read_text())
@@ -32,6 +33,7 @@ def run():
                 }''')
                 page.add_script_tag(content=(ROOT/'static/inventory_ui.js').read_text())
                 page.evaluate('renderInventory()')
+                page.locator('[data-inv-tab="returns"]').click()
                 page.locator('#invWriteoffForm').wait_for(timeout=5000)
                 assert 'Synthetic rejected supply' in page.locator('#content').inner_text()
                 assert page.locator('[data-inv-decision="writeoffs:62:approve"]').count()==1

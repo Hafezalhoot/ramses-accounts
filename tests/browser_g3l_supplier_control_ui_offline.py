@@ -15,6 +15,7 @@ def run():
         try:
             for width in (320,375,1440):
                 page=browser.new_page(viewport={'width':width,'height':900})
+                page.set_default_timeout(5500)
                 errors=[]
                 page.on('pageerror',lambda x: errors.append(str(x)))
                 page.set_content('<!doctype html><html lang="ar" dir="rtl"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main id="content"></main></body></html>')
@@ -39,6 +40,7 @@ def run():
                 }''')
                 page.add_script_tag(content=(ROOT/'static/inventory_ui.js').read_text(encoding='utf8'))
                 page.evaluate('renderInventory()')
+                page.locator('[data-inv-tab="suppliers"]').click()
                 panel=page.locator('#invSupplierControlPanel')
                 panel.wait_for(timeout=9000)
                 assert '2200' in panel.inner_text()

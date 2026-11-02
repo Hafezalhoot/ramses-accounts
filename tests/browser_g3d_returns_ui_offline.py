@@ -31,6 +31,7 @@ def run():
         try:
             for width in (1440,375,320):
                 page=browser.new_page(viewport={'width':width,'height':900})
+                page.set_default_timeout(5500)
                 errors=[]
                 page.on('pageerror',lambda error:errors.append(str(error)))
                 page.set_content('<!doctype html><html lang="ar" dir="rtl"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main id="content"></main></body></html>')
@@ -39,6 +40,7 @@ def run():
                 page.add_script_tag(content=FIXTURE)
                 page.add_script_tag(content=(ROOT/'static/inventory_ui.js').read_text())
                 page.evaluate('renderInventory()')
+                page.locator('[data-inv-tab="returns"]').click()
                 assert page.get_by_text('مرتجعات مستلزمات').count()>=1
                 assert page.locator('[data-inv-decision="returns:18:approve"]').count()==1
                 lookup=page.locator('#invReturnLookupForm')
