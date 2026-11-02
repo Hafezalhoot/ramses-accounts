@@ -1,0 +1,5 @@
+Database initialized: /tmp/ramses-s2-retry-vwtr3mgb/retry.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS S2 browser 375px: cashier receive -> real ASGI -> SQLite, no UI errors/overflow
+PASS S2 browser 1440px: cashier receive -> real ASGI -> SQLite, no UI errors/overflow
+PASS S2: partial retry and concurrent replay return one voucher; mismatch rejected; movement/GL balanced

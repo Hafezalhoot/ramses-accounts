@@ -218,6 +218,7 @@ class TreasuryDepositRequest(BaseModel):
     source_shift_id: int
     amount: str
     note: str = ''
+    client_request_id: str | None = None
 
 @router.get('/treasury-deposits')
 def list_treasury_deposits(month:str='',user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
@@ -247,14 +248,39 @@ def treasury_deposit(body:TreasuryDepositRequest,user=Depends(get_user),c:sqlite
     require(user,'owner','reviewer','clerk')
     from app import c_piasters, month_open, stamp, fund_balance
     import secrets
+    import re
+    import json
+    import hashlib
     import ledger
     amt=c_piasters(body.amount)
     note=body.note.strip()
     if not 8<=len(note)<=400:fail('اكتب مرجع التوريدة أو محضر التسليم')
+    request_id=(body.client_request_id or '').strip()
+    if request_id and not re.fullmatch(r'[A-Za-z0-9_-]{16,96}',request_id):
+        fail('رمز التوريدة غير صالح')
+    # A separate namespace prevents collisions with ordinary voucher submit keys.
+    key='treasury-deposit:'+request_id if request_id else ''
+    fingerprint=hashlib.sha256(json.dumps({
+        'source_shift_id':body.source_shift_id,'amount_piasters':amt,'note':note
+    },sort_keys=True,ensure_ascii=False).encode()).hexdigest()
     now_cairo=datetime.now(ZoneInfo('Africa/Cairo'))
     day=now_cairo.date().isoformat()
     with c:
         c.execute('BEGIN IMMEDIATE')
+        if key:
+            previous=c.execute('''SELECT k.payload_hash,k.created_by,v.id,v.amount_piasters,
+                     t.source_shift_id,t.target_shift_id
+                     FROM voucher_request_keys k JOIN vouchers v ON v.id=k.voucher_id
+                     LEFT JOIN cashier_treasury_transfers t ON t.voucher_id=v.id
+                     WHERE k.request_id=?''',(key,)).fetchone()
+            if previous:
+                if (previous['created_by']!=user['id'] or previous['payload_hash']!=fingerprint
+                        or previous['source_shift_id'] is None):
+                    fail('رمز التوريدة مستخدم لعملية مختلفة',409)
+                return {'status':'received','voucher_id':previous['id'],
+                        'amount_piasters':previous['amount_piasters'],
+                        'source_shift_id':previous['source_shift_id'],
+                        'central_shift_id':previous['target_shift_id'],'replayed':True}
         month_open(c,day[:7])
         source=c.execute('''SELECT s.*,p.id point_id,p.kind point_kind
                   FROM shift_sessions s JOIN billing_points p ON p.fund_id=s.fund_id
@@ -282,6 +308,12 @@ def treasury_deposit(body:TreasuryDepositRequest,user=Depends(get_user),c:sqlite
         if c.execute('''SELECT 1 FROM shift_sessions WHERE fund_id=? AND id>?
                 LIMIT 1''',(source['fund_id'],source['id'])).fetchone():
             fail('توجد وردية خارجية لاحقة؛ استخدم دورة توريد عهدتها الحالية',409)
+        # Even when a browser loses its retry key (or another device resends),
+        # the same source shift + physical envelope reference is not new money.
+        if c.execute('''SELECT 1 FROM cashier_treasury_transfers
+                WHERE source_shift_id=? AND UPPER(TRIM(note))=UPPER(?) LIMIT 1''',
+                (source['id'],note)).fetchone():
+            fail('هذا المحضر أو الظرف مثبت بتوريدة سابقة؛ استخدم مرجعًا مختلفًا للتوريدة الجديدة',409)
         transferred=c.execute('''SELECT COALESCE(SUM(amount_piasters),0) FROM cashier_treasury_transfers
                   WHERE source_shift_id=?''',(source['id'],)).fetchone()[0]
         if transferred+amt>source['counted_piasters']:
@@ -305,6 +337,9 @@ def treasury_deposit(body:TreasuryDepositRequest,user=Depends(get_user),c:sqlite
         c.execute('''INSERT INTO fund_movements(voucher_id,fund_id,amount_piasters,booked_on,shift_session_id)
                      VALUES (?,?,?,?,?)''',(v_id,destination['fund_id'],amt,day,destination['id']))
         ledger.post_voucher(c,c.execute('SELECT * FROM vouchers WHERE id=?',(v_id,)).fetchone(),user['id'])
+        if key:
+            c.execute('''INSERT INTO voucher_request_keys(request_id,voucher_id,payload_hash,created_by)
+                         VALUES (?,?,?,?)''',(key,v_id,fingerprint,user['id']))
         c.execute('''INSERT INTO cashier_treasury_transfers(source_shift_id,target_shift_id,
                     handoff_id,amount_piasters,voucher_id,received_by,received_at,note)
                     VALUES (?,?,?,?,?,?,?,?)''',

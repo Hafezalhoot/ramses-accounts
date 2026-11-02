@@ -5,7 +5,7 @@ const state = {
   month:new Date().toLocaleDateString("sv-SE").slice(0,7), shiftMonth:new Date().toLocaleDateString("sv-SE").slice(0,7), payrollMonth:new Date().toLocaleDateString("sv-SE").slice(0,7),
   ledger:{page:1,q:"",kind:"",status:"",department:""}, legacy:{page:1,q:"",issues_only:false},
   bankMonth:new Date().toLocaleDateString("sv-SE").slice(0,7), bankFundId:null,
-  prefill:null, payrollWorkPage:1, payrollAdjPage:1
+  prefill:null, payrollWorkPage:1, payrollAdjPage:1, treasuryDepositDrafts:{}
 };
 const $ = (s,root=document)=>root.querySelector(s);
 const $$ = (s,root=document)=>[...root.querySelectorAll(s)];
@@ -46,7 +46,7 @@ async function api(path,options={}) {
 function post(path,data={}){return api(path,{method:"POST",body:JSON.stringify(data)});}
 function toast(message,bad=false){const e=$("#toast");e.textContent=message;e.classList.toggle("error",bad);e.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.hidden=true,4800);}
 function errorView(message){$("#content").innerHTML=`<div class="info-box warning">${ico("alert")}<div>${esc(message)}</div></div>`;}
-function showLogin(){state.me=null;state.csrf="";state.view="dashboard";$("#content").replaceChildren();$("#shell").hidden=true;$("#loginPage").hidden=false;}
+function showLogin(){state.treasuryDepositDrafts={};state.me=null;state.csrf="";state.view="dashboard";$("#content").replaceChildren();$("#shell").hidden=true;$("#loginPage").hidden=false;}
 async function login(e){
  e.preventDefault();const form=e.currentTarget;$("#loginError").hidden=true;
  const button=$("button[type=submit]",form);button.disabled=true;
@@ -479,8 +479,11 @@ async function renderShifts(){
   const scheduleOld=data.schedule||[{code:'night',start:'00:00',end:'08:00'},
     {code:'morning',start:'08:00',end:'16:00'},
     {code:'evening',start:'16:00',end:'00:00'}];
-  const schedule=[...new Map([...scheduleOld,...config.points.flatMap(p=>p.versions.at(-1)?.slots||[])]
-       .map(s=>[s.code,s])).values()];
+  const configuredSlots=config.points.flatMap(p=>{
+    const slots=[...(p.versions.at(-1)?.slots||[])].sort((a,b)=>a.start.localeCompare(b.start));
+    return slots.map((slot,i)=>({...slot,end:slots.length===1?'24:00':slots[(i+1)%slots.length].start}));
+  });
+  const schedule=[...new Map([...scheduleOld,...configuredSlots].map(s=>[s.code,s])).values()];
   const suggested=data.suggested||{business_date:new Date().toLocaleDateString('sv-SE',{timeZone:'Africa/Cairo'}),shift:'morning'};
   const labels=Object.fromEntries(config.points.flatMap(p=>p.versions.at(-1)?.slots||[]).map(s=>[s.code,s.name]));
   Object.assign(labels,{night:'سهر',morning:'صباحي',evening:'مسائي'});
@@ -494,6 +497,7 @@ async function renderShifts(){
     const controls=[];
     if(canReview)controls.push(`<button class="btn btn-small btn-secondary" data-shift-action="details" data-shift-id="${s.id}">${ico('list')} كشف الحركة</button>`);
     if(s.can_handoff)controls.push(`<button class="btn btn-small btn-primary" data-shift-action="handoff" data-shift-id="${s.id}">\u0627\u0633\u062a\u0644\u0627\u0645 \u0627\u0644\u0639\u0647\u062f\u0629</button>`);
+    if(s.can_treasury_deposit || state.treasuryDepositDrafts[s.id])controls.push(`<button class="btn btn-small btn-primary" data-shift-action="treasury-deposit" data-shift-id="${s.id}">توريد النقدية للخزنة الداخلية</button>`);
     if(canReview || s.mine)controls.push(`<button class="btn btn-small btn-outline" data-shift-action="evidence" data-shift-id="${s.id}">إثباتات الوردية</button>`);
     if(canReview || s.mine)controls.push(`<button class="btn btn-small btn-outline" data-shift-action="daily" data-shift-id="${s.id}">\u064a\u0648\u0645\u064a\u0629 \u0627\u0644\u0648\u0631\u062f\u064a\u0629</button>`);
     if(s.status==='open'&&s.mine)controls.push(`<button class="btn btn-small btn-primary" data-shift-action="count" data-shift-id="${s.id}">تسليم الجرد</button>`);
@@ -598,6 +602,29 @@ async function renderShifts(){
         await api(`/api/cashier/shifts/${id}/attachments/${encodeURIComponent(form.kind)}`,{method:'POST',body:payload});
         toast('تم رفع إثبات الوردية وحفظه في السجل');navigate('shifts');
       }catch(e){toast(e.message,true)}
+      return;
+    }
+    if(action==='treasury-deposit'){
+      const pending=state.treasuryDepositDrafts[id];
+      const form=await modal('توريد النقدية المستلمة للخزنة الرئيسية',
+        `المتبقي من الجرد المقبول: <strong>${fmt(row.treasury_remaining_piasters)} ج.م</strong>. أدخل النقدية الفعلية التي استلمتها، ورقم محضر أو ظرف مميز لكل توريدة. التوريد قيد مستقل ولا يكرر الإيراد.`,[
+        {name:'amount',type:'number',label:'مبلغ التوريدة الفعلي بالجنيه',required:true,
+          value:pending?.amount||String((row.treasury_remaining_piasters||0)/100)},
+        {name:'note',type:'textarea',label:'مرجع محضر الاستلام أو رقم الظرف (8 أحرف على الأقل)',required:true}],
+        f=>{if(pending)f.querySelector('[name="note"]').value=pending.note;});
+      if(!form)return;
+      const amount=String(form.amount).trim(),note=String(form.note).trim();
+      const same=pending&&pending.amount===amount&&pending.note===note;
+      const client_request_id=same?pending.client_request_id:
+        (globalThis.crypto?.randomUUID?.() || (Date.now().toString(36)+Math.random().toString(36).slice(2,17)));
+      state.treasuryDepositDrafts[id]={amount,note,client_request_id};
+      try{
+        const receipt=await post('/api/cashier/treasury-deposits',
+          {source_shift_id:id,amount,note,client_request_id});
+        delete state.treasuryDepositDrafts[id];
+        toast(`تم إثبات التوريدة في الخزنة الرئيسية · سند ${receipt.voucher_id}${receipt.replayed?' (تأكيد طلب سابق)':''}`);
+        navigate('shifts');
+      }catch(e){toast(e.message,true);}
       return;
     }
     if(action==='handoff'){

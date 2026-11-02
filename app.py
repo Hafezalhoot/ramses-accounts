@@ -1087,8 +1087,12 @@ def shifts(month:str="", user=Depends(get_user), c:sqlite3.Connection=Depends(db
     if user["role"]=="clerk":
         where+=""" AND (s.responsible_id=? OR (s.status='submitted' AND EXISTS (
            SELECT 1 FROM billing_points p JOIN billing_point_access a ON a.point_id=p.id
-           WHERE p.fund_id=s.fund_id AND a.user_id=? AND a.active=1)))"""
-        args.extend([user['id'],user['id']])
+           WHERE p.fund_id=s.fund_id AND a.user_id=? AND a.active=1))
+           OR (s.status IN ('submitted','closed') AND EXISTS (
+           SELECT 1 FROM shift_handoffs h WHERE h.shift_session_id=s.id
+           AND h.count_version=s.count_version AND h.decision='accepted'
+           AND h.received_by=?)))"""
+        args.extend([user['id'],user['id'],user['id']])
     elif user['role']=='reviewer':
         scoped,scope_args=reviewer_shift_scope_sql(user)
         where+=' AND '+scoped
@@ -1097,6 +1101,13 @@ def shifts(month:str="", user=Depends(get_user), c:sqlite3.Connection=Depends(db
             r.username reviewer_name FROM shift_sessions s JOIN funds f ON f.id=s.fund_id
             JOIN users u ON u.id=s.responsible_id
             LEFT JOIN users r ON r.id=s.reviewed_by """+where+" ORDER BY s.business_date DESC,s.id DESC LIMIT 250",args).fetchall()
+    # Only the receiver who has an OPEN internal treasury shift may physically
+    # deposit a previously accepted external drawer. The POST rechecks this.
+    treasury=c.execute("""SELECT s.id,s.fund_id FROM shift_sessions s
+          JOIN billing_points p ON p.fund_id=s.fund_id AND p.kind='internal'
+          WHERE s.status='open' AND s.business_date=? AND s.responsible_id=?
+          ORDER BY s.id DESC LIMIT 1""",
+          (datetime.now(ZoneInfo('Africa/Cairo')).date().isoformat(),user['id'])).fetchone()
     result=[]
     for r in rows:
         item=dict(r)
@@ -1115,6 +1126,21 @@ def shifts(month:str="", user=Depends(get_user), c:sqlite3.Connection=Depends(db
               'SELECT 1 FROM billing_point_access WHERE point_id=? AND user_id=? AND active=1',
               (station['id'],user['id'])).fetchone()))
         item['can_handoff']=bool(can_receive)
+        remaining=0
+        eligible=bool(treasury and handoff and handoff['decision']=='accepted'
+           and handoff['received_by']==user['id'] and not item['mine']
+           and r['status'] in ('submitted','closed') and r['fund_id']!=treasury['fund_id']
+           and station and c.execute("SELECT 1 FROM billing_points WHERE fund_id=? AND kind='external'",
+                                      (r['fund_id'],)).fetchone()
+           and not c.execute('SELECT 1 FROM shift_sessions WHERE fund_id=? AND id>? LIMIT 1',
+                             (r['fund_id'],r['id'])).fetchone())
+        if eligible:
+            transferred=c.execute('SELECT COALESCE(SUM(amount_piasters),0) FROM cashier_treasury_transfers WHERE source_shift_id=?',
+                                  (r['id'],)).fetchone()[0]
+            remaining=max(0,(r['counted_piasters'] or 0)-transferred)
+            eligible=remaining>0 and fund_balance(c,r['fund_id'])>0
+        item['can_treasury_deposit']=bool(eligible)
+        item['treasury_remaining_piasters']=remaining if eligible else None
         can_review_role=(user['role']=='owner' or (user['role']=='reviewer' and (
             (r['fund_kind']=='cash' and not r['fund_restricted']) or
             fund_grant_rights(c,user,r['fund_id'])['can_approve'])))

@@ -1,3 +1,32 @@
+# S2 verification and evidence (2026-11-02)
+
+## Starting state
+
+- Verified original G3N-S1 ZIP SHA-256 `8287690bd1f69b3f93566a169b14e9c28d09fb3086baf72feca51cda724e670c` and Git bundle SHA-256 `8788d7f122e05ebab06d8f2e47686e47004a31973e40b9a3a4a414332dc98893`.
+- Checked out new branch from commit `1c35cb57812b0cde6670b7d1a5e3f07c95e550be` rather than modifying source baseline.
+
+## Executed locally on disposable SQLite
+
+- `python tests/test_s2_cashier_24h_acceptance.py`: PASS (4 closed shifts, 600 EGP deposits, 50 EGP central expense, 550 EGP balance, source 0, one revenue recognition and balanced GL, integrity/FKs).
+- `python tests/test_s2_treasury_retry.py`: PASS (initial same-key duplicate produced two vouchers **before fix**; after fix same-key replay returns one, changed amount/wrong identity/changed key with same physical reference rejected 409, simultaneous two-thread retry produced one voucher).
+- `python tests/browser_s2_cashier_treasury_ui.py`: PASS, 375 px and 1440 px, real Chromium DOM and JavaScript with browser fetch bridged into REAL FastAPI TestClient/SQLite, two additional positive deposits. No horizontal overflow, no page JS errors. Previously `undefined` shift clock assertion failed and now passes.
+- `python tests/test_v81e_p3_main_treasury.py`: PASS (historical external-to-central and settled variance/ledger).
+- `python tests/test_v81e_p4_shortage_repayment.py`: PASS (historic 6+4 settlement, immutable records, GL).
+- `node --check static/app.js`: PASS.
+- `git diff --check`: PASS.
+
+## Wider regression
+
+- `python scripts/qa_g2t_full.py`: **two independent complete runs, each exit 0**: 140 scripts, **134 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT**. After final code changes direct S2 and historic treasury scripts passed again. This runner uses `SKIP` for missing predecessor fixtures; it never equates them with passes.
+- `python scripts/ci_smoke.py`: **66/66 PASS (exit 0)**. Historical V8.0 migrations are explicitly excluded.
+- Browser network HTTP, TLS/reverse-proxy, actual hospital deployment, real banking credentials, V8.0 original upgrade, off-device restore, certified UAT: **NOT EXECUTED**.
+
+Synthetic source screenshots can be found in separate release bundle. All accounts, staff, amounts, bank funds and transactions are artificial.
+
+---
+
+## Historical project record — preserved from S1 source
+
 # G3D final local full QA — 2026-11-01
 
 - Branch `feat/g3d-case-consumables-returns`, 120 unique scripts invoked: **114 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL, 0 TIMEOUT**. Source `/mnt/data/QA_G3D_TEST_RESULTS.tsv`. Full runner exit code 0.

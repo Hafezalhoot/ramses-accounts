@@ -1,3 +1,26 @@
+# Ramses Accounts — stabilization-first delivery roadmap
+
+| Priority | Gate | State | Evidence / pass criterion |
+|---|---|---|---|
+| P0 | S1 inventory workspaces | verified in synthetic UI | Source baseline S1 tests; no production claim |
+| P0 | S2 multi-role financial-day reconciliation | verified in process | `tests/test_s2_cashier_24h_acceptance.py`; 4 closed shifts, 600/50/550 EGP, balanced GL |
+| P0 | S2 no duplicate physical deposit | verified in process | `tests/test_s2_treasury_retry.py`; same key replay, different body/person/reference denied, 2-thread race |
+| P0 | S2 cash receiver real screen action | verified by browser-to-ASGI bridge | `tests/browser_s2_cashier_treasury_ui.py` at 375/1440 px, not real HTTP |
+| P0 | S3 real HTTP/TLS, CSRF and physical-device test | blocked | Approved staging URL/device/network is required |
+| P0 | S4 integrated cashier + patient + bank + procurement + close UAT | not started | Signed 24-hour + late-entry exception scenarios and subledger/GL reconciliation |
+| P0 | S5 actual V8.0 migration and independent restore | blocked | Original verified V8.0 archive, balance sheet, recovery hardware and owner sign-off |
+| P0 | Source documents/clinical approvals | blocked | Approved signatures, evidence policies and clinical billing rules |
+| P1 | Supplier account 2200 reconciliation in month closing | planned | Define exceptions and approved accounting treatment first; never auto-adjust |
+| P1 | Central inventory query N+1 and large-ledger pagination | planned | Repeatable 1000/10000-item timing and memory budget; parity invariants |
+| P1 | Multi-store stocktake/transfer and documented clinical procedure costs | planned | Start only after integrated release blockers resolved |
+| P2 | Physician fees, insurance billing, regulatory e-invoice and formal payroll | not started | Signed business policies / contract models required |
+
+No unverified milestone is a percentage, and passing synthetic scripts is not a production release.
+
+---
+
+## Historical project record — preserved from S1 source
+
 # Ramses V8.1E-G3N — supplier signed statement control / TEST ONLY
 
 - G3M source preserved. Review a *prior completed month-end* supplier statement against the source-attributed GL 2200 balance, including source digest and independent maker-checker. This review does not post opening balance, tax, debit/credit note or bank movement.

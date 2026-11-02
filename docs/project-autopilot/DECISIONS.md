@@ -1,3 +1,18 @@
+# S2 technical/operational decisions
+
+- Preserve G3N-S1 backend ledger, SQLite schema and permission guards; no unasked redesign or accounting migrations.
+- Treat an independently accepted external shift as the source of custody for a **physical** treasury receipt. Destination must be the same receiver's open current-day central shift; another accountant approves shift closure.
+- Use existing `voucher_request_keys` with `treasury-deposit:` namespace to atomically deduplicate retry keys; a replay returns previously approved voucher metadata before shift/period revalidation and causes no mutation.
+- Keep `client_request_id` optional for historical scripts/existing clients, but always supply it from the S2 UI; document residual compatibility risk until all callers migrate.
+- Block duplicate normalized physical `note` for the same source shift, even when submitted from a different tab/device/request key. Distinct partial deposits require distinct original envelope references. This guards accidental duplicate cash, not forged evidence or different descriptions of one envelope.
+- Reuse the shift page and existing modal instead of another management dashboard. Expose button only from server-calculated receiver eligibility; view gating is helpful UX, not an authorization boundary.
+- Keep current-page retry key while awaiting confirmed response; if a browser restart loses it, a repeated physical reference raises 409 and must be reconciled rather than silently posted twice. Do not persist sensitive finance notes across users in browser localStorage.
+- Preserve Cairo typography, RTL, current palette and layouts. Fix schedule `end` metadata instead of manually writing a misleading fixed period.
+
+---
+
+## Historical project record — preserved from S1 source
+
 # G3A Decisions — test-only
 
 - **D-01:** Prefer a real `clinician` SQLite login role, not a custom viewer grant or client-side flag. This requires rebuilding the users table with SQLite FKs temporarily disabled *only* inside a single transaction, backed by verified encrypted snapshot and followed by `foreign_key_check`.
