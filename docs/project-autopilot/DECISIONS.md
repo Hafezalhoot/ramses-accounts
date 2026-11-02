@@ -1,3 +1,20 @@
+# S3 decisions - test-only
+
+- Reuse the S2 and G2B/G2D API scenarios without rewriting cashier/GL code.
+  Supply an in-test requests.Session adapter that launches a separate Uvicorn
+  process after the fixture database exists, so cookies, network requests and
+  server process boundaries are genuine.
+- Keep HTTP transport separate from browser transport. Admin-blocked Chromium
+  loopback cannot be counted as a success, and HTTP without TLS cannot prove
+  production session transport security.
+- Run all five S3 suites separately from the 140-script fast source runner;
+  CI is not delayed by a browser/network readiness gate. Persist exact
+  verification logs and scope, do not invent closure of unknown tests.
+- Never change live accounting/business decisions on the strength of synthetic
+  HTTP testing. No real hospital data, no deployment or source pushing.
+
+---
+
 # S2 technical/operational decisions
 
 - Preserve G3N-S1 backend ledger, SQLite schema and permission guards; no unasked redesign or accounting migrations.

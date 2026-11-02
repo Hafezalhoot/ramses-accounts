@@ -1,3 +1,41 @@
+# Ramses Accounts - Stabilization S3 (TEST ONLY; 2026-11-02)
+
+Base commit: `3e9669229b5ecc3da954416c1a541ff8642ea71c` (S2). Branch:
+`stabilization/s3-http-late-entry-acceptance`. No financial production
+code, SQLite schema, prices, staff permissions or hospital data were changed.
+
+## Implemented
+
+- An isolated `requests.Session` transport drives **unchanged legacy real API
+  workflows** over a genuine separate-process Uvicorn HTTP socket and
+  disposable SQLite; clients have independent cookie jars.
+- 5 synthetic HTTP gates: S2 full 24h cashier day; treasury deposit retry/race;
+  G2B prior-month late invoice; G2D three mixed-envelope reconciliations;
+  cookies, CSRF, login and role rejection. Historical evidence upload uses
+  actual multipart HTTP. All are independent scenarios, NOT a unified day UAT.
+- Strengthened S2 cashier daily-report regression: independently-closed
+  morning/evening/night reports, central 600/50/550 EGP ledger reconciliation,
+  server-side denial of a clerk reading another shift's detailed report.
+- Source tests stay in original files and shared test transport lives in
+  `tests/s3_http_transport.py`; run from `scripts/qa_s3_real_http.py` so the
+  older 140-script source suite does not accidentally include network tests.
+
+## Evidence limitation and release gate
+
+This validates local **HTTP over TCP**, not browser-to-HTTP. The existing
+Chromium test was rerun and returned `net::ERR_BLOCKED_BY_ADMINISTRATOR` for
+loopback navigation. No TLS/HTTPS/certificate, hospital firewall/proxy,
+physical devices/printers, real cashier staff or connected hospital UAT was
+verified. No V8.0 original archive or independent encrypted off-device
+restore was available. No production deployment. **PRODUCTION NO-GO**.
+
+Next unblocked work: retain a sealed synthetic workday combining shifts,
+patient receipts, delayed evidence, supplier bank settlement and independent
+GL/subledger preflight. The full 24h plus mixed-envelope suites above do
+not yet prove that combined scenario in the same database.
+
+---
+
 # Ramses Accounts — Stabilization S2 (TEST_ONLY)
 
 Date: 2026-11-02 (Africa/Cairo)

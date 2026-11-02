@@ -6,10 +6,12 @@
 | P0 | S2 multi-role financial-day reconciliation | verified in process | `tests/test_s2_cashier_24h_acceptance.py`; 4 closed shifts, 600/50/550 EGP, balanced GL |
 | P0 | S2 no duplicate physical deposit | verified in process | `tests/test_s2_treasury_retry.py`; same key replay, different body/person/reference denied, 2-thread race |
 | P0 | S2 cash receiver real screen action | verified by browser-to-ASGI bridge | `tests/browser_s2_cashier_treasury_ui.py` at 375/1440 px, not real HTTP |
-| P0 | S3 real HTTP/TLS, CSRF and physical-device test | blocked | Approved staging URL/device/network is required |
+| P0 | S3 actual local Uvicorn HTTP, sessions, CSRF | verified in synthetic HTTP | Five isolated suites; 4 historical workflows plus login/cookie security; **not browser/TLS** |
+| P0 | S3 physical browser HTTPS/LAN/printer | blocked | Chromium sandbox loopback denied; approved staging TLS URL and hospital device required |
 | P0 | S4 integrated cashier + patient + bank + procurement + close UAT | not started | Signed 24-hour + late-entry exception scenarios and subledger/GL reconciliation |
 | P0 | S5 actual V8.0 migration and independent restore | blocked | Original verified V8.0 archive, balance sheet, recovery hardware and owner sign-off |
 | P0 | Source documents/clinical approvals | blocked | Approved signatures, evidence policies and clinical billing rules |
+| P1 | Historical shift labels in day-summary UI | source-review finding; not browser-reproduced | `static/app.js` currently resolves labels from latest schedule only and uses `esc(labels[sh.shift])`; confirm past custom code fallback before fixing |
 | P1 | Supplier account 2200 reconciliation in month closing | planned | Define exceptions and approved accounting treatment first; never auto-adjust |
 | P1 | Central inventory query N+1 and large-ledger pagination | planned | Repeatable 1000/10000-item timing and memory budget; parity invariants |
 | P1 | Multi-store stocktake/transfer and documented clinical procedure costs | planned | Start only after integrated release blockers resolved |

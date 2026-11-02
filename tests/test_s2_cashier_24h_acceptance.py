@@ -112,6 +112,19 @@ def run():
         assert {s['status'] for s in summary['stations']} == {'closed'}, summary
         assert summary['pending_accounting_review'] == 0
         assert summary['shift_coverage_complete'] is True, summary['coverage']
+        assert summary['financially_certified'] is False, 'A synthetic day is never a signed cash certification'
+        for (name, amount), shift_id in zip((('night', 100), ('morning', 200), ('evening', 300)), shifts):
+            daily = ok(owner.get(f'/api/shifts/{shift_id}/daily-report'))
+            assert daily['status'] == 'closed' and daily['expected_piasters'] == amount * 100, daily
+            assert daily['cash_credited_piasters'] == amount * 100, daily
+            assert daily['cash_debited_piasters'] == 0, daily
+            assert daily['handoff_status'] == 'accepted', daily
+        central_daily = ok(owner.get(f'/api/shifts/{central_id}/daily-report'))
+        assert central_daily['status'] == 'closed', central_daily
+        assert central_daily['cash_credited_piasters'] == 60000, central_daily
+        assert central_daily['cash_debited_piasters'] == 5000, central_daily
+        assert central_daily['expected_piasters'] == 55000, central_daily
+        assert ok(clients['night'].get(f'/api/shifts/{central_id}/daily-report'), 403) is None
         with connect() as c:
             fund_balance = lambda fid: c.execute('''SELECT opening_piasters + COALESCE(
                  (SELECT SUM(amount_piasters) FROM fund_movements WHERE fund_id=?),0)

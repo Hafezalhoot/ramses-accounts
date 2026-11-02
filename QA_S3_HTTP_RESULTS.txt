@@ -1,0 +1,35 @@
+RUN S3 cashier_day
+Database initialized: /tmp/ramses-s2-24h-ep_z9qf_/day.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=19761 ready on 127.0.0.1
+PASS S2: 3 external + 1 internal shifts, 600 EGP cash -> main, 50 EGP expense, 550 EGP cash, 4 independently closed, GL balanced
+PASS S3 real Uvicorn HTTP: cashier_day
+{'http_requests': 64, 'server_process': 19761, 'server_exit': None, 'transport': 'requests.Session real TCP HTTP to Uvicorn', 'tls': False, 'chromium_http': False, 'synthetic_database': True}
+RUN S3 deposit_retries
+Database initialized: /tmp/ramses-s2-retry-05px3cl6/retry.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=19875 ready on 127.0.0.1
+PASS S2: partial retry and concurrent replay return one voucher; mismatch rejected; movement/GL balanced
+PASS S3 real Uvicorn HTTP: deposit_retries
+{'http_requests': 33, 'server_process': 19875, 'server_exit': None, 'transport': 'requests.Session real TCP HTTP to Uvicorn', 'tls': False, 'chromium_http': False, 'synthetic_database': True}
+RUN S3 late_invoice
+Database initialized: /tmp/tmppg6mvcup/g2b.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=20032 ready on 127.0.0.1
+PASS G2B: closed-old-month late visit; independent triage; historical pricing; current GL; no invented cash
+PASS S3 real Uvicorn HTTP: late_invoice
+{'http_requests': 41, 'server_process': 20032, 'server_exit': None, 'transport': 'requests.Session real TCP HTTP to Uvicorn', 'tls': False, 'chromium_http': False, 'synthetic_database': True}
+RUN S3 mixed_envelope
+Database initialized: /tmp/tmpqdezwi71/g2d.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=20175 ready on 127.0.0.1
+PASS G2D mixed: gross 4500, paper expenses 600, cash 3900, shortage 50, overage 50, zero duplicate cash
+PASS S3 real Uvicorn HTTP: mixed_envelope
+{'http_requests': 81, 'server_process': 20175, 'server_exit': None, 'transport': 'requests.Session real TCP HTTP to Uvicorn', 'tls': False, 'chromium_http': False, 'synthetic_database': True}
+RUN S3 http_security
+Database initialized: /tmp/ramses-s3-http-auth-4da4ytkv/auth.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=20264 ready on 127.0.0.1
+PASS S3 HTTP security: cookies, independent sessions, 401/403, CSRF and no financial writes
+{'http_requests': 15, 'server_process': 20264, 'server_exit': None, 'transport': 'requests.Session real TCP HTTP to Uvicorn', 'tls': False, 'chromium_http': False, 'synthetic_database': True}
+S3_HTTP_RESULT=5/5 PASS; failures=[]

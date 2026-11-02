@@ -1,3 +1,43 @@
+# S3 - local real-HTTP proof (2026-11-02)
+
+Source: S2 commit `3e9669229b5ecc3da954416c1a541ff8642ea71c`.
+The browser still cannot reach local HTTP (administrator policy), therefore
+S3 uses independent `requests.Session` clients to a separate Uvicorn process,
+not mocked/TestClient transport. All DBs are ephemeral SQLite with synthetic
+funds, users, invoices, shifts and evidence.
+
+## Direct S3 real HTTP results
+
+- cashier_day: PASS; 4 independent shifts, 600 EGP external, 50 EGP central
+  expense, 550 EGP main; detailed reports match and outsiders denied.
+- deposit_retries: PASS; same request key and two parallel HTTP retries
+  produce one voucher; changed amounts/other physical key rejected.
+- late_invoice: PASS; old closed-month evidence links to a current-period
+  invoice/GL; no fictional historical cash.
+- mixed_envelope: PASS; 4500 gross patient invoices, 600 old paper expenses,
+  3900 net physical cash, +/-50 EGP tracked in suspense, no double cash.
+- http_security: PASS; separate cookies and active CSRF required, 401/403,
+  HttpOnly/SameSite Strict, role denial, static HTML/JS through real HTTP.
+
+**Five independently isolated HTTP suites passed (5/5, exit 0)**. See the committed
+`QA_S3_HTTP_RESULTS.txt` for source-own outputs and HTTP request counts.
+This does not establish real hospital finance signoff or actual TLS/browser
+network readiness. Original Chromium loopback attempt still blocked.
+
+## Additional checks
+
+- Updated S2 daily report assertions passed using TestClient and Uvicorn HTTP.
+- `python scripts/qa_g2t_full.py`: 140 scripts; 134 PASS + 5 SKIP + 1
+  BLOCKED_NO_V80, zero FAIL/TIMEOUT; exit 0. Full source output is
+  `QA_S3_TEST_RESULTS.tsv` and `QA_S3_FULL_SUMMARY.txt`.
+- `python scripts/ci_smoke.py`: **66/66 PASS (exit 0)**, retained in
+  `QA_S3_CI_RESULTS.txt`; historical V8.0 migration remains unverified.
+- Counts represent executed test scripts, NOT statement/branch coverage.
+- V8.0 original migration, off-device restore, TLS/real browser, clinical
+  authenticity and real 24h UAT are explicit **NOT VERIFIED** gates.
+
+---
+
 # S2 verification and evidence (2026-11-02)
 
 ## Starting state
