@@ -1,3 +1,9 @@
+# Current: Ramses Accounts - Stabilization S4 (2026-11-02, TEST ONLY)
+
+Branch `stabilization/s4-integrated-day`; baseline S3 `4e425e4`. Verified one synthetic shared-DB financial day across patient/cashier/historical envelope/supplier/bank plus protected month-close preflight; full QA **135 PASS / 5 SKIP / 1 BLOCKED_NO_V80**, CI **66/66 PASS**. Genuine separate Uvicorn HTTP exercised 161 requests. Production NO-GO: no true V8.0 migration, off-device restore, real browser HTTPS, hospital UAT or independent sign-offs. Intermittent setup HTTP 500 during parallel test load remains an explicit open load-risk, not a proven fixed bug. Read `README_S4.md`, S4 section of `TEST_REPORT.md` and release QA summary before using.
+
+---
+
 # Ramses Accounts - Stabilization S3 (TEST ONLY; 2026-11-02)
 
 Base commit: `3e9669229b5ecc3da954416c1a541ff8642ea71c` (S2). Branch:
@@ -115,3 +121,11 @@ Next three:
 1. Independent medical identity/signature approval, clinical source custody policy, short-lived file/upload and privacy audit.
 2. Governed remediation for historical unbilled reference-only/legacy viewer witnesses, with human audit and no silent DB rewrite.
 3. Case-linked operating room/NICU consumables and suppliers/doctors/insurance subledger followed by independent hospital UAT and offsite restore.
+
+---
+
+# S4 integrated one-database financial day (2026-11-02, TEST_ONLY)
+
+Baseline S3 `4e425e4`, isolated branch `stabilization/s4-integrated-day`. No production financial code, database schema, or hospital deployment modified. Implemented one source-owned `tests/test_s4_integrated_day.py` with actual patient invoice collection, external and internal tills, historical envelope reconstruction, supplier bank posting, approved bank statement, financial reconciliation and simulated month-end close.
+
+Verified local acceptance: in-process single DB PASS; real Uvicorn HTTP same scenario PASS, 161 real TCP requests. Full regression 141 = 135 PASS, 5 SKIP, 1 BLOCKED_NO_V80; CI 66/66 PASS. Intermittent HTTP 500 during parallel QA load is not yet root-caused; 3 subsequent sequential 161-request runs passed. Real current-month close correctly blocked; only in-process test temporarily patches clock to exercise after-month seal. Original V8.0 and real hospital UAT unavailable. Release remains **DEVELOPMENT ONLY / NO-GO PRODUCTION**. Full CI and regression results belong to the S4 verification report, not inferred from this integration PASS.

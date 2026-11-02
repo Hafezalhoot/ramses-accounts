@@ -1,3 +1,9 @@
+# Ramses Accounts G3N-S4 - integrated financial day / TEST ONLY / NO-GO
+
+Current development branch `stabilization/s4-integrated-day` from S3 `4e425e4`. One reusable synthetic single-DB acceptance test covers actual patient invoice and collection, 3 cashier shifts and internal vault, a prior closed-paper envelope, supplier procurement/settlement, separately authorized bank statement reconciliation, 2200 control, GL and guarded period close. It passes in FastAPI TestClient and over 161 HTTP requests to Uvicorn. Source full QA 141 = 135 PASS, 5 SKIP, 1 BLOCKED V8.0; CI 66/66 PASS. No production backend/GL/schema change or deployed system. One intermittent HTTP 500 under parallel test load is recorded for further investigation, **not considered repaired**. Read `README_S4.md` and `docs/project-autopilot/TEST_REPORT.md`. Production remains **NO-GO** until authentic historical migration, witness off-device restore, secured browser/LAN and authorized finance/clinical/IT UAT.
+
+---
+
 # Ramses Accounts V8.1E-G3N / S1 — Operational Stabilization / TEST ONLY
 
 Latest UI/QA improvement: six task-specific warehouse workspaces replace the 23-panel mega-view; genuine Chromium-to-FastAPI TestClient-to-SQLite acceptance verifies synthetic independent receipt approval and Dr1100/Cr2200, but not network HTTP. **NO DB migration, new GL schema, bank action or production deployment.** Full regression 138 = 132 PASS/5 SKIP/1 BLOCKED V8.0/0 FAIL. Independent CI 66/66 PASS. See `README_S1_AR.md`, `STABILIZATION_S1_STATUS_AR.md`. **NO-GO hospital production.**

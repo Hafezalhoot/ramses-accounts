@@ -1,3 +1,33 @@
+# S4 verified synthetic integrated financial-day acceptance (2026-11-02)
+
+**Status: DEVELOPMENT TEST_ONLY / HOSPITAL PRODUCTION NO-GO.** Source S3 baseline `4e425e490d027922e8b4ab5f43d7aa0c4a2c874f`. Isolated branch `stabilization/s4-integrated-day`. No financial backend, GL rules, schema, production records or deployments altered. A single source-owned synthetic test was added.
+
+## Executed tests and evidence
+
+- `python tests/test_s4_integrated_day.py`: PASS. Same disposable SQLite database connects real patient invoice/collection, night/morning/evening cashier handover, central treasury, historical sealed envelope correction, supplier PO/GRN/invoice and due schedule, independent payment and statement signoff, 2200 attributed payables, GL, bank, and period preflight.
+- `S4_REAL_HTTP=1 python tests/test_s4_integrated_day.py`: PASS. Same scenario over a separate Uvicorn HTTP listener on 127.0.0.1 using distinct `requests.Session` cookies; **161 actual HTTP requests**, NOT Chromium, browser, TLS or hospital network.
+- Three further sequential repeat runs of the same HTTP test: **3/3 PASS, 161 requests per run**. Their logs are separately captured in test-session QA evidence.
+- Full regression `python scripts/qa_g2t_full.py`: 141 total scripts, **135 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT**, exit 0. These are scripts, not branch/statement coverage. Full TSV captured separately.
+- `python scripts/ci_smoke.py`: **66/66 PASS**, exit 0. Historical original V8.0 test NOT covered. Detailed CI output captured separately.
+- S4 negative gates: denied a cashier self-handover, denied cross-role transfer, rejected altered retry key, unmatched bank statement before signing blocks period close; after signing, settlement confirmation reaches 6000 piasters and 4000 remain as supplier 2200 payable. Real current month close stays HTTP 409. A **test-process-only** simulated future clock proves completed prior-month close, never applied to the HTTP worker or any production instance.
+
+## Accounting result (synthetic, Egyptian pounds)
+
+- Current-day external cashier receipts: 100 real patient invoice + 200 + 300 = **600**. External cash fund ending balance **0** after three independent deposits.
+- Historical signed-paper-only invoice 1,500 minus previously cash-paid expense 200 = **1,300** physically received once in current central treasury. Prior closed GL/fund movements unchanged.
+- Central real expense 50 yields **1,850** physical central treasury, independently matched; one 100 supplier liability with 60 approved from bank gives **40** remaining 2200 supplier AP; bank starts at 200 and ends at **140**.
+- Patient reconciliation and cash/treasury reconciliation both report matched, GL debit=credit, no SQLite integrity or FK errors. These totals reflect one synthetic database, not hospital day-end signoff.
+
+## Known irregularity; not hidden
+
+During **concurrent parallel suite load**, one real HTTP rerun received **500** on the cashier point assignment request early in fixture setup. The source of this intermittent response was not reproducible after the parallel load ended: three sequential 161-request reruns all passed and no financial mismatch was observed. **Root cause NOT ESTABLISHED; do not claim it fixed.** Before real load/UAT, reproduce under deliberate concurrent load with persistent Uvicorn trace output and resolve any actual server error. This is a separate load/resilience gate, not evidence of financial corruption.
+
+## Strictly NOT verified
+
+Original verified V8.0 migration and signed opening balances, independent encrypted **off-device** restore, browser-to-HTTPS through reverse proxy and hospital workstation/network, printers, real money/source documents, medical policy, supplier 2200 month-close inclusion policy, security pen-test and MFA/IdP, finance/clinical/IT signatures. No live system was changed. **Production NO-GO**.
+
+---
+
 # S3 - local real-HTTP proof (2026-11-02)
 
 Source: S2 commit `3e9669229b5ecc3da954416c1a541ff8642ea71c`.

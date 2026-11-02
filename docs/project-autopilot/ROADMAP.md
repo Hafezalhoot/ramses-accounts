@@ -8,7 +8,7 @@
 | P0 | S2 cash receiver real screen action | verified by browser-to-ASGI bridge | `tests/browser_s2_cashier_treasury_ui.py` at 375/1440 px, not real HTTP |
 | P0 | S3 actual local Uvicorn HTTP, sessions, CSRF | verified in synthetic HTTP | Five isolated suites; 4 historical workflows plus login/cookie security; **not browser/TLS** |
 | P0 | S3 physical browser HTTPS/LAN/printer | blocked | Chromium sandbox loopback denied; approved staging TLS URL and hospital device required |
-| P0 | S4 integrated cashier + patient + bank + procurement + close UAT | not started | Signed 24-hour + late-entry exception scenarios and subledger/GL reconciliation |
+| P0 | S4 integrated cashier + patient + bank + procurement + close UAT | verified **synthetically**; hospital UAT blocked | 1 DB, patient and cashier, supplier/bank, prior-paper envelope, 161 HTTP; independent hospital signoffs not done |
 | P0 | S5 actual V8.0 migration and independent restore | blocked | Original verified V8.0 archive, balance sheet, recovery hardware and owner sign-off |
 | P0 | Source documents/clinical approvals | blocked | Approved signatures, evidence policies and clinical billing rules |
 | P1 | Historical shift labels in day-summary UI | source-review finding; not browser-reproduced | `static/app.js` currently resolves labels from latest schedule only and uses `esc(labels[sh.shift])`; confirm past custom code fallback before fixing |
@@ -83,3 +83,11 @@ G3D original-lot non-drug return flow is implemented locally/test-only, **not** 
 6. **P1 — UX and operational rollout:** bilingual/RTL accessibility, cashier shift print grids, documented training, complete synthetic E2E workflows.
 
 G3B already implemented locally: per-department optional source fingerprint, immutable SHA-256, audited UI/server enrollment and encrypted historic migration. NO-GO production.
+
+## S4 updated gate (2026-11-02)
+
+- **Verified locally:** one SQLite synthetic workday linking patients, 4 physical shifts, historical paper envelope, PO/GRN/invoice, supplier bank voucher, independent bank statement signoff, patient/treasury/2200/GL controls and test-clock month close. Repeatable through TestClient and Uvicorn HTTP (161 HTTP requests); HTTPS browser and actual current-month sealing intentionally remain unverified.
+- **Release P0:** original V8.0 archive, off-device encrypted restore and signed hospital finance/medical/IT acceptance are still blocked. Real workstation/browser-to-HTTPS and printer UAT not done.
+- **Next P1:** approved 2200 supplier reconciliation policy explicitly integrated into period-close with exception handling and no silent auto-adjustment, and historical custom shift label audit. Hold further UI and business feature expansion until source evidence and cross-role walkthrough are signed.
+
+- **S4 resilience follow-up:** one HTTP 500 arose under concurrent full-suite load while assigning a cashier point. Three independent subsequent network reruns succeeded. Keep investigation open; no root cause or fix claimed. Record server trace under representative load before production.
