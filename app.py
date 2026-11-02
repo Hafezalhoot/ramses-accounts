@@ -1215,7 +1215,10 @@ def cashier_day_summary(business_date:str,user=Depends(get_user),c:sqlite3.Conne
             method_total[item['method']]=method_total.get(item['method'],0)+item['total_piasters']
     coverage=shift_coverage.report(c,day[:7],user)
     daily_slots=[x for x in coverage['days'] if x['business_date']==day]
-    is_complete=bool(daily_slots) and all(x['status']=='complete' for x in daily_slots)
+    # Approved off-duty collection points have no expected custody shift.
+    # Unknown coverage and all actual unfinished shifts still block readiness.
+    required_slots=[x for x in daily_slots if x['status']!='not_required']
+    is_complete=bool(required_slots) and all(x['status']=='complete' for x in required_slots)
     return {'business_date':day,'stations':stations,'payment_method_totals_piasters':method_total,
         'pending_accounting_review':sum(x['status']=='submitted' for x in stations),
         'coverage':daily_slots,'shift_coverage_complete':is_complete,'is_provisional':not is_complete,

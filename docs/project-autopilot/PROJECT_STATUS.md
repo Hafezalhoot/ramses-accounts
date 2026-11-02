@@ -1,3 +1,11 @@
+# S10 — cashier daily completion on approved non-working weekdays (TEST ONLY)
+
+New synthetic acceptance proves one active station can be fully closed while a second station is `not_required`; only required points participate in the daily aggregate, with unknown/missing still provisional. The accounting-certification flag is untouched. The UI labels off-day status in Arabic; existing Chromium fixture no longer assumes October 2026. No hospital deployment; signoffs and V8.0/off-device recovery remain blocked.
+
+**Verified on synthetic local source:** CI 71/71 PASS (exit 0); full source suite 147 = 141 PASS / 5 SKIP / 1 BLOCKED_NO_V80 (exit 0); Chromium desktop/mobile PASS; S4 integrated local TCP 161 requests PASS and S9 33 requests PASS. V8.0 source remains missing; no hospital UAT or production authorization.
+
+---
+
 # Current S9 - opening shift choices, 2026-11-02 - TEST ONLY
 
 Source on isolated `stabilization/s9-date-aware-shift-creation`, base S8 `ac090681`. The general cashier screen and patient-billing opening form no longer use the latest stored schedule as if it applied to every date. Authenticated, non-mutating `GET /api/shifts/open-options` returns station- and date-appropriate choices, masked by weekday, point lifecycle and individual clerk grants, and reports preview-only for future dates. Two JS forms use an asynchronous shared picker with disabled submission and stale-response suppression. POST still does final checks. Direct TestClient, real local Uvicorn HTTP (33 requests), Chromium 1280/375 and S2/S8 smoke have passed. No production/accounting data touched. Final source CI **70/70 PASS**; source-wide regression **146 = 140 PASS / 5 SKIP / 1 BLOCKED_NO_V80**, 0 FAIL/TIMEOUT; S9 HTTP 33 and S4 HTTP 161 PASS. Evidence in `QA_S9_*` and `docs/project-autopilot/TEST_REPORT.md`. Physical hospital acceptance is NOT established.

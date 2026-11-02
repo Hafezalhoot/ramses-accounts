@@ -1,3 +1,11 @@
+# S10 synthetic acceptance (2026-11-02)
+
+**RED evidence:** original `/api/shifts/day-summary` returned `shift_coverage_complete=false` for `[{'status':'complete'}, {'status':'not_required'}]`; the new synthetic API test failed at that exact field. After code fix the S10 direct acceptance passes, preserving not-monitored/missing/zero-required blocks and zero GL/fund/audit read side effects. Browser test for new off-day label passes at Chromium 1280/375 after fixing a stale October 2026 fixture. CI/full source QA and integrated financial day results are recorded when finished. No original V8.0 archive or real hospital workstation tested.
+
+**Final source verification:** CI `python scripts/ci_smoke.py` **71/71 PASS** exit 0. Full regression `python scripts/qa_g2t_full.py` **147 scripts: 141 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT** exit 0. Existing S4 integrated finance across independent Uvicorn HTTP **161 requests PASS** (cash 1850, supplier 40, bank 140 EGP; balanced synthetic GL); S9 Uvicorn HTTP **33 requests PASS**. S10 synthetic authenticated HTTP TestClient PASS with off-day / missing / zero-required / unknown distinctions, no ledger writes; Chromium at 1280/375 PASS. These do not represent hospital device/LAN/HTTPS acceptance.
+
+---
+
 # S9 - date-aware shift-opening option QA (2026-11-02)
 
 **RED:** `tests/test_s9_shift_open_options.py` returned HTTP 404 because the read-only route did not exist. Browser selection used the newest station plan even for an earlier business date. Both were independently reproduced before production edits.

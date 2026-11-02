@@ -80,6 +80,7 @@ TESTS = (
     'test_s7_recovery_drill.py',
     'test_s8_historical_shift_identity.py',
     'test_s9_shift_open_options.py',
+    'test_s10_daily_coverage_certificate.py',
 )
 
 

@@ -1,3 +1,15 @@
+# S10 — controlled fix: cashier off-day / complete day status
+
+- [x] Reproduce false incomplete daily summary with effective-dated non-operating point, artificial data and authenticated route.
+- [x] Minimal read-only day-summary fix, no fund/GL/schema change.
+- [x] Correct Arabic status label and obsolete browser fixture.
+- [x] CI 71/71, broad source QA 141/147 + 5 SKIP + 1 BLOCKED, source S4 HTTP 161 and S9 HTTP 33.
+- [ ] Extracted ZIP/bundle verification and source hashes.
+- [ ] Physical separate-workstation restore / signed finance/medical/IT hospital acceptance (requires external source and authority).
+- [ ] Genuine V8.0 archive migration and supplier 2200 exception policy approval (external blockers).
+
+---
+
 # S9 cashier shift-opening correction / remaining external gates
 
 | Priority | Issue | State |

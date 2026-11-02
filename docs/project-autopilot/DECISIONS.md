@@ -1,3 +1,9 @@
+## S10 — Non-operating cashier days are not missing shifts (2026-11-02)
+
+Decision: daily cashier coverage ignores *only* stations marked `not_required` by the approved effective-dated operating weekday/lifecycle; unknown monitoring and every unfinished required station remain blockers, and a day with no required stations is not automatically certified. `financially_certified` always remains false. This reuses the existing shift-coverage module rather than introducing a second expectation engine or financial transactions. Manual hospital signoff is still mandatory. Verified synthetically by RED/GREEN API and broad regression.
+
+---
+
 # S8 decisions (test-only, 2026-11-02)
 
 - Return `shift_name` from the immutable, effective-dated station plan, leaving `shift` code and associated fund/custody/ledger rows untouched. Do not take a label from the last version when displaying historical evidence.

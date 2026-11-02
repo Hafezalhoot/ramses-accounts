@@ -1,3 +1,11 @@
+# Current: Ramses Accounts G3N-S10 — approved non-working days no longer create false incomplete cash daily summary / TEST ONLY / NO-GO
+
+From S9 `54a3084`, adjusted only `/api/shifts/day-summary` status aggregation: explicitly non-working `not_required` station-days are neutral and at least one required and fully closed station must exist. Unknown or incomplete scheduled shifts still make the day provisional; `financially_certified` stays false. Coverage UI shows a readable no-duty Arabic label. See `README_S10_AR.md` and synthetic tests. No live deployment, money/GL, schema, RBAC or past-cash-session mutation. Original V8.0, off-device restore, real hospital UAT and account 2200 close policy remain blockers.
+
+**Local S10 evidence:** 71/71 CI PASS; full source QA 147 = 141 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT; authenticated S10 TestClient PASS, Chromium coverage at desktop/mobile PASS, source S4 HTTP 161 and S9 HTTP 33 PASS. These are synthetic/offline localhost only.
+
+---
+
 # Current: Ramses Accounts G3N-S9 - effective-dated shift opening / TEST ONLY / NO-GO
 
 From S8 `ac090681`, both cashier and patient-billing opening dialogs use the same read-only, access-scoped `/api/shifts/open-options` source that resolves a point's schedule by selected Cairo business date. Future schedules are preview-only; closed weekdays and ungranted shift codes cannot be selected; pending requests do not overwrite newer choices. The actual `/api/shifts/open` transaction remains unchanged and authoritative. No schema, ledger, grants, money, historic records or production data changed. See `README_S9_AR.md`, `README_S9.md`, source-owned HTTP/browser tests and release evidence. Physical V8.0/HTTPS/off-device/finance approvals remain NO-GO.
