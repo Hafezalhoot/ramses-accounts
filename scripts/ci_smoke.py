@@ -77,6 +77,7 @@ TESTS = (
     'test_v82_g2p_case_settlement.py',
     'test_payroll_review_workflow.py',
     'test_s6_backup_financial_integrity.py',
+    'test_s7_recovery_drill.py',
 )
 
 

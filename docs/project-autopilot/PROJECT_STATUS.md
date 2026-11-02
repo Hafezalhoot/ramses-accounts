@@ -1,3 +1,11 @@
+# Current — S7 offline recovery rehearsals (2026-11-02; TEST ONLY)
+
+**S7 current regression:** 68/68 source CI PASS, full QA 144 = 138 PASS / 5 SKIP / 1 BLOCKED_NO_V80, 0 FAIL; S4 HTTP synthetic 161 requests PASS. No second real device demonstrated.
+
+From S6 `8feca982`, prepared operator-executable offline recovery on a *new path* using independently recorded encrypted SHA256 plus S6 AES and ledger/evidence integrity gates. Separate Python FastAPI smoke checks HTTP 200 health and 401 unauthenticated API against a disposable copied DB; the restored archive stays byte-for-byte intact. Output report excludes patient/financial records. S7 source regression covers wrong SHA, password, tampered ciphertext and existing/symlink target. This does **NOT** assert a second machine was used. No migrations, live financial writes, deployment, external data transfer, or bank actions. CI/full source evidence must be read from release QA artifact. **PRODUCTION NO-GO** pending genuine V8.0, physical external restore and IT/finance/medical signoffs.
+
+---
+
 # Current: Ramses Accounts — S5 HTTP / SQLite concurrency (2026-11-02, TEST ONLY)
 
 Branch `stabilization/s5-contention`, S4 baseline `60bddc1`. **Locally implemented and tested:** fix FastAPI cross-thread SQLite connection failure (`check_same_thread=False` with request-scoped connection), remove earlier 10-second SQLite busy timeout override and inherit 30-second connect timeout. Real Uvicorn baseline RED: 96 HTTP requests with 65 HTTP 500 and 17 connection errors, SQLite `ProgrammingError`; second RED at 384/48: one `database is locked`. Final GREEN at 384/48: 384 HTTP 200, 12 unique active point grants, 384 audit events, 403 on unauthorized assignment, integrity/FK clean. S4 integrated in-process and 161 real HTTP pass; eight targeted financial/security/backup regressions pass. **Full S5 CI 66 test suite not completed (time limit, only five observed pass).** No product UI/GL/schema/finance policy change. No deployment or live patient records. **NO-GO PRODUCTION** pending true V8.0 archival migration, off-device encrypted recovery, independent hospital finance/medical/IT signoffs, real HTTPS browser/LAN/printer UAT and performance/load acceptance.

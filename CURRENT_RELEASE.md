@@ -1,3 +1,11 @@
+# Current: Ramses Accounts G3N-S7 — portable offline recovery drill / TEST ONLY / NO-GO
+
+**Verified source S7 gates:** CI 68/68 PASS; source suite 144 = 138 PASS, 5 SKIP, 1 BLOCKED_NO_V80; independent S4 Uvicorn HTTP 161 PASS. These are synthetic local gates only, not the hospital release gate.
+
+From S6 `8feca982`, added source-owned `scripts/recovery_drill.py` for hospital IT to run **manually** on a separate encrypted workstation, with independent source-file SHA256, safe no-clobber restore, a disposable copy for a separate-process FastAPI health/deny smoke, and a PII-free JSON report. New regression includes wrong hash, wrong key, tampered AES, existing/symlink destination, no overwrite; no hospital data, schema/GL/UI changes, remote copy, auto cutover or signed off-device verification. See `README_S7_AR.md`. Full CI and release evidence recorded separately. Production NO-GO until physical external recovery, V8.0 migration, real HTTPS/LAN and authorized finance/medical/IT acceptance.
+
+---
+
 # Ramses Accounts G3N-S6 — encrypted backup business-integrity gates / TEST ONLY / NO-GO
 
 Starting from S5 `38b2720`, S6 hardens `scripts/secure_backup.py` and its test suite: reject posted GL imbalance, stored voucher/shift/bank source checksum mismatches and missing principal financial immutability triggers even when SQLite structure/FK checks pass. A new synthetic recovery drill copies encrypted `.rbe` evidence to a separate directory, restores through a new Python process, compares full content fingerprints of critical tables and authenticates the restored app. This is **NOT an off-device drill** and cannot substitute for V8.0 authentic migrations or hospital UAT. The CI smoke list now includes the new S6 regression (**67/67 PASS**, fresh local run), and S4 integrated HTTP acceptance was retested (**161 requests PASS**). See `README_S6_AR.md` and `docs/project-autopilot/TEST_REPORT.md`. No production data, payments, schema changes or deployment.

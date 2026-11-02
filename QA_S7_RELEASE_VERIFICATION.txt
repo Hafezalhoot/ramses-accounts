@@ -1,0 +1,27 @@
+RAMSES ACCOUNTS — S7 PORTABLE OFFLINE RECOVERY DRILL
+Release: V8.1E-G3N-S7 | TEST ONLY | HOSPITAL PRODUCTION NO-GO
+Date: 2026-11-02 | Africa/Cairo
+Baseline S6 commit: 8feca982026c5466aafd6b58a2fc8101d5577532
+Working branch: stabilization/s7-offline-recovery-drill
+
+ACTUAL DEVELOPMENT
+- Added scripts/recovery_drill.py: explicit source-device archive SHA256, private copy of ciphertext bound to decrypt, S6 encrypted / financial integrity checks, new recovery-only output dir, separate-process FastAPI TestClient smoke on disposable DB copy, no-PII JSON report; never switches production DB.
+- Added synthetic tests/test_s7_recovery_drill.py with baseline RED on missing CLI, then GREEN; TDD identified a second RED where a different valid AES archive substituted after SHA validation would succeed. Staged-copy recheck now rejects that race and wipes failed recovery output.
+- Negative tests: wrong SHA, wrong key, altered ciphertext (even when transfer SHA matches), existing dir, symlink, missing archive, and archive substitution after original hash. No hospital financial records or patient data used.
+- Added detailed Arabic operator instructions and BLANK witnessed physical-device IT/finance/medical recovery acceptance checklist. The existence of this checklist does NOT constitute an executed signoff.
+
+FRESH FINAL SOURCE CHECKS
+- python scripts/ci_smoke.py: 68/68 PASS, exit 0; QA_S7_CI_RESULTS.txt.
+- python scripts/qa_g2t_full.py: 144 scripts; 138 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL, 0 TIMEOUT, exit 0; QA_S7_FULL_QA_RESULTS.tsv. A missing authentic V8.0 migration is BLOCKED, not PASS.
+- S4_REAL_HTTP=1 python tests/test_s4_integrated_day.py: PASS, 161 real Uvicorn HTTP TCP requests (not HTTPS or browser), isolated synthetic one-database financial-day; central vault 1850 EGP, bank 140, supplier AP 40, GL balanced. QA_S7_HTTP_INTEGRATION.txt.
+- python tests/test_s7_recovery_drill.py: PASS including valid-AES archive substitution race rejection (fail-to-pass evidence observed).
+- Python compileall, node --check static/*.js and git diff --check: PASS in source working tree.
+
+DOCUMENTED LIMITATIONS / REQUIRED PHYSICAL RELEASE GATES
+- NO second physical computer, off-site archive/key storage or externally witnessed IT recovery was used. S7 is a testable runbook and same-computer isolated demonstration only.
+- ASGI FastAPI TestClient smoke is in a fresh process but is not real browser-to-HTTPS through a hospital network. A separate Uvicorn HTTP cash test is not a TLS or physical-device acceptance.
+- NO V8.0 original archive for authentic schema migration / signed opening balances; no financial/medical/IT UAT, bank source truth or external clinical evidence archive audit.
+- NO live production deployment, schema migration, money movement, hospital record access, or automatic recovery cutover.
+- Existing backup decryption transiently writes plaintext to the selected recovery disk; the operator must verify full-disk encryption/permission controls and securely manage the key separately.
+
+DECISION: Source validated for continued development and for a supervised real-device recovery rehearsal only; hospital financial operations remain PRODUCTION NO-GO.

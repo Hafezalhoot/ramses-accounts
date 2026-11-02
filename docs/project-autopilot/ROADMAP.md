@@ -1,3 +1,15 @@
+# S7 progress — 2026-11-02
+
+| Priority | Gate | Status / evidence |
+| --- | --- | --- |
+| P0 | Portable offline recovery drill command | LOCAL TESTED (synthetic) — SHA256 + S6 AES/SQL checks + independent-process ASGI and 401 + fail-closed; `tests/test_s7_recovery_drill.py` |
+| P0 | Actual second-computer restore and retained off-site encrypted archive | BLOCKED — requires an approved encrypted backup, independent key control, physical alternate workstation, signed IT/finance/medical UAT |
+| P0 | Genuine V8.0 archive migration/reconciliation | BLOCKED — original authenticated archive unavailable; signed opening balance not checked |
+| P0 | Hospital browser-to-HTTPS/LAN/receipts/printers and user signoffs | BLOCKED — no authorized staging hospital hardware |
+| P1 | Supplier 2200 month-close rule and historic shift-label UI | OPEN — owner/accountant policy and browser evidence required; no silent ledger modifications |
+
+---
+
 # S5 completed locally / next release gates — 2026-11-02
 
 | Priority | Gate | Status | Evidence / next step |

@@ -1,3 +1,11 @@
+# S7 — local offline recovery rehearsal acceptance (2026-11-02)
+
+**Verified suite on S7 final source:** CI 68/68 PASS; full regression 144 = 138 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT; S4 separate Uvicorn 161 requests PASS; `QA_S7_*` source evidence. Neither real external machine recovery nor genuine V8.0 historical migration was performed.
+
+S7 `tests/test_s7_recovery_drill.py`: demonstrated RED before CLI (`scripts/recovery_drill.py` missing) and GREEN after tool implementation, using only a synthetic encrypted archive. Positive SHA256, AES-GCM authenticated restore, immutable financial checks inherited from S6, separate-process FastAPI health 200 and unauthenticated `/api/me` 401 on disposable DB copy. Negative cases: wrong SHA, wrong key, tampered ciphertext with independently matching transport hash, existing output dir, symlink and missing archive all rejected. Additional RED→GREEN found an archive substitution race between initial SHA check and decrypt; S7 now binds both to one privately staged copy, rejecting a substituted validly AES-encrypted second archive. Expected report has no sensitive contents. Cross-device IT test: **NOT PERFORMED**. See per-release QA results for CI/full suite outcomes.
+
+---
+
 # S6 — Financially safe encrypted backup and simulated independent restoration (2026-11-02)
 
 **S5 baseline:** `38b2720e175f4f8b4895074355d47d0b3ade64bd`, S6 branch `stabilization/s6-recovery`; **TEST_ONLY / PRODUCTION NO-GO**.
