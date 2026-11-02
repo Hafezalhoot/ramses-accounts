@@ -84,6 +84,47 @@ def _verify_sqlite(path, *, legacy=False):
             required.update({'gl_journals', 'gl_lines', 'audit_log'})
         if not required.issubset(tables):
             raise ValueError('This is not a complete Ramses accounting database')
+        # SQLite integrity_check cannot detect a valid but financially corrupt
+        # database (e.g. a privileged operator changed posted ledger rows).
+        if {'gl_journals', 'gl_lines'}.issubset(tables):
+            unbalanced = db.execute("""SELECT j.id FROM gl_journals j
+                LEFT JOIN gl_lines l ON l.journal_id=j.id
+                WHERE j.status='posted' GROUP BY j.id
+                HAVING COUNT(l.id)<2 OR SUM(l.debit_piasters)!=SUM(l.credit_piasters)
+                LIMIT 1""").fetchone()
+            if unbalanced:
+                raise ValueError('Posted GL journal integrity failed; backup not trusted')
+        # Evidentiary blobs are in SQLite. Verify their original SHA-256 before
+        # publishing a backup AND after decrypting/restoring it.
+        for table, column in (('voucher_attachments', 'content'),
+                              ('cashier_shift_attachments', 'content'),
+                              ('bank_statement_batches', 'raw_csv')):
+            if table not in tables:
+                continue  # Historical pre-upgrade schemas may not have this table.
+            has_size = table != 'bank_statement_batches'
+            size_col = 'file_size,' if has_size else ''
+            for row in db.execute(f'SELECT {size_col} sha256,{column} FROM "{table}"'):
+                size, digest, blob = row if has_size else (None, *row)
+                if (not isinstance(blob, bytes) or (size is not None and len(blob)!=size)
+                        or not secrets.compare_digest(hashlib.sha256(blob).hexdigest(), digest)):
+                    raise ValueError(table + ' evidence checksum mismatch; backup not trusted')
+        if not legacy:
+            # A database can be structurally sound but lose the SQL guards
+            # protecting cash, GL, evidence, and audit from later modification.
+            protected = {
+                'fund_movement_no_update', 'fund_movement_no_delete',
+                'audit_log_no_update', 'audit_log_no_delete',
+                'gl_must_balance', 'gl_no_posted_journal_update',
+                'gl_no_posted_journal_delete', 'gl_no_posted_line_update',
+                'gl_no_posted_line_delete',
+                'cashier_shift_attachment_no_update',
+                'cashier_shift_attachment_no_delete',
+                'signed_bank_batch_no_update', 'signed_bank_batch_no_delete',
+                'billing_no_collection_mutation', 'billing_no_collection_delete',
+            }
+            present = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='trigger'")}
+            if not protected.issubset(present):
+                raise ValueError('Required financial immutability trigger missing; backup not trusted')
         return {table: db.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()[0] if table in tables else 0
                 for table in ('users', 'vouchers', 'fund_movements', 'gl_journals')}
 

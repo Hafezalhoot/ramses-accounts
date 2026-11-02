@@ -76,6 +76,7 @@ TESTS = (
     'test_v81e_g2o_patient_scopes.py',
     'test_v82_g2p_case_settlement.py',
     'test_payroll_review_workflow.py',
+    'test_s6_backup_financial_integrity.py',
 )
 
 

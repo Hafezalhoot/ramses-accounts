@@ -1,3 +1,21 @@
+# S6 — Financially safe encrypted backup and simulated independent restoration (2026-11-02)
+
+**S5 baseline:** `38b2720e175f4f8b4895074355d47d0b3ade64bd`, S6 branch `stabilization/s6-recovery`; **TEST_ONLY / PRODUCTION NO-GO**.
+
+**RED observed:** A posted GL journal modified to have debit 12000 and credit 11999 piasters passed SQLite `integrity_check` and `foreign_key_check` on original S5 verifier. The regression expected rejection, but it failed. A separately constructed case with a missing `gl_no_posted_line_update` trigger also passed the original verifier.
+
+**GREEN implemented:** `scripts/secure_backup.py` now rejects unbalanced posted GL, mismatched evidentiary BLOBs or recorded byte lengths in voucher/cashier evidence and bank CSV sources, and absent principal financial SQL immutability triggers for current schemas. It rejects creation/publication of a corrupt snapshot and refuses verifying/restoring an already-encrypted but logically corrupt synthetic archival backup. No change to AES-GCM format, schemas, account rules or application API.
+
+**Independent logical recovery QA:** `tests/test_s6_backup_financial_integrity.py` PASS. Synthetic valid GL and source BLOBs encrypted to `.rbe`, copied to a logically separate directory, key kept in a separate private path, recovered using a new Python process, SHA-256 row fingerprint equality over ten sensitive tables (including evidence bytes), 0600 file and successful app login on recovered DB; second restore refused. This was a **same-host multi-directory test, not a second physical device**.
+
+**Fresh full CI:** `python scripts/ci_smoke.py` **67/67 PASS**, exit 0; new S6 regression included. Baseline G2M encrypted restore regression PASS. Python compileall, JS node syntax checks and Git whitespace check PASS.
+
+**Financial workflow unchanged:** S4 in-process single-DB integrated day PASS; S4 separate Uvicorn TCP HTTP PASS **161 requests** with cash 1850 EGP, supplier AP 40 EGP and bank 140 EGP, balanced GL. HTTP was loopback, not TLS, browser or hospital LAN.
+
+**Not completed:** S6 source-wide 141+ script QA sweep; original V8.0 authentic migration (archive absent); real off-device restore; hospital HTTPS/browser/printers/terminals; clinical/finance/IT signoff and data protection review. No live data, payments, migrations or deployment changed. **Production NO-GO.**
+
+---
+
 # S5 — Source-first FastAPI / SQLite contention correction (2026-11-02)
 
 **Baseline S4 branch**: `60bddc1`. One isolated temporary SQLite database per independent test. Real Uvicorn HTTP over loopback, no TLS/browser/hospital dataset.

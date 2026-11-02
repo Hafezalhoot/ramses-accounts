@@ -1,3 +1,9 @@
+# Ramses Accounts G3N-S6 — encrypted backup business-integrity gates / TEST ONLY / NO-GO
+
+Starting from S5 `38b2720`, S6 hardens `scripts/secure_backup.py` and its test suite: reject posted GL imbalance, stored voucher/shift/bank source checksum mismatches and missing principal financial immutability triggers even when SQLite structure/FK checks pass. A new synthetic recovery drill copies encrypted `.rbe` evidence to a separate directory, restores through a new Python process, compares full content fingerprints of critical tables and authenticates the restored app. This is **NOT an off-device drill** and cannot substitute for V8.0 authentic migrations or hospital UAT. The CI smoke list now includes the new S6 regression (**67/67 PASS**, fresh local run), and S4 integrated HTTP acceptance was retested (**161 requests PASS**). See `README_S6_AR.md` and `docs/project-autopilot/TEST_REPORT.md`. No production data, payments, schema changes or deployment.
+
+---
+
 # Ramses Accounts G3N-S5 — SQLite/HTTP contention correction / TEST ONLY / NO-GO
 
 New development branch `stabilization/s5-contention` from S4 `60bddc1`. Reproduced the S4 intermittent HTTP 500 as cross-thread `sqlite3.ProgrammingError` and the 10-second lock timeout as `OperationalError: database is locked` under extreme synthetic concurrency. Request-scoped SQLite connections now allow FastAPI worker-thread switching, and the single 30-second connection timeout governs database lock waits. Verified 384/384 HTTP writer requests with 48 workers after fix, 403 non-owner denial, SQLite integrity, matching audit and S4 integrated financial day (161 HTTP). Full 66-test CI run not completed under available execution time; eight focused regressions passed. No production deployment or genuine hospital acceptance. See `README_S5_AR.md` and `docs/project-autopilot/TEST_REPORT.md`.
