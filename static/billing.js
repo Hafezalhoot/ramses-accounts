@@ -287,11 +287,9 @@ async function billingPaymentForm({caseId,point,invoiceId,patientCode,cfg}){
 function bindBillingActions({point,cfg,selected,owner,cashier,canFulfill,finance}){
  $('#billingOpenShift')?.addEventListener('click',async()=>{
    const suggested=cfg.suggested_shift||{business_date:new Date().toLocaleDateString('sv-SE',{timeZone:'Africa/Cairo'}),shift:'morning'};
-   const choices=(cfg.shift_schedule||[]).map(x=>[x.code,`${({night:'\u0633\u0647\u0631',morning:'\u0635\u0628\u0627\u062d\u064a',evening:'\u0645\u0633\u0627\u0626\u064a'})[x.code]} ${x.start}-${x.end}`]);
-   choices.sort((a,b)=>Number(b[0]===suggested.shift)-Number(a[0]===suggested.shift));
    const form=await modal('فتح وردية الكاشير','\u064a\u062a\u0628\u0639 \u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0633\u0647\u0631 \u064a\u0648\u0645 \u0628\u062f\u0627\u064a\u062a\u0647 \u0639\u0646\u062f \u0645\u0646\u062a\u0635\u0641 \u0627\u0644\u0644\u064a\u0644.',[
       {name:'business_date',type:'date',label:'\u062a\u0627\u0631\u064a\u062e \u0628\u062f\u0627\u064a\u0629 \u0627\u0644\u0648\u0631\u062f\u064a\u0629',value:suggested.business_date,required:true},
-      {name:'shift',type:'select',label:'نوع الوردية',required:true,options:choices.length?choices:[['night','\u0633\u0647\u0631'],['morning','\u0635\u0628\u0627\u062d\u064a'],['evening','\u0645\u0633\u0627\u0626\u064a']]}]);
+      {name:'shift',type:'select',label:'نوع الوردية',required:true,options:[]}],form=>setupShiftOpenOptions(form,point.fund_id,suggested.shift));
    if(!form)return;
    await billingAction($('#billingOpenShift'),async()=>{
      await post('/api/shifts/open',{business_date:form.business_date,

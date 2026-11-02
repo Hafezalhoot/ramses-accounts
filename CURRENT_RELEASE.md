@@ -1,3 +1,9 @@
+# Current: Ramses Accounts G3N-S9 - effective-dated shift opening / TEST ONLY / NO-GO
+
+From S8 `ac090681`, both cashier and patient-billing opening dialogs use the same read-only, access-scoped `/api/shifts/open-options` source that resolves a point's schedule by selected Cairo business date. Future schedules are preview-only; closed weekdays and ungranted shift codes cannot be selected; pending requests do not overwrite newer choices. The actual `/api/shifts/open` transaction remains unchanged and authoritative. No schema, ledger, grants, money, historic records or production data changed. See `README_S9_AR.md`, `README_S9.md`, source-owned HTTP/browser tests and release evidence. Physical V8.0/HTTPS/off-device/finance approvals remain NO-GO.
+
+---
+
 # Current: Ramses Accounts G3N-S8 — historical cashier identity / TEST ONLY / NO-GO
 
 From S7 `67cbdf8`, recover original names of recorded cashier shifts from the point's **effective-dated schedule for the recorded business_date**. The shifts list, hospital cash-day summary and per-shift daily report now include `shift_name`; desktop/mobile/report UI displays it rather than the latest schedule's label. A frozen-date browser fixture was repaired. Tests: source-owned S8 API, offline Chromium, genuine loopback HTTP, S2/S4 accountant workflows and controlled regression. **No schema, ledger, role, price, monetary movement or production data changed.** Hardware/TLS/V8.0 and hospital approvals remain blocked. See `README_S8_AR.md`; release-gate results in `docs/project-autopilot/TEST_REPORT.md`.

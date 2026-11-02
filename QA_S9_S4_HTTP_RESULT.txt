@@ -1,0 +1,9 @@
+Database initialized: /tmp/ramses-s4-single-db-1xfd1szw/s4.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=26735 ready on 127.0.0.1
+S4_CHECKPOINT patient cash 100 + other cash 500; source transfers 600, central expense 50
+S4_CHECKPOINT supplier GRN 100, 60 booked, statement still awaiting independent signoff
+S4_CHECKPOINT historical invoice 1500, paper cash 1300, expense 200; no duplicate cash or prior-period rewrite
+S4_CHECKPOINT signed bank statement removes bank-blocking close gate; AP remains 40
+S4_HTTP_TRANSPORT {'http_requests': 161, 'server_process': 26735, 'server_exit': None, 'transport': 'requests.Session real TCP HTTP to Uvicorn', 'tls': False, 'chromium_http': False, 'synthetic_database': True}
+PASS S4 ONE DATABASE: patient invoice/collection 100; shifts 600; old envelope 1300; cash expense 50; treasury 1850; vendor AP 40; bank balance 140; GL balanced; real-clock month close blocked over real HTTP

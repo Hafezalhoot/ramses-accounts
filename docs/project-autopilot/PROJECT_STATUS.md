@@ -1,3 +1,13 @@
+# Current S9 - opening shift choices, 2026-11-02 - TEST ONLY
+
+Source on isolated `stabilization/s9-date-aware-shift-creation`, base S8 `ac090681`. The general cashier screen and patient-billing opening form no longer use the latest stored schedule as if it applied to every date. Authenticated, non-mutating `GET /api/shifts/open-options` returns station- and date-appropriate choices, masked by weekday, point lifecycle and individual clerk grants, and reports preview-only for future dates. Two JS forms use an asynchronous shared picker with disabled submission and stale-response suppression. POST still does final checks. Direct TestClient, real local Uvicorn HTTP (33 requests), Chromium 1280/375 and S2/S8 smoke have passed. No production/accounting data touched. Final source CI **70/70 PASS**; source-wide regression **146 = 140 PASS / 5 SKIP / 1 BLOCKED_NO_V80**, 0 FAIL/TIMEOUT; S9 HTTP 33 and S4 HTTP 161 PASS. Evidence in `QA_S9_*` and `docs/project-autopilot/TEST_REPORT.md`. Physical hospital acceptance is NOT established.
+
+**Verified S9 gates:** CI 70/70 PASS; full source QA 146 = 140 PASS / 5 SKIP / 1 BLOCKED_NO_V80 with 0 FAIL/TIMEOUT; genuine localhost S9 HTTP 33/33, S4 integrated HTTP 161, Chromium 1280/375. All run with synthetic disposable data; full V8.0 migration and hospital UAT remain blocked.
+
+PRODUCTION NO-GO: V8.0, off-device recovery, physical HTTPS/LAN/printer UAT, finance/medical/IT approval and accountant-approved supplier 2200 policy outstanding.
+
+---
+
 # Current — S8 historical cashier shift identity (2026-11-02; TEST ONLY)
 
 **Implemented:** effective-dated server `shift_name` on shift list, per-shift daily report and consolidated hospital cashier day; RTL desktop/mobile consumes historical label. Source API RED when field absent and GREEN after fix. Browser RED on latest-plan mislabel and GREEN on historical label; recovered the existing frozen-month UI test. Real local Uvicorn HTTP S8 test checks owner/viewer auth and zero ledger writes. Previous money controls S2/S4 and scope G2W retain separate verified test evidence. Final suite and artifact evidence are tracked in the S8 release QA report. **PRODUCTION NO-GO**: missing genuine V8.0, independent physical recovery, HTTPS hospital workstation tests, signed finance/medical/IT approval. No live writes or migrations.

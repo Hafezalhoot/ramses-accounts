@@ -1,3 +1,20 @@
+# S9 - date-aware shift-opening option QA (2026-11-02)
+
+**RED:** `tests/test_s9_shift_open_options.py` returned HTTP 404 because the read-only route did not exist. Browser selection used the newest station plan even for an earlier business date. Both were independently reproduced before production edits.
+
+**GREEN targeted:** TestClient PASS on current/future versions, per-clerk `allowed_codes`, viewer/unassigned/protected-fund denial, closed weekday, future POST denial and zero GL/cash/audit read effects. `scripts/qa_s9_http.py` PASS **33 genuine local Uvicorn HTTP requests**; `tests/browser_s9_shift_open_options_offline.py` PASS 1280/375 with date/fund switching, future/empty disable and stale response rejection. S8 historical names and S2 financial cycle remain PASS. Full CI/QA outcomes in the S9 release report; original V8.0 migration is still **BLOCKED**, not a PASS.
+
+**Final source-wide verification (S9):** `python scripts/ci_smoke.py` completed **70/70 PASS**, exit 0. `python scripts/qa_g2t_full.py` completed **146 scripts: 140 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT**, exit 0; the historical fixture was unavailable and remains unverified. Independent `S4_REAL_HTTP=1 python tests/test_s4_integrated_day.py` PASS 161 real local TCP HTTP requests, balanced ledger with 1850 EGP central vault, 40 EGP supplier AP, 140 EGP synthetic bank. Original S9 real TCP HTTP **33/33**, and Chromium 1280/375 **PASS**. No actual hospital deployment or real patient financial data.
+
+**S9 final verification on source `stabilization/s9-date-aware-shift-creation`:**
+- CI `python scripts/ci_smoke.py`: **70/70 PASS, exit 0**. Source file `QA_S9_CI_RESULTS.txt`.
+- Complete `python scripts/qa_g2t_full.py`: **146 scripts: 140 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT, exit 0**. Source `QA_S9_TEST_RESULTS.tsv` and `QA_S9_FULL_SUMMARY.txt`. Historical original V8.0 archive is unavailable; **blocked is NOT PASS**.
+- S9 authenticated HTTP via local independent Uvicorn: **33 requests PASS**; Chromium fixture at 1280/375: PASS; S2 and S8 direct regressions: PASS.
+- S4 shared synthetic financial day with independent Uvicorn TCP: **161 requests PASS**; central cash 1850 EGP, supplier 2200 remaining 40 EGP, bank 140 EGP; GL balanced.
+- Python compilation and JS syntax `node --check`: PASS. No production deploy, real patient data, bank actions, HTTPS or on-site UAT.
+
+---
+
 # S8 - effective-dated historical cashier names (2026-11-02)
 
 **Release state: TEST_ONLY; PRODUCTION NO-GO.** Base S7 `67cbdf8`, isolated branch `stabilization/s8-historical-shift-identity`. No SQLite schema, posting amounts, patient data, hospital deployment or grants modified.

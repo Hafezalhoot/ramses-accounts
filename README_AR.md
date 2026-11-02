@@ -1,3 +1,9 @@
+# أحدث تطوير - S9: فتح الورديات حسب التاريخ والخزنة
+
+**S9 TEST ONLY / NO-GO.** Both cashier opening dialogs now request fund-specific shift choices for the selected Cairo business date, not the newest saved schedule. Future schedules are preview-only; unassigned clerks, protected funds and non-operating weekdays are rejected, and the actual shift-open transaction retains all authorization checks. No historical data, schema, finance or production deployment changed. Read `README_S9.md` and `CURRENT_RELEASE.md`.
+
+---
+
 # أحدث تطوير — S8 ثبات هوية الكاشير التاريخية (2 نوفمبر 2026)
 
 **TEST ONLY / NO-GO للإنتاج.** لم تعد أسماء الورديات القديمة تتغير عندما يضيف المالك جدولًا جديدًا يسري في المستقبل؛ يرسل الخادم الاسم الفعلي الخاص بتاريخ الوردية إلى سجل الورديات ويومية الكاشير واليومية الفردية. تأكدنا من ذلك عبر SQLite مؤقت وChromium تجريبي وUvicorn HTTP محلي. لم نغيّر قيود الأستاذ أو قاعدة البيانات أو الصلاحيات؛ يحتاج التشغيل الحقيقي أرشيف V8.0 الأصلي، واستعادة على جهاز مستقل، واختبارات الموظفين والشبكة والاعتماد. اقرأ `README_S8_AR.md`.

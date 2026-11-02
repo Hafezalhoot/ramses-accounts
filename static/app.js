@@ -490,8 +490,6 @@ async function renderShifts(){
   const labels={night:'سهر',morning:'صباحي',evening:'مسائي',
     ...Object.fromEntries(config.points.flatMap(p=>p.versions.at(-1)?.slots||[]).map(s=>[s.code,s.name]))};
   const recordedName=s=>s.shift_name||({night:'سهر',morning:'صباحي',evening:'مسائي'}[s.shift])||s.shift;
-  const windowOptions=schedule.map(x=>[x.code,`${labels[x.code]||x.code} (${x.start} - ${x.end})`]);
-  const orderedOptions=[...windowOptions].sort((a,b)=>Number(b[0]===suggested.shift)-Number(a[0]===suggested.shift));
   const stats={open:0,submitted:0,closed:0};
   rows.forEach(s=>stats[s.status]++);
   const canReview=['owner','reviewer'].includes(state.me.role);
@@ -573,18 +571,9 @@ async function renderShifts(){
   $('#newShift').onclick=async()=>{
     const form=await modal('فتح وردية خزنة','يجب فتح وردية الخزنة قبل تسجيل سنداتها. لا يمكن فتح ورديتين نشطتين للحساب نفسه.',[
       {name:'business_date',label:'تاريخ الوردية',type:'date',value:suggested.business_date,required:true},
-      {name:'shift',label:'الفترة',type:'select',required:true,options:orderedOptions},
+      {name:'shift',label:'الفترة',type:'select',required:true,options:[]},
       {name:'fund_id',label:'الخزنة أو المحفظة',type:'select',required:true,options}
-    ],form=>{
-       const fund=form.elements.fund_id,shift=form.elements.shift;
-       const refresh=()=>{
-         const point=config.points.find(p=>String(p.fund_id)===fund.value);
-         const slots=point?.versions?.at(-1)?.slots;
-         const alternatives=(slots||scheduleOld).map(x=>[x.code,`${x.name||labels[x.code]||x.code} — ${x.start||''}`]);
-         shift.innerHTML='<option value="">اختر الوردية</option>'+alternatives.map(x=>opt(x[0],x[1],suggested.shift)).join('');
-       };
-       fund.addEventListener('change',refresh);refresh();
-    });
+    ],form=>setupShiftOpenOptions(form,null,suggested.shift));
     if(!form)return;
     try{await post('/api/shifts/open',{...form,fund_id:Number(form.fund_id)});toast('تم فتح الوردية باسمك؛ يمكن الآن تسجيل حركاتها');state.shiftMonth=form.business_date.slice(0,7);navigate('shifts')}
     catch(e){toast(e.message,true)}
@@ -1339,13 +1328,50 @@ function modal(title,message,fields=[],setup=null){
     else field=`<input name="${esc(f.name)}" type="${esc(f.type||'text')}" ${f.type==='file'?'accept=".pdf,.jpg,.jpeg,.png"':`value="${esc(f.value??'')}"`} placeholder="${esc(f.placeholder||'')}" ${f.required?'required':''} ${f.type==='number'?`step="${esc(f.step||'0.01')}" min="0"`:''}>`;
     return `<label>${esc(f.label)}${field}</label>`;
   }).join('');
-  const form=$('#modalForm');const cleanup=()=>{form.onsubmit=null;$('#modalCancel').onclick=null;$('#modalClose').onclick=null;dialog.oncancel=null;};
+  const form=$('#modalForm');$('#modalConfirm').disabled=false;
+  const cleanup=()=>{form._shiftOptionsToken=null;$('#modalConfirm').disabled=false;form.onsubmit=null;$('#modalCancel').onclick=null;$('#modalClose').onclick=null;dialog.oncancel=null;};
   function cancel(){cleanup();dialog.close();resolve(null);}
   $('#modalCancel').onclick=cancel;$('#modalClose').onclick=cancel;dialog.oncancel=e=>{e.preventDefault();cancel();};
-  form.onsubmit=e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form));cleanup();dialog.close();resolve(data);};
+  form.onsubmit=e=>{e.preventDefault();if($('#modalConfirm').disabled)return;const data=Object.fromEntries(new FormData(form));cleanup();dialog.close();resolve(data);};
   if(setup)setup(form);
   dialog.showModal();
  });
+}
+
+
+// The API applies the same station/date schedule and access rules as shift_open.
+// The latest saved plan is never an acceptable substitute for the selected date.
+function setupShiftOpenOptions(form,fixedFundId=null,preferredCode=''){
+ const shift=form.elements.shift,date=form.elements.business_date;
+ const fund=form.elements.fund_id,submit=$('#modalConfirm'),notice=$('#modalError');
+ const token={};form._shiftOptionsToken=token;
+ let serial=0;
+ const setNotice=text=>{notice.textContent=text;notice.hidden=!text;};
+ const refresh=async()=>{
+   const request=++serial;
+   const fundId=fixedFundId??fund?.value;
+   shift.innerHTML='<option value="">\u062c\u0627\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0648\u0631\u062f\u064a\u0627\u062a...</option>';
+   shift.disabled=true;submit.disabled=true;setNotice('');
+   if(!fundId||!date.value){setNotice('\u0627\u062e\u062a\u0631 \u0627\u0644\u062e\u0632\u0646\u0629 \u0648\u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0648\u0631\u062f\u064a\u0629 \u0623\u0648\u0644\u0627\u064b');return;}
+   try{
+     const result=await api('/api/shifts/open-options?fund_id='+encodeURIComponent(fundId)+
+                           '&business_date='+encodeURIComponent(date.value));
+     if(request!==serial||form._shiftOptionsToken!==token)return;
+     const slots=result.slots||[];
+     shift.innerHTML='<option value="">\u0627\u062e\u062a\u0631 \u0627\u0644\u0648\u0631\u062f\u064a\u0629</option>'+slots.map(s=>
+       opt(s.code,`${s.name} (${s.start} - ${s.end})`,preferredCode)).join('');
+     const ready=Boolean(result.can_open&&slots.length);
+     shift.disabled=!ready;submit.disabled=!ready;
+     if(!ready)setNotice(result.message||'\u0644\u0627 \u062a\u0648\u062c\u062f \u0648\u0631\u062f\u064a\u0627\u062a \u0645\u062a\u0627\u062d\u0629 \u0644\u0647\u0630\u0627 \u0627\u0644\u064a\u0648\u0645');
+   }catch(error){
+     if(request!==serial||form._shiftOptionsToken!==token)return;
+     shift.innerHTML='<option value="">\u063a\u064a\u0631 \u0645\u062a\u0627\u062d</option>';
+     setNotice(error.message);
+   }
+ };
+ date.addEventListener('change',refresh);
+ if(fund)fund.addEventListener('change',refresh);
+ refresh();
 }
 
 async function loadSession(){

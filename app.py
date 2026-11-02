@@ -1246,6 +1246,59 @@ def shift_movements(shift_id:int,user=Depends(get_user),c:sqlite3.Connection=Dep
             "note":"التسويات العكسية تظهر في وردية تنفيذها ولا تُغيّر جرد وردية أُقفلت سابقًا."}
 
 
+@app.get("/api/shifts/open-options")
+def shift_open_options(business_date: str, fund_id: int,
+                       user=Depends(get_user), c: sqlite3.Connection=Depends(db)):
+    """Show only the station shifts effective on this Cairo business date.
+
+    This is an advisory read for the UI. The opening transaction rechecks
+    permissions, schedule and chronological constraints at write time.
+    """
+    require(user, "owner", "reviewer", "clerk")
+    day=valid_date(business_date).isoformat()
+    fund=lookup(c, "funds", fund_id)
+    if fund['kind'] not in ('cash','wallet'):
+        fail('This account cannot be counted as a cashier shift',409)
+    if fund['kind']=='wallet' or (fund['kind']=='cash' and fund['cash_restricted']):
+        authorize_cashbook_fund(c,user,fund_id)
+    point=c.execute('SELECT id FROM billing_points WHERE fund_id=?',(fund_id,)).fetchone()
+    message=''
+    if point:
+        pid=point['id']
+        if user['role']=='clerk' and not c.execute("""SELECT 1 FROM billing_point_access
+                WHERE point_id=? AND user_id=? AND active=1""",(pid,user['id'])).fetchone():
+            fail('Cashier is not assigned to this collection point',403)
+        version=cashier_ops.version_for(c,pid,day)
+        if not cashier_ops.point_enabled(c,pid,day):
+            slots=[]
+            message='Collection point is inactive on this business date'
+        elif version and str(valid_date(day).weekday()) not in version['operating_days']:
+            slots=[]
+            message='Collection point is closed on the selected weekday'
+        else:
+            slots=cashier_ops.slots_for(c,pid,day)
+        if user['role']=='clerk':
+            rights=c.execute("""SELECT allowed_codes FROM cashier_shift_staff_rules
+                       WHERE point_id=? AND user_id=?""",(pid,user['id'])).fetchone()
+            if rights is not None:
+                permitted=set(rights['allowed_codes'].split(','))
+                slots=[slot for slot in slots if slot['code'] in permitted]
+        if not slots and not message:
+            message='No shifts assigned to this user on the selected date'
+    else:
+        pid=None
+        labels={'night':'\u0633\u0647\u0631','morning':'\u0635\u0628\u0627\u062d\u064a','evening':'\u0645\u0633\u0627\u0626\u064a'}
+        slots=[{**slot,'name':labels.get(slot['code'],slot['code'])}
+               for slot in shift_schedule.templates(c)]
+    future=day>datetime.now(ZoneInfo('Africa/Cairo')).date().isoformat()
+    if future:
+        message='Future shifts can be previewed but not opened'
+    return {'business_date':day,'fund_id':fund_id,'point_id':pid,
+            'slots':[{'code':s['code'],'name':s['name'],'start':s['start'],'end':s['end']}
+                     for s in slots],
+            'can_open':bool(slots) and not future, 'message':message}
+
+
 @app.post("/api/shifts/open")
 def shift_open(body:ShiftOpenForm,user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
     require(user,"owner","reviewer","clerk")

@@ -1,0 +1,3 @@
+S9 SOURCE QA VERIFIED: 146 scripts; PASS 140, SKIP 5, BLOCKED_NO_V80 1, FAIL 0, TIMEOUT 0, process exit 0
+Excluded V8.0 migration is not a PASS.
+SUMMARY {'BLOCKED_NO_V80': 1, 'PASS': 140, 'SKIP': 5} TOTAL 146

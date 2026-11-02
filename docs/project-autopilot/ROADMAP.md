@@ -1,3 +1,17 @@
+# S9 cashier shift-opening correction / remaining external gates
+
+| Priority | Issue | State |
+|---|---|---|
+| P0 | Mismatched latest-station-shift options when opening a past/today shift | Locally fixed: CI 70/70 and source QA 146 = 140 PASS / 5 SKIP / 1 BLOCKED, plus Chromium and HTTP 33; no hospital acceptance |
+| P0 | Actual second-computer recovery and witness signoff | BLOCKED: approved physical workstation/test evidence missing |
+| P0 | Historical V8.0 opening migration | BLOCKED: authenticated original V8.0 archive missing |
+| P0 | Hospital browser HTTPS/LAN and receipts/printers | BLOCKED: cannot simulate actual hardware by loopback tests |
+| P0 | Clinical, accounting and IT UAT | BLOCKED: human signoffs needed |
+| P1 | Supplier 2200 discrepancy close policy | AWAITING signed accounting decision; never auto-post adjustments |
+| P1 | Date-aware coverage reporting and UI clarity after schedule changes | Review in next slice; retain immutable prior shifts |
+
+---
+
 # S8 — 2026-11-02 (synthetic local stabilization)
 
 | Priority | Gate | State / evidence |

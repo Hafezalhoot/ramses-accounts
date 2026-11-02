@@ -1,0 +1,5 @@
+Database initialized: /tmp/ramses-s9-open-5x04lbvp/s9.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=12508 ready on 127.0.0.1
+PASS S9 API: effective-dated station and shift rights, future blocked, viewer denied, no read-side financial writes
+PASS S9 real local Uvicorn HTTP: 33 requests
