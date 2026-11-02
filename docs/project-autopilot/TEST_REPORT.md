@@ -1,3 +1,25 @@
+# S5 — Source-first FastAPI / SQLite contention correction (2026-11-02)
+
+**Baseline S4 branch**: `60bddc1`. One isolated temporary SQLite database per independent test. Real Uvicorn HTTP over loopback, no TLS/browser/hospital dataset.
+
+**RED 1 (S4 unmodified `bootstrap.connect`)**: 96 concurrent authenticated HTTP point-assign requests, 16 workers; 14 HTTP 200 / 65 HTTP 500 / 17 network failures. Server traceback: `sqlite3.ProgrammingError: SQLite objects created in a thread can only be used in that same thread` at billing `assign_point`. 15 audit entries despite 14 acknowledged successes, demonstrating ambiguous outcomes to clients.
+
+**GREEN 1**: `check_same_thread=False`, per-request connection retained. 240/240 at 24 workers, 256/256 at 32 workers, no 500.
+
+**RED 2**: 384 HTTP assignments, 48 workers; 383 HTTP 200 / 1 HTTP 500. Trace `sqlite3.OperationalError: database is locked` at `BEGIN IMMEDIATE`; 10s `PRAGMA busy_timeout` contradicted sqlite3 connection's 30s timeout.
+
+**GREEN 2**: Remove redundant PRAGMA, inherit `timeout=30` => SQLite busy_timeout 30000ms. Final 384/384 HTTP 200, 384 audit events, 12 unique active permissions, 403 denied clerk reassignment, `integrity_check=ok`, zero FK violations. Final p50 0.680s, p95 4.818s, worst 10.035s. These timings depend on this isolated test machine and are not a hospital SLA. Another 384/48 run with explicit 30000 PRAGMA also passed, followed by a 240/24 after simplification.
+
+**S4 integrated day post-final code**: in-process PASS; separate Uvicorn real TCP HTTP PASS 161 requests, patient/cashier, central vault, supplier, bank, GL, protected period-close gate unchanged.
+
+**Eight sensitive regression scripts independently PASS**: `test_user_lifecycle.py`, `test_v82_g2t_concurrency.py`, `test_v82_g2t_revocation_race.py`, `test_v81e_g2j_treasury_integrity.py`, `test_v81e_g2i_financial_safety.py`, `test_v81e_g2m_secure_backup.py`, `test_v82_g2q_security.py`, `test_v82_g2w_gl_viewer_scope.py`.
+
+**Full CI is NOT GREEN IN S5**: `python scripts/ci_smoke.py` hit container execution timeout after 240s; first five lines PASS and no observed FAIL, remaining results unknown/uncompleted. No full S5 141-script QA run executed. Prior S4 full suite evidence cannot substitute for current commit.
+
+**Production NO-GO**: original V8.0 not sourced, no independent off-device restore, network/TLS/browser/workstations not exercised, real employee signoff and financial/medical procedures unapproved. No real monetary or hospital data used.
+
+---
+
 # S4 verified synthetic integrated financial-day acceptance (2026-11-02)
 
 **Status: DEVELOPMENT TEST_ONLY / HOSPITAL PRODUCTION NO-GO.** Source S3 baseline `4e425e490d027922e8b4ab5f43d7aa0c4a2c874f`. Isolated branch `stabilization/s4-integrated-day`. No financial backend, GL rules, schema, production records or deployments altered. A single source-owned synthetic test was added.

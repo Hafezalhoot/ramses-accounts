@@ -1,3 +1,18 @@
+# S5 completed locally / next release gates — 2026-11-02
+
+| Priority | Gate | Status | Evidence / next step |
+| --- | --- | --- | --- |
+| P0 | S4 intermittent HTTP 500 during cashier assignment | **FIXED AND LOCALLY STRESS TESTED** | Cross-thread SQLite `ProgrammingError` and 10s lock timeout both reproduced; synthetic Uvicorn 384/384 at 48 writers, all audits balanced; not hospital load proof |
+| P0 | Independent full CI / source-wide regression for S5 | **NOT COMPLETED** | 8 targeted security/finance tests and S4 in-process + HTTP pass; full 66-test run timed out after 5 observed PASS; rerun on dedicated CI worker |
+| P0 | Actual V8.0 opening/migration | **BLOCKED** | Verified original source archive and signed opening balance needed |
+| P0 | Off-device encrypted recovery and real hospital HTTPS/LAN | **NOT DONE** | Requires separate controlled hardware and authorized UAT |
+| P0 | Signed finance/medical/IT operational release | **NOT DONE** | No real patients, funds, supplier settlement or clinical approval used here |
+| P1 | Performance and operational concurrency benchmark | **NOT DONE** | Measure realistic shift workload, SLA, sessions, failure retry, checkpoint and burst latency; 48 writers test is synthetic extreme |
+| P1 | Accounting policy for supplier 2200 in month-close | **AWAITING ACCOUNTANT APPROVAL** | Define signed exception policy, no silent auto-adjustment |
+| P1 | Custom historical shift label | **OPEN** | Reproduce browser display before changing existing records |
+
+---
+
 # Ramses Accounts — stabilization-first delivery roadmap
 
 | Priority | Gate | State | Evidence / pass criterion |

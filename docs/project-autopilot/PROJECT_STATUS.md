@@ -1,3 +1,9 @@
+# Current: Ramses Accounts — S5 HTTP / SQLite concurrency (2026-11-02, TEST ONLY)
+
+Branch `stabilization/s5-contention`, S4 baseline `60bddc1`. **Locally implemented and tested:** fix FastAPI cross-thread SQLite connection failure (`check_same_thread=False` with request-scoped connection), remove earlier 10-second SQLite busy timeout override and inherit 30-second connect timeout. Real Uvicorn baseline RED: 96 HTTP requests with 65 HTTP 500 and 17 connection errors, SQLite `ProgrammingError`; second RED at 384/48: one `database is locked`. Final GREEN at 384/48: 384 HTTP 200, 12 unique active point grants, 384 audit events, 403 on unauthorized assignment, integrity/FK clean. S4 integrated in-process and 161 real HTTP pass; eight targeted financial/security/backup regressions pass. **Full S5 CI 66 test suite not completed (time limit, only five observed pass).** No product UI/GL/schema/finance policy change. No deployment or live patient records. **NO-GO PRODUCTION** pending true V8.0 archival migration, off-device encrypted recovery, independent hospital finance/medical/IT signoffs, real HTTPS browser/LAN/printer UAT and performance/load acceptance.
+
+---
+
 # Current: Ramses Accounts - Stabilization S4 (2026-11-02, TEST ONLY)
 
 Branch `stabilization/s4-integrated-day`; baseline S3 `4e425e4`. Verified one synthetic shared-DB financial day across patient/cashier/historical envelope/supplier/bank plus protected month-close preflight; full QA **135 PASS / 5 SKIP / 1 BLOCKED_NO_V80**, CI **66/66 PASS**. Genuine separate Uvicorn HTTP exercised 161 requests. Production NO-GO: no true V8.0 migration, off-device restore, real browser HTTPS, hospital UAT or independent sign-offs. Intermittent setup HTTP 500 during parallel test load remains an explicit open load-risk, not a proven fixed bug. Read `README_S4.md`, S4 section of `TEST_REPORT.md` and release QA summary before using.

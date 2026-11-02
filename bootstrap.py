@@ -66,11 +66,12 @@ def hash_password(password):
 
 def connect():
     DB.parent.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(DB, isolation_level=None, timeout=30)
+    # FastAPI sync dependencies and endpoints may run in different worker threads.
+    # Connections remain request-scoped; timeout=30 also sets SQLite busy_timeout.
+    c = sqlite3.connect(DB, isolation_level=None, timeout=30, check_same_thread=False)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys=ON")
     c.execute("PRAGMA journal_mode=WAL")
-    c.execute("PRAGMA busy_timeout=10000")
     return c
 
 
