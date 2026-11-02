@@ -485,8 +485,11 @@ async function renderShifts(){
   });
   const schedule=[...new Map([...scheduleOld,...configuredSlots].map(s=>[s.code,s])).values()];
   const suggested=data.suggested||{business_date:new Date().toLocaleDateString('sv-SE',{timeZone:'Africa/Cairo'}),shift:'morning'};
-  const labels=Object.fromEntries(config.points.flatMap(p=>p.versions.at(-1)?.slots||[]).map(s=>[s.code,s.name]));
-  Object.assign(labels,{night:'سهر',morning:'صباحي',evening:'مسائي'});
+  // Only new-shift controls use the latest plan. Recorded rows use the server's
+  // effective-dated historical identity, never the plan selected for today.
+  const labels={night:'سهر',morning:'صباحي',evening:'مسائي',
+    ...Object.fromEntries(config.points.flatMap(p=>p.versions.at(-1)?.slots||[]).map(s=>[s.code,s.name]))};
+  const recordedName=s=>s.shift_name||({night:'سهر',morning:'صباحي',evening:'مسائي'}[s.shift])||s.shift;
   const windowOptions=schedule.map(x=>[x.code,`${labels[x.code]||x.code} (${x.start} - ${x.end})`]);
   const orderedOptions=[...windowOptions].sort((a,b)=>Number(b[0]===suggested.shift)-Number(a[0]===suggested.shift));
   const stats={open:0,submitted:0,closed:0};
@@ -519,7 +522,7 @@ async function renderShifts(){
     const diff=s.variance_piasters;
     const counted=s.counted_piasters==null?'—':fmt(s.counted_piasters)+' ج.م';
     const variance=diff==null?'—':`${diff>0?'+':''}${fmt(diff)} ج.م`;
-    return `<tr><td><b>${esc(s.business_date)}</b><br><span class="tiny">${esc(labels[s.shift]||s.shift)}</span></td>
+    return `<tr><td><b>${esc(s.business_date)}</b><br><span class="tiny">${esc(recordedName(s))}</span></td>
       <td>${esc(s.fund_name)}</td><td>${esc(s.responsible_name)}</td>
       <td><span class="chip ${style}">${esc(label)}</span></td>
       <td>${counted}</td><td>${diff==null?'—':`<b class="${diff===0?'good': 'bad'}">${variance}</b>`}</td>
@@ -529,7 +532,7 @@ async function renderShifts(){
     const diff=s.variance_piasters;
     const actions=shiftButtons(s);
     return `<article class="panel shift-mobile-card">
-      <div class="shift-mobile-top"><div><strong>${esc(s.fund_name)}</strong><small>${esc(s.business_date)} · ${esc(labels[s.shift]||s.shift)}</small></div>
+      <div class="shift-mobile-top"><div><strong>${esc(s.fund_name)}</strong><small>${esc(s.business_date)} · ${esc(recordedName(s))}</small></div>
         <span class="chip ${s.status==='closed'?'approved':s.status==='submitted'?'pending':'type-transfer'}">${esc(shiftStateLabels[s.status])}</span></div>
       <div class="shift-mobile-owner">صاحب العهدة: <b>${esc(s.responsible_name)}</b></div>
       <div class="shift-mobile-details"><div><span>العد الفعلي</span><strong>${s.counted_piasters==null?'—':fmt(s.counted_piasters)+' ج.م'}</strong></div>
@@ -540,7 +543,7 @@ async function renderShifts(){
        'صاحب العهدة يعدّ النقد، والمراجع يحقق في الفروق، والمالك أو المحاسب المُفوّض يعتمد التسوية المستقلة عند الحاجة.',
        `<button class="btn btn-primary" id="newShift">${ico('plus')} فتح وردية</button>${state.me.role==='owner'?`<button class="btn btn-secondary" id="shiftScheduleSetup">${ico('settings')} \u0645\u0648\u0627\u0639\u064a\u062f \u0627\u0644\u0648\u0631\u062f\u064a\u0627\u062a</button>`:''}${canReview?`<button class="btn btn-secondary" id="cashierDaySummary">${ico('chart')} \u064a\u0648\u0645\u064a\u0629 \u0627\u0644\u0643\u0627\u0634\u064a\u0631</button>`:''}`)+
     `<div class="filter-strip panel">${periodInput(state.shiftMonth,'shiftMonth')}<span class="helper-note">الأرصدة داخل هذه الشاشة بالقروش وتُعرض بالجنيه. لا تُرحّل فروق الجرد تلقائيًا.</span></div>`+
-    `<div class="info-box"><div><strong>\u0645\u0648\u0627\u0639\u064a\u062f \u0627\u0644\u0648\u0631\u062f\u064a\u0627\u062a \u0642\u0627\u0628\u0644\u0629 \u0644\u0644\u062a\u063a\u064a\u064a\u0631:</strong> ${schedule.map(x=>`${labels[x.code]} ${x.start}-${x.end}`).join(' | ')}<small> \u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0633\u0647\u0631 \u0647\u0648 \u064a\u0648\u0645 \u0628\u062f\u0627\u064a\u062a\u0647 \u0628\u0639\u062f \u0645\u0646\u062a\u0635\u0641 \u0627\u0644\u0644\u064a\u0644.</small></div></div>`+
+    `<div class="info-box"><div><strong>\u0645\u0648\u0627\u0639\u064a\u062f \u0627\u0644\u0648\u0631\u062f\u064a\u0627\u062a \u0642\u0627\u0628\u0644\u0629 \u0644\u0644\u062a\u063a\u064a\u064a\u0631:</strong> ${schedule.map(x=>`${labels[x.code]||x.code} ${x.start}-${x.end}`).join(' | ')}<small> \u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0633\u0647\u0631 \u0647\u0648 \u064a\u0648\u0645 \u0628\u062f\u0627\u064a\u062a\u0647 \u0628\u0639\u062f \u0645\u0646\u062a\u0635\u0641 \u0627\u0644\u0644\u064a\u0644.</small></div></div>`+
     `<div class="mini-metrics shift-metrics"><div class="mini-metric"><span>وردية مفتوحة</span><strong>${integer(stats.open)}</strong></div>
       <div class="mini-metric"><span>تنتظر الاعتماد</span><strong>${integer(stats.submitted)}</strong></div>
       <div class="mini-metric"><span>أُغلقت بعد المطابقة</span><strong>${integer(stats.closed)}</strong></div></div>`+
@@ -557,7 +560,7 @@ async function renderShifts(){
     if(!form)return;
     try{
       const report=await api('/api/shifts/day-summary?business_date='+encodeURIComponent(form.business_date));
-      const body=(report.stations||[]).map(sh=>`<tr><td>${esc(sh.point_name)}</td><td>${esc(labels[sh.shift])}</td><td>${esc(sh.responsible_name)}</td><td>${fmt(sh.cash_credited_piasters)}</td><td>${fmt(sh.cash_debited_piasters)}</td><td>${esc(sh.handoff_status||sh.status)}</td></tr>`).join('');
+      const body=(report.stations||[]).map(sh=>`<tr><td>${esc(sh.point_name)}</td><td>${esc(recordedName(sh))}</td><td>${esc(sh.responsible_name)}</td><td>${fmt(sh.cash_credited_piasters)}</td><td>${fmt(sh.cash_debited_piasters)}</td><td>${esc(sh.handoff_status||sh.status)}</td></tr>`).join('');
       const ways=Object.entries(report.payment_method_totals_piasters||{}).map(([method,value])=>`<tr><td>${esc(method)}</td><td>${fmt(value)}</td></tr>`).join('');
       const completion=report.is_provisional?'<div class="info-box warning">\u064a\u0648\u0645\u064a\u0629 \u0645\u0624\u0642\u062a\u0629: \u0648\u0631\u062f\u064a\u0627\u062a \u0623\u0648 \u0645\u0631\u0627\u062c\u0639\u0627\u062a \u0644\u0645 \u062a\u0643\u062a\u0645\u0644.</div>':'';
       await modal('\u064a\u0648\u0645\u064a\u0629 \u0627\u0644\u0643\u0627\u0634\u064a\u0631 - '+esc(form.business_date),
@@ -640,7 +643,7 @@ async function renderShifts(){
     if(action==='daily'){
       try{const r=await api(`/api/shifts/${id}/daily-report`);
         const cash=r.cash_movements||[],ways=r.payment_methods||[];
-        const html=`<p>${esc(r.business_date)} - ${esc(labels[r.shift]||r.shift)} - ${esc(r.fund_name)}</p>`+
+        const html=`<p>${esc(r.business_date)} - ${esc(recordedName(r))} - ${esc(r.fund_name)}</p>`+
           `<p>\u0627\u0644\u0639\u0647\u062f\u0629 \u0648\u062d\u0631\u0643\u0627\u062a \u0627\u0644\u062f\u0631\u062c</p>`+
           table(['\u0627\u0644\u0628\u064a\u0627\u0646','\u0627\u0644\u0645\u0628\u0644\u063a'],[
             ['\u0631\u0635\u064a\u062f \u0627\u0644\u0628\u062f\u0627\u064a\u0629',r.opening_piasters],

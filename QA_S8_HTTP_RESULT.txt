@@ -1,0 +1,5 @@
+Database initialized: /tmp/ramses-s8-history-5xtpmgtc/s8.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=69432 ready on 127.0.0.1
+PASS S8 API: original effective-dated label in list/day report, viewer denied, zero ledger or audit writes
+PASS S8 real local Uvicorn HTTP: 11 requests, historical shift identity and authorization checked

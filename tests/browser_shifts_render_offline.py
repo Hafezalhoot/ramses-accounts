@@ -46,6 +46,9 @@ def run():
             }""",fixtures)
             page.add_script_tag(content=(ROOT/'static/app.js').read_text())
             page.wait_for_selector('#shell:not([hidden])',timeout=6000)
+            # Fixtures are a frozen October 2026 snapshot; the live UI defaults
+            # to today's month, which advances independently of this test.
+            page.evaluate("state.shiftMonth='2026-10';state.month='2026-10';state.payrollMonth='2026-10'")
             page.locator('#mainNav [data-view=shifts]').click()
             page.wait_for_selector('#newShift',timeout=6000)
             assert 'الورديات والجرد' in page.locator('#content h1').first.inner_text()

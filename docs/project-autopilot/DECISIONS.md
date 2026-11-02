@@ -1,3 +1,11 @@
+# S8 decisions (test-only, 2026-11-02)
+
+- Return `shift_name` from the immutable, effective-dated station plan, leaving `shift` code and associated fund/custody/ledger rows untouched. Do not take a label from the last version when displaying historical evidence.
+- Resolve a missing old point/slot to the legacy readable code, rather than inventing a current label. Use server data on desktop, mobile and day/daily reports; escape strings before HTML insertion.
+- Do not implement supplier-account 2200 automatic month-close reconciliation, make bank actions, change owner privileges or promote a hospital release without signed policies/UAT.
+
+---
+
 # S5 architecture decision — SQLite thread affinity and lock waits (2026-11-02)
 
 For the existing synchronous FastAPI dependency injection, each `db()` call creates and closes its own SQLite connection, but FastAPI may run the generator's creation and endpoint execution on different worker threads. Keep per-request connection ownership, set `check_same_thread=False` and NEVER share a connection concurrently across separate requests or hold it globally. This is a standard SQLite threading accommodation, not an authorization bypass. `BEGIN IMMEDIATE` and existing DB triggers still govern write serialization. Use one source of truth for timeout: `sqlite3.connect(timeout=30)`; remove contradictory `PRAGMA busy_timeout=10000`. Tradeoff: during unusually high write contention a request can wait up to 30 seconds; this does not confer a performance SLA or guarantee retry/idempotency for every endpoint. Reevaluate storage architecture after representative hospital load tests, not speculatively. No SQLite schema or GL change.

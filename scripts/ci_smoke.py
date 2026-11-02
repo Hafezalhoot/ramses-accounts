@@ -78,6 +78,7 @@ TESTS = (
     'test_payroll_review_workflow.py',
     'test_s6_backup_financial_integrity.py',
     'test_s7_recovery_drill.py',
+    'test_s8_historical_shift_identity.py',
 )
 
 

@@ -1,0 +1,2 @@
+PASS S8 Chromium: historical shift identity in desktop/mobile/daily modal at 375px, no JS errors
+PASS — offline Chromium shift variance, attachment dialog, payroll correction, responsive and no JS errors

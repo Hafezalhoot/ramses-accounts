@@ -1,3 +1,9 @@
+# Current — S8 historical cashier shift identity (2026-11-02; TEST ONLY)
+
+**Implemented:** effective-dated server `shift_name` on shift list, per-shift daily report and consolidated hospital cashier day; RTL desktop/mobile consumes historical label. Source API RED when field absent and GREEN after fix. Browser RED on latest-plan mislabel and GREEN on historical label; recovered the existing frozen-month UI test. Real local Uvicorn HTTP S8 test checks owner/viewer auth and zero ledger writes. Previous money controls S2/S4 and scope G2W retain separate verified test evidence. Final suite and artifact evidence are tracked in the S8 release QA report. **PRODUCTION NO-GO**: missing genuine V8.0, independent physical recovery, HTTPS hospital workstation tests, signed finance/medical/IT approval. No live writes or migrations.
+
+---
+
 # Current — S7 offline recovery rehearsals (2026-11-02; TEST ONLY)
 
 **S7 current regression:** 68/68 source CI PASS, full QA 144 = 138 PASS / 5 SKIP / 1 BLOCKED_NO_V80, 0 FAIL; S4 HTTP synthetic 161 requests PASS. No second real device demonstrated.

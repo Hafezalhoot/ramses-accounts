@@ -1,3 +1,9 @@
+# Current: Ramses Accounts G3N-S8 — historical cashier identity / TEST ONLY / NO-GO
+
+From S7 `67cbdf8`, recover original names of recorded cashier shifts from the point's **effective-dated schedule for the recorded business_date**. The shifts list, hospital cash-day summary and per-shift daily report now include `shift_name`; desktop/mobile/report UI displays it rather than the latest schedule's label. A frozen-date browser fixture was repaired. Tests: source-owned S8 API, offline Chromium, genuine loopback HTTP, S2/S4 accountant workflows and controlled regression. **No schema, ledger, role, price, monetary movement or production data changed.** Hardware/TLS/V8.0 and hospital approvals remain blocked. See `README_S8_AR.md`; release-gate results in `docs/project-autopilot/TEST_REPORT.md`.
+
+---
+
 # Current: Ramses Accounts G3N-S7 — portable offline recovery drill / TEST ONLY / NO-GO
 
 **Verified source S7 gates:** CI 68/68 PASS; source suite 144 = 138 PASS, 5 SKIP, 1 BLOCKED_NO_V80; independent S4 Uvicorn HTTP 161 PASS. These are synthetic local gates only, not the hospital release gate.

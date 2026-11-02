@@ -1,3 +1,25 @@
+# S8 - effective-dated historical cashier names (2026-11-02)
+
+**Release state: TEST_ONLY; PRODUCTION NO-GO.** Base S7 `67cbdf8`, isolated branch `stabilization/s8-historical-shift-identity`. No SQLite schema, posting amounts, patient data, hospital deployment or grants modified.
+
+**RED evidence:** `tests/test_s8_historical_shift_identity.py` failed when `/api/shifts` lacked an effective-dated historical name after a new future schedule; dedicated per-shift daily report test also failed. Offline Chromium reproduced mislabeling from the current/latest schedule in desktop, 375px mobile and day/daily modal. Existing older browser test failed because 2026-10 fixture was loaded with default 2026-11 month; corrected fixture, not business logic. See `s8_*_red.txt` in working QA session (non-release debug artifacts).
+
+**GREEN changes:** `cashier_ops.historical_shift_name` resolves name from the schedule version valid on session business date for linked cashier point, with legacy code fallback; `app.py` returns `shift_name` on shift list, hospital day summary and per-shift daily report; `static/app.js` uses read-only historical names on those four surfaces with `esc` HTML encoding. New-shift option configuration remains separate. Historic session `shift` code and money records stay unchanged.
+
+**Actual checks:**
+- `python tests/test_s8_historical_shift_identity.py`: PASS, one disposable SQLite / API with future rename, denied viewer access, zero GL/fund/audit writes and SQLite integrity.
+- `python scripts/qa_s8_http.py`: PASS, separate local Uvicorn process, **11 real HTTP requests** (not HTTPS/hospital LAN). Evidence `QA_S8_HTTP_RESULT.txt`.
+- `python tests/browser_s8_shift_history_offline.py`: PASS Chromium 1280 and 375px, day and individual modals; no JavaScript errors or mobile horizontal overflow. This uses synthetic browser fetch fixtures, not end-user network.
+- `python tests/browser_shifts_render_offline.py`: PASS after pinning source's historical test fixture month explicitly.
+- `python tests/test_s2_cashier_24h_acceptance.py`, `python tests/test_s4_integrated_day.py`, `python tests/test_v82_g2w_shift_fund_scope.py` and shift coverage: PASS, account reconciliation invariants unchanged.
+- `S4_REAL_HTTP=1 python tests/test_s4_integrated_day.py`: PASS on *final S8 source*, **161 real TCP HTTP requests**: patient and cashier 600 EGP, historical envelope net 1300 EGP, central expense 50 EGP, vault 1850 EGP, supplier AP 40 EGP and bank 140 EGP, balanced GL. Recorded in `QA_S8_S4_HTTP_RESULT.txt`.
+- **Fresh full CI** `python scripts/ci_smoke.py`: **69/69 PASS**, exit 0; 1 additional S8 source-owned regression included.
+- **Fresh complete source regression** `python scripts/qa_g2t_full.py`: **145 files = 139 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT**, exit 0. The original V8.0 migration is blocked and *not* included in the passes. Five test skips remain explicit. Original `QA_G2T_TEST_RESULTS.tsv` kept in its prior baseline; full S8 outcome preserved in `QA_S8_TEST_RESULTS.tsv`.
+
+**Not done:** authentic V8.0 archival migration and opening balances; recovery on a physically separate workstation; actual browser over TLS/hospital LAN/printers/payment terminals; signed independent finance/medical/IT UAT; external penetration assessment. No production GO decision is defensible from local synthetic test counts.
+
+---
+
 # S7 — local offline recovery rehearsal acceptance (2026-11-02)
 
 **Verified suite on S7 final source:** CI 68/68 PASS; full regression 144 = 138 PASS, 5 SKIP, 1 BLOCKED_NO_V80, 0 FAIL/TIMEOUT; S4 separate Uvicorn 161 requests PASS; `QA_S7_*` source evidence. Neither real external machine recovery nor genuine V8.0 historical migration was performed.

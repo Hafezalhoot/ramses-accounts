@@ -1,3 +1,16 @@
+# S8 — 2026-11-02 (synthetic local stabilization)
+
+| Priority | Gate | State / evidence |
+|---|---|---|
+| P1 | Historical custom shift label in cashier day, list and individual daily-report | **FIXED/LOCALLY TESTED** via effective-dated `shift_name` and API/Chromium/HTTP S8 regression; no GL or schema change |
+| P0 | Original V8.0 source and signed opening balances | **BLOCKED** — missing authentic archive |
+| P0 | Encrypted restore on a physically separate workstation | **BLOCKED** — S7 provides drill and blank UAT, no completed physical witness |
+| P0 | Hospital HTTPS/LAN/printers, independent finance/clinical/IT UAT | **BLOCKED** — no authorized hospital device or signatures |
+| P1 | Supplier control account 2200 month-close policy | **AWAITING APPROVAL** — must not infer exception policy or post automatic differences |
+| P1 | Financial event throughput and responsive/browser load on real devices | **NOT STARTED** — local synthetic stress is not a hospital SLA |
+
+---
+
 # S7 progress — 2026-11-02
 
 | Priority | Gate | Status / evidence |

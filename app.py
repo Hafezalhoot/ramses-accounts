@@ -1111,6 +1111,7 @@ def shifts(month:str="", user=Depends(get_user), c:sqlite3.Connection=Depends(db
     result=[]
     for r in rows:
         item=dict(r)
+        item['shift_name']=cashier_ops.historical_shift_name(c,r['point_id'],r['business_date'],r['shift'])
         case=c.execute("""SELECT id,status,explanation,proposed_by,decision_note,adjustment_voucher_id
               FROM shift_variance_cases WHERE shift_session_id=? ORDER BY id DESC LIMIT 1""",(r["id"],)).fetchone()
         item["variance_case"]=(dict(case) if case and user["role"] in ("owner","reviewer") else
@@ -1186,7 +1187,7 @@ def cashier_day_summary(business_date:str,user=Depends(get_user),c:sqlite3.Conne
     scoped,scope_args=reviewer_shift_scope_sql(user)
     for sh in c.execute('''SELECT s.id,s.business_date,s.shift,s.status,s.opening_piasters,
               s.counted_piasters,s.variance_piasters,s.responsible_id,
-              s.count_version,s.fund_id,p.name point_name,f.name fund_name,u.username responsible_name
+              s.count_version,s.fund_id,p.id point_id,p.name point_name,f.name fund_name,u.username responsible_name
               FROM shift_sessions s JOIN funds f ON f.id=s.fund_id
               JOIN users u ON u.id=s.responsible_id
               JOIN billing_points p ON p.fund_id=s.fund_id
@@ -1199,7 +1200,9 @@ def cashier_day_summary(business_date:str,user=Depends(get_user),c:sqlite3.Conne
             FROM fund_movements WHERE shift_session_id=?''',(sh['id'],)).fetchone()
         handoff=active_handoff(c,sh) if sh['count_version'] else None
         stations.append({'id':sh['id'],'point_name':sh['point_name'],'fund_name':sh['fund_name'],
-            'shift':sh['shift'],'responsible_name':sh['responsible_name'],'status':sh['status'],
+            'shift':sh['shift'],
+            'shift_name':cashier_ops.historical_shift_name(c,sh['point_id'],sh['business_date'],sh['shift']),
+            'responsible_name':sh['responsible_name'],'status':sh['status'],
             'opening_piasters':sh['opening_piasters'],'cash_credited_piasters':changes[0],
             'cash_debited_piasters':changes[1],
             'expected_piasters':sh['opening_piasters']+changes[0]-changes[1],
@@ -1458,6 +1461,7 @@ def shift_daily_report(shift_id:int,user=Depends(get_user),c:sqlite3.Connection=
     reveal=user['role'] in ('owner','reviewer') or sh['status']!='open'
     handoff=active_handoff(c,sh) if sh['count_version'] else None
     return {'id':shift_id,'business_date':sh['business_date'],'shift':sh['shift'],
+        'shift_name':cashier_ops.historical_shift_name(c,sh['point_id'],sh['business_date'],sh['shift']),
         'scheduled_start_at':sh['scheduled_start_at'],'scheduled_end_at':sh['scheduled_end_at'],
         'point_name':sh['point_name'],'fund_name':sh['fund_name'],'status':sh['status'],
         'opening_piasters':sh['opening_piasters'] if reveal else None,

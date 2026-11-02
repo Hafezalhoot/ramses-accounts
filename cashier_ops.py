@@ -135,6 +135,22 @@ def slots_for(c,point_id,day):
     return result
 
 
+def historical_shift_name(c, point_id, business_date, code):
+    """Display a recorded shift using the schedule in force on its business date.
+
+    Never re-label old custody records from a newer station schedule. An
+    unresolvable legacy code is displayed literally rather than invented.
+    """
+    if point_id is not None:
+        slot = c.execute("""SELECT s.name FROM cashier_schedule_slots s
+           JOIN cashier_schedule_versions v ON v.id=s.version_id
+           WHERE v.point_id=? AND v.starts_on<=? AND s.code=?
+           ORDER BY v.starts_on DESC,v.id DESC LIMIT 1""",
+           (point_id,business_date,code)).fetchone()
+        if slot:
+            return slot['name']
+    return {'night':'سهر','morning':'صباحي','evening':'مسائي'}.get(code,code)
+
 def interval(day,slot):
     when=date.fromisoformat(day)
     start_min=slot['start_minute']; end_min=slot['end_minute']
