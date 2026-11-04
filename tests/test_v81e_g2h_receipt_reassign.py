@@ -142,6 +142,12 @@ def run():
         assert ok(call(reviewer,'GET','/api/corrections'))['tickets'][0]['resolved_reallocation_id']
         old_receipt=ok(call(clerk,'GET',f'/api/billing/collections/{collected["id"]}'))
         assert old_receipt['case_no']==case_a['case_no'] and old_receipt['allocation_corrected']
+        printed=call(clerk,'GET',f'/api/billing/collections/{collected["id"]}/print')
+        assert printed.status_code==200,printed.text
+        assert case_a['case_no'] in printed.text and invoice_a['invoice_no'] in printed.text
+        assert case_b['case_no'] not in printed.text and invoice_b['invoice_no'] not in printed.text
+        assert '100.00' in printed.text and 'نقدي' in printed.text and 'بطاقة POS' in printed.text
+        assert 'تغير تخصيصه بتصحيح مستقل' in printed.text
         old_case=ok(call(clerk,'GET',f'/api/billing/cases/{case_a["id"]}/finance'))
         new_case=ok(call(clerk,'GET',f'/api/billing/cases/{case_b["id"]}/finance'))
         assert old_case['outstanding_piasters']==50000

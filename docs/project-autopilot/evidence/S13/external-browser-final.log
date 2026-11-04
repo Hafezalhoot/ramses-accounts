@@ -1,0 +1,2 @@
+PASS external HTTPS Chrome 375: protected gateway, application login/reload/session200, Secure cookie, RTL/Cairo, no overflow/JS errors
+PASS external HTTPS Chrome 1440: protected gateway, application login/reload/session200, Secure cookie, RTL/Cairo, no overflow/JS errors

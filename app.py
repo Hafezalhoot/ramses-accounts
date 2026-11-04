@@ -3497,6 +3497,8 @@ if __name__ == "__main__":
 # V8.1A: intentionally isolated cashier billing domain, reusing auth/audit/SQLite.
 from billing import router as billing_router
 app.include_router(billing_router)
+from print_documents import router as print_router
+app.include_router(print_router)
 from cashier_api import router as cashier_router
 app.include_router(cashier_router)
 

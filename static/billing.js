@@ -245,7 +245,7 @@ function renderBillingFinance(finance,perms){
   (isLate?`<div class="info-box ${settledLate?'':'warning'}">${ico(settledLate?'check':'alert')}<div><strong>حالة مستدركة من يوم سابق</strong>
      <p>تاريخ الخدمة الأصلي: ${esc(finance.late_recovery.original_business_date)}. ${settledLate?`تم تخصيص ${fmt(settledLate)} جنيه من نقدية مثبتة سابقًا بالخزنة، دون إنشاء قبض جديد. راجع المتبقي قبل اعتبار الحالة مسددة.`:'التحصيل النقدي القديم ممنوع من هذه الشاشة إلى أن يطابق المحاسب الظرف والخزنة؛ إصدار الفاتورة لا يعني استلام المال.'} (بلاغ #${integer(finance.late_recovery.incident_id)}).</p></div></div>`:'')+
   `<div class="billing-stats"><div><span>الفواتير الصادرة</span><strong>${fmt(finance.total_invoiced_piasters)} ج.م</strong></div><div><span>المتبقي</span><strong>${fmt(finance.outstanding_piasters)} ج.م</strong></div><div><span>المقدم المتاح</span><strong>${fmt(finance.advance_available_piasters)} ج.م</strong></div></div>`+
-  (invs.length?`<div class="billing-invoices">${invs.map(i=>`<div class="billing-invoice-card"><div><strong>${esc(i.invoice_no)}</strong><small>${fmt(i.total_piasters)} ج.م — المتبقي ${fmt(i.due_piasters)} ج.م</small></div><div class="billing-actions">${i.due_piasters>0&&perms.cashier&&!isLate?`<button class="btn btn-small btn-primary" data-billing-collect="${i.id}">تحصيل</button>${finance.advance_available_piasters?`<button class="btn btn-small btn-outline" data-billing-apply="${i.id}">تخصيص مقدم</button>`:''}`:''}<button class="btn btn-small btn-outline" data-billing-correction="invoice:${i.id}">الإبلاغ عن خطأ</button></div></div>`).join('')}</div>`:empty('لم تُصدر فاتورة بعد.'))+
+  (invs.length?`<div class="billing-invoices">${invs.map(i=>`<div class="billing-invoice-card"><div><strong>${esc(i.invoice_no)}</strong><small>${fmt(i.total_piasters)} ج.م — المتبقي ${fmt(i.due_piasters)} ج.م</small></div><div class="billing-actions">${i.due_piasters>0&&perms.cashier&&!isLate?`<button class="btn btn-small btn-primary" data-billing-collect="${i.id}">تحصيل</button>${finance.advance_available_piasters?`<button class="btn btn-small btn-outline" data-billing-apply="${i.id}">تخصيص مقدم</button>`:''}`:''}<a class="btn btn-small btn-outline" href="/api/billing/invoices/${i.id}/print" target="_blank" rel="noopener">طباعة الفاتورة</a><button class="btn btn-small btn-outline" data-billing-correction="invoice:${i.id}">الإبلاغ عن خطأ</button></div></div>`).join('')}</div>`:empty('لم تُصدر فاتورة بعد.'))+
   (perms.cashier&&!isLate?`<button id="billingAdvance" class="btn btn-secondary">تسجيل مقدم حالة (بدون فاتورة)</button>`:'')+
   `<div class="billing-divider"></div><div class="billing-section-title"><h3>الإيصالات المسجلة</h3><small>كل تحصيل مرتبط بالوردية</small></div>`+
   (collections.length?`<div class="billing-invoices">${collections.map(x=>{
@@ -273,12 +273,12 @@ async function billingPaymentForm({caseId,point,invoiceId,patientCode,cfg}){
  const data=await billingMutation('cashier-collect-'+caseId,`/api/billing/cases/${caseId}/collect`,
    {point_id:point.id,invoice_id:invoiceId||null,patient_code:patientCode||'',parts});
  toast('سُجل التحصيل التجريبي '+data.collection_no+'؛ راجع اليومية قبل أي اعتماد');
- if(patientCode){
+ {
    try{
      const receipt=await api(`/api/billing/collections/${data.id}`);
-     await modal('إيصال كاشير عن حالة من نقطة أخرى',`<strong>${esc(receipt.collection_no)}</strong><p>${esc(receipt.case_no)}</p>`+
+     await modal(patientCode?'إيصال كاشير عن حالة من نقطة أخرى':'إيصال التحصيل',`<strong>${esc(receipt.collection_no)}</strong><p>${esc(receipt.case_no)}</p>`+
        receipt.parts.map(x=>`<p>${esc(x.method)}: ${fmt(x.amount_piasters)} ج.م</p>`).join('')+
-       `<strong>الإجمالي: ${fmt(receipt.total_piasters)} ج.م</strong><p>${esc(receipt.watermark)}</p>`);
+       `<strong>الإجمالي: ${fmt(receipt.total_piasters)} ج.م</strong><p>${esc(receipt.watermark)}</p><a class="btn btn-primary" href="/api/billing/collections/${data.id}/print" target="_blank" rel="noopener">طباعة الإيصال</a>`);
    }catch(e){toast('تم حفظ التحصيل، لكن تعذر عرض الإيصال: '+e.message,true)}
  }
  await navigate('billing');
@@ -407,7 +407,7 @@ function bindBillingActions({point,cfg,selected,owner,cashier,canFulfill,finance
        r.parts.map(x=>`<p>${esc(x.method)}: ${fmt(x.amount_piasters)} ج.م</p>`).join('')+
        `<strong>الإجمالي: ${fmt(r.total_piasters)} ج.م</strong>`+
        (r.allocation_corrected?'<p><b>تنبيه:</b> هذا هو الإيصال التاريخي الأصلي؛ رُبطت ذمته بفـاتورة أخرى بتصحيح مستقل، ولم يُقبض المال ثانية.</p>':'')+
-       `<p>${esc(r.watermark)}</p>`);
+       `<p>${esc(r.watermark)}</p><a class="btn btn-primary" href="/api/billing/collections/${Number(b.dataset.billingReceipt)}/print" target="_blank" rel="noopener">طباعة الإيصال</a>`);
    }catch(e){toast(e.message,true)}
  });
  $$('[data-billing-point]').forEach(b=>b.onclick=()=>{billingState.pointId=Number(b.dataset.billingPoint);billingState.caseId=null;navigate('billing')});

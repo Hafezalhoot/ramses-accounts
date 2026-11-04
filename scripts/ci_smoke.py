@@ -84,6 +84,7 @@ TESTS = (
     'test_s11_daily_exceptions.py',
     'test_s11_atomic_master_data.py',
     'test_s11_case_inventory_pending.py',
+    'test_s13_cashier_print.py',
     'test_s12_request_limits.py',
     'test_s12_runtime_database.py',
     'test_s12_secure_preview_seed.py',

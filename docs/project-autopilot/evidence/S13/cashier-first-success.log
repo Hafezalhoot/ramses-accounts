@@ -1,0 +1,3 @@
+PASS real HTTPS cashier UI: open shift, new patient, service order, independent clinical API proof, draft, issue, cash collection, count; independent treasury/reviewer APIs close sample shift
+PASS real HTTPS Chrome 375: cashier login, invoice/receipt links, three RTL print views, local Cairo, no overflow/JS errors
+PASS real HTTPS Chrome 1440: cashier login, invoice/receipt links, three RTL print views, local Cairo, no overflow/JS errors

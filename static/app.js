@@ -648,7 +648,7 @@ async function renderShifts(){
           `<p>\u0648\u0633\u0627\u0626\u0644 \u0627\u0644\u062f\u0641\u0639 (\u063a\u064a\u0631 \u0627\u0644\u0646\u0642\u062f\u064a \u062e\u0627\u0631\u062c \u0627\u0644\u062f\u0631\u062c)</p>`+
           table(['\u0627\u0644\u0648\u0633\u064a\u0644\u0629','\u0627\u0644\u0645\u0628\u0644\u063a'],ways.map(w=>`<tr><td>${esc(w.method)}</td><td>${fmt(w.total_piasters)}</td></tr>`).join(''))+
           table(['\u0627\u0644\u0633\u0646\u062f','\u0627\u0644\u0628\u064a\u0627\u0646','\u0627\u0644\u0623\u062b\u0631'],cash.map(x=>`<tr><td>${esc(x.voucher_no)}</td><td>${esc(x.description)}</td><td>${fmt(x.amount_piasters)}</td></tr>`).join(''));
-        await modal('\u064a\u0648\u0645\u064a\u0629 \u0627\u0644\u0648\u0631\u062f\u064a\u0629',html);
+        await modal('يومية الوردية',html+`<a class="btn btn-primary" href="/api/shifts/${id}/daily-report/print" target="_blank" rel="noopener">طباعة ملخص الوردية</a>`);
       }catch(e){toast(e.message,true)}
       return;
     }
@@ -1396,12 +1396,4 @@ function initializeEvents(){
 }
 initializeEvents();loadSession();
 
-// Nonblocking Cairo variable font: show the local/offline shell before remote CSS is requested.
-window.addEventListener("load", () => {
-  setTimeout(() => {
-    const fontStyle = document.createElement("link");
-    fontStyle.rel = "stylesheet";
-    fontStyle.href = "https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&display=swap";
-    document.head.appendChild(fontStyle);
-  }, 0);
-}, { once: true });
+// Cairo is bundled under static/fonts, including its license, for offline use.

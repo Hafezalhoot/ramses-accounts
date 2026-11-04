@@ -1,0 +1,12 @@
+/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/ramses-s13-5cl3k56k/test.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Traceback (most recent call last):
+  File "/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/tests/test_s13_cashier_print.py", line 100, in <module>
+    if __name__=='__main__':run()
+                            ~~~^^
+  File "/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/tests/test_s13_cashier_print.py", line 65, in run
+    assert r.status_code==200,(path,r.status_code,r.text[:400])
+           ^^^^^^^^^^^^^^^^^^
+AssertionError: ('/api/billing/invoices/1/print', 404, '{"detail":"Not Found"}')
