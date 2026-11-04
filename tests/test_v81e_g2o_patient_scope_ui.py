@@ -2,6 +2,7 @@
 
 This is synthetic HTML/JS verification, NOT a live server or patient test.
 """
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -38,7 +39,7 @@ window.fixtureConfig={points:[{id:11,name:'الخارجي التجريبي',kind
 
 def run():
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=p.chromium.launch(headless=True,**chromium_options(),
                                   args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (1440,375,320):

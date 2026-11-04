@@ -1219,9 +1219,16 @@ def cashier_day_summary(business_date:str,user=Depends(get_user),c:sqlite3.Conne
     # Unknown coverage and all actual unfinished shifts still block readiness.
     required_slots=[x for x in daily_slots if x['status']!='not_required']
     is_complete=bool(required_slots) and all(x['status']=='complete' for x in required_slots)
+    # Include expected shifts even when no electronic session was ever opened.
+    # Reuse the access-scoped coverage population; absence is not zero activity.
+    exceptions=[x for x in coverage['items']
+                if x['business_date']==day and x['status']!='closed']
+    exceptions.extend({**x,'shift':None,'shift_name':None,'session_id':None}
+                      for x in daily_slots if x['status']=='not_monitored')
     return {'business_date':day,'stations':stations,'payment_method_totals_piasters':method_total,
         'pending_accounting_review':sum(x['status']=='submitted' for x in stations),
-        'coverage':daily_slots,'shift_coverage_complete':is_complete,'is_provisional':not is_complete,
+        'coverage':daily_slots,'coverage_exceptions':exceptions,
+        'shift_coverage_complete':is_complete,'is_provisional':not is_complete,
         'financially_certified':False,
         'notes':'Collections are cash flow, not revenue. Transfers are not new receipts. Excludes legacy unshifted funds. Day summaries are provisional until expected cashier shifts are independently closed.'}
 
@@ -2123,6 +2130,7 @@ def create_fund(body:FundForm,user=Depends(get_user),c:sqlite3.Connection=Depend
     if len(body.name.strip())<3: fail("اسم الخزنة قصير")
     try:
         with c:
+            c.execute("BEGIN IMMEDIATE")
             cur=c.execute("INSERT INTO funds(code,name,kind,cash_restricted) VALUES (?,?,?,?)",
                           (code,body.name.strip(),body.kind,int(body.kind=='cash' and body.restricted_cash)))
             ledger.ensure_fund_account(c,cur.lastrowid)
@@ -2413,6 +2421,7 @@ def employee_add(body:EmployeeForm,user=Depends(get_user),c:sqlite3.Connection=D
     if body.department_id:lookup(c,"departments",body.department_id)
     try:
         with c:
+            c.execute("BEGIN IMMEDIATE")
             cur=c.execute("INSERT INTO employees(code,name,job_title,department_id) VALUES (?,?,?,?)",
                           (body.code.strip(),body.name.strip(),body.job_title.strip()[:100],body.department_id))
             audit(c,user["id"],"create_employee","employee",cur.lastrowid)
@@ -3330,6 +3339,7 @@ def add_user(body:UserForm,user=Depends(get_user),c:sqlite3.Connection=Depends(d
         fail("اسم المستخدم يجب أن يكون إنجليزي 3-40 حرفًا وكلمة المرور 12 حرفًا على الأقل")
     try:
         with c:
+            c.execute("BEGIN IMMEDIATE")
             cur=c.execute("INSERT INTO users(username,password_hash,role,created_at) VALUES (?,?,?,?)",
                           (name,hash_password(body.password),body.role,stamp()))
             audit(c,user["id"],"create_user","user",cur.lastrowid,{"role":body.role})

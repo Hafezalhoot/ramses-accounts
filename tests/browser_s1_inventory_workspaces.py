@@ -2,6 +2,7 @@
 
 This is NOT the live API integration test; see test_s1_real_workflow.py.
 """
+from browser_helpers import chromium_options
 from pathlib import Path
 import sys
 from playwright.sync_api import sync_playwright
@@ -15,7 +16,7 @@ AREAS = ('overview', 'stock', 'purchasing', 'suppliers', 'returns', 'reports')
 
 def run():
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(executable_path='/usr/bin/chromium', headless=True,
+        browser = pw.chromium.launch(**chromium_options(), headless=True,
                                      args=['--no-sandbox', '--disable-dev-shm-usage'])
         try:
             for width in (320, 375, 1440):

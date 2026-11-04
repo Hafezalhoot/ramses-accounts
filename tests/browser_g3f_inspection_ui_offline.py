@@ -1,4 +1,5 @@
 """Chromium 320/375/1440: independent clinical inspection UI, no prices or patient data."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1]
@@ -10,7 +11,7 @@ def run():
                 '<script src="/static/billing.js" defer></script>'):
         html=html.replace(tag,'')
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=p.chromium.launch(headless=True,**chromium_options(),
                                 args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (320,375,1440):

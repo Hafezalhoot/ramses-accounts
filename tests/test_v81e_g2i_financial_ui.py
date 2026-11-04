@@ -3,6 +3,7 @@
 Local server access is blocked in sandbox. This renders the exact HTML + CSS
 without network, and tests the visible UI; backend is covered in G2I API tests.
 """
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 import re
@@ -12,7 +13,7 @@ html=(ROOT/'static/index.html').read_text()
 html=re.sub(r'<(?:script|link)\b[^>]*(?:src|href)="/static/[^>]*>\s*(?:</script>)?', '', html)
 css=(ROOT/'static/styles.css').read_text()
 with sync_playwright() as pw:
-    browser=pw.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+    browser=pw.chromium.launch(headless=True,**chromium_options(),
         args=['--no-sandbox','--disable-dev-shm-usage'])
     try:
         for width in (320,375,620,621,768,1365):

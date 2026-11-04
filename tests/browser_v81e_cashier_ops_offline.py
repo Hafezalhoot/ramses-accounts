@@ -1,4 +1,5 @@
 """V8.1E calendar/settings responsive smoke tests using fake network responses."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -47,7 +48,7 @@ def run():
       '/api/cashier/staff-access':[{'point_id':1,'user_id':6,'username':'كاشير خارجي','active':True,'allowed_codes':['morning']}],
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1365,'height':900})
             errors=[];page.on('pageerror',lambda e:errors.append(str(e)))

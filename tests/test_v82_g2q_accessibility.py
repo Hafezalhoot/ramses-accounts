@@ -1,4 +1,5 @@
 """F-026: keyboard users can skip the long multi-section finance sidebar."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from html.parser import HTMLParser
 
@@ -35,7 +36,7 @@ def run():
     import re
     inert = re.sub(r'<script[^>]+></script>', '', page)
     with sync_playwright() as p:
-        b = p.chromium.launch(headless=True, executable_path='/usr/bin/chromium',
+        b = p.chromium.launch(headless=True, **chromium_options(),
                               args=['--no-sandbox', '--disable-dev-shm-usage'])
         try:
             tab = b.new_page(viewport={'width': 375, 'height': 760})

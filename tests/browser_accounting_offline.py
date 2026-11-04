@@ -1,4 +1,5 @@
 """Real Chromium DOM smoke using synthetic API responses, no sensitive data or network."""
+from browser_helpers import chromium_options
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -42,7 +43,7 @@ def run():
        'items':[{'id':42,'entry_date':period+'-05','origin':'manual','created_by':2,'status':'pending','memo':'فاتورة غير مدفوعة للتجربة','lines':[]}]},
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1440,'height':940})
             errors=[];page.on('pageerror',lambda e:errors.append(str(e)))

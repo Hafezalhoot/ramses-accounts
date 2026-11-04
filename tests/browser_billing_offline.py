@@ -1,4 +1,5 @@
 """Real Chromium layout/interaction QA with anonymous simulated billing data, no network."""
+from browser_helpers import chromium_options
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -33,7 +34,7 @@ def run():
             'total_invoiced_piasters':90000,'outstanding_piasters':40000,'advance_available_piasters':0},
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1440,'height':1000},device_scale_factor=1)
             errors=[];page.on('pageerror',lambda err:errors.append(str(err)))

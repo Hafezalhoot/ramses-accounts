@@ -2,6 +2,7 @@
 
 Fixtures are synthetic. Browser interaction is real, network requests are stubbed.
 """
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -30,7 +31,7 @@ def run():
               'opening_review_required':0,'issue_count':0}
     source=(ROOT/'static/app.js').read_text()
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=p.chromium.launch(headless=True,**chromium_options(),
                                   args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for role in ('viewer','reviewer','owner'):

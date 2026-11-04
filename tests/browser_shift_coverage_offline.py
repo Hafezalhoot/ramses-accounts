@@ -1,4 +1,5 @@
 """Offline Chromium: missing shift alerts, filtering and mobile layout."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -37,7 +38,7 @@ def run():
       f'/api/shifts/coverage?month={test_month}':coverage,
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1280,'height':800})
             errors=[]

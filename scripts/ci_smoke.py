@@ -81,6 +81,9 @@ TESTS = (
     'test_s8_historical_shift_identity.py',
     'test_s9_shift_open_options.py',
     'test_s10_daily_coverage_certificate.py',
+    'test_s11_daily_exceptions.py',
+    'test_s11_atomic_master_data.py',
+    'test_s11_case_inventory_pending.py',
 )
 
 

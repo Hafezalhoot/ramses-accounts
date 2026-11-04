@@ -1,4 +1,5 @@
 """Visual smoke test: owner administration controls and mobile responsive layout."""
+from browser_helpers import chromium_options
 import os
 import socket
 import subprocess
@@ -37,7 +38,7 @@ def run():
                 except Exception:time.sleep(0.25)
             else:raise RuntimeError('local server failed health')
             with sync_playwright() as p:
-                browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+                browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
                 try:
                     page=browser.new_page(viewport={'width':1280,'height':800},device_scale_factor=1)
                     errors=[];page.on('pageerror',lambda x:errors.append(str(x)))

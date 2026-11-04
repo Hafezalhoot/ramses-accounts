@@ -1,4 +1,5 @@
 """G2D desktop/mobile UI happy-path with synthetic backend; no real patients."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -43,7 +44,7 @@ def run():
           'events':[{'username':'reviewer','created_at':'2026-10-30','note':'فحص مستقل'}]}
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=p.chromium.launch(headless=True,**chromium_options(),
                                   args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (1365,375):

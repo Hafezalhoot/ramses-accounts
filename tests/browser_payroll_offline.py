@@ -1,4 +1,5 @@
 """Offline Chromium smoke test of mixed payroll desktop/mobile and modal actions (not live HTTP)."""
+from browser_helpers import chromium_options
 import json
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
@@ -27,7 +28,7 @@ def run():
       '/api/reports?month=2026-10':{'month':'2026-10','categories':[],'departments':[],'recognized_cash_service_revenue_piasters':0,'cash_paid_operating_items_piasters':0,'approved_payroll_accruals_piasters':0,'rough_margin_piasters':0,'note':'اختبار'}
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1440,'height':900})
             errors=[]

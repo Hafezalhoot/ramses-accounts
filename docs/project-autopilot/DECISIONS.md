@@ -1,3 +1,16 @@
+# S11 — قرارات مراجعة محفوظة / 4 نوفمبر 2026
+
+1. الاستكمال من تاريخ Git الأصلي S10؛ حفظ الخطط والتقارير السابقة كسجل تاريخي مع تصحيح الحالة الحالية في الأعلى.
+2. كل إنشاء master-data متعلق بصلاحيات/مالية يجب أن يكون ذريًا مع audit وربطGL؛ إصلاح ثلاثة مسارات دون تغيير semantics الاتصال العام.
+3. تُحسم مستندات صرف الحالة قبل اعتماد الإقفال؛ فحص request وdecision في نفس معاملات IMMEDIATE القائمة، دون إعادة فتح حالات سابقة آليًا.
+4. اليومية للمتابعة؛ غياب التسجيل ليس غياب حركة، واكتمال الجدول ليس شهادة مالية. لا توسعة للصلاحيات.
+5. اختيار متصفح الاختبار حسب المتاح في النظام؛ الفشل الحقيقي لا يُخفى بتحويله إلى SKIP.
+6. تحديث cryptography50.0.2 وpip26.3 بعد فحص فعلي؛ توافق الأرشيفات46.0.7 اختُبر. [سجل PyCA الرسمي](https://cryptography.io/en/latest/changelog/) يوضح الإصلاحات وتغيرات دعم المنصات؛ Windows32 وmacOSIntel لم يعودا لهما نفس دعم wheels السابق. بناء Docker والتشغيل على عتاد المستشفى لم يُختبرا.
+7. صاحب المشروع طلب «جهّز مقترحًا واضحًا لاعتماده مع رئيس الحسابات» لمعالجة ليلة نهاية الشهر. وثيقة المقترح منفصلة وغير مفعلة؛ لا تُفترض وحدة استحقاق أو تصنيف حساب أو تاريخ ضريبي أو إعادة فتح فترة مقفلة.
+8. لا اتصال بقاعدة تشغيل أو نشر للمستشفى. مصدرV8.0 أصلي ومتحقق؛ أرصدة تشغيل أصلية معتمدة ما زالت غائبة.
+
+---
+
 ## S10 — Non-operating cashier days are not missing shifts (2026-11-02)
 
 Decision: daily cashier coverage ignores *only* stations marked `not_required` by the approved effective-dated operating weekday/lifecycle; unknown monitoring and every unfinished required station remain blockers, and a day with no required stations is not automatically certified. `financially_certified` always remains false. This reuses the existing shift-coverage module rather than introducing a second expectation engine or financial transactions. Manual hospital signoff is still mandatory. Verified synthetically by RED/GREEN API and broad regression.

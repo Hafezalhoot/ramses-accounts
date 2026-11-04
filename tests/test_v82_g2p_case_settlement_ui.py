@@ -1,4 +1,5 @@
 """Chromium-rendered G2P clearance component and actions; synthetic data, no server."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -41,7 +42,7 @@ window.post=async(url,payload)=>{window.lastPost={url,payload};return {id:55,sta
 def run():
     (ROOT/'qa_screenshots').mkdir(exist_ok=True)
     with sync_playwright() as playwright:
-        browser=playwright.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=playwright.chromium.launch(headless=True,**chromium_options(),
                                           args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (1440,375,320):

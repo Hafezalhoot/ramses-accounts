@@ -1,4 +1,5 @@
 """Real Chromium offline: Cairo CSS stack + G3J non-paying supplier request and independent review."""
+from browser_helpers import chromium_options
 import sys
 from pathlib import Path
 from playwright.sync_api import sync_playwright
@@ -9,7 +10,7 @@ from test_v82_g2t_inventory_ui import BOOT
 
 def run():
     with sync_playwright() as p:
-        browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,
+        browser=p.chromium.launch(**chromium_options(),headless=True,
              args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (320,375,1440):

@@ -1,0 +1,1577 @@
+[
+  {
+    "file": "pos_settlements.py",
+    "line": 84,
+    "method": "GET",
+    "path": "/settlements",
+    "handler": "list_settlements"
+  },
+  {
+    "file": "pos_settlements.py",
+    "line": 143,
+    "method": "POST",
+    "path": "/settlements",
+    "handler": "create_settlement"
+  },
+  {
+    "file": "pos_settlements.py",
+    "line": 210,
+    "method": "POST",
+    "path": "/settlements/{settlement_id}/decision",
+    "handler": "decide_settlement"
+  },
+  {
+    "file": "billing.py",
+    "line": 199,
+    "method": "POST",
+    "path": "/clinical/identity-review",
+    "handler": "review_clinician_identity"
+  },
+  {
+    "file": "billing.py",
+    "line": 229,
+    "method": "GET",
+    "path": "/clinical/identities",
+    "handler": "clinician_identities"
+  },
+  {
+    "file": "billing.py",
+    "line": 239,
+    "method": "POST",
+    "path": "/clinical/grants",
+    "handler": "clinical_grant"
+  },
+  {
+    "file": "billing.py",
+    "line": 262,
+    "method": "POST",
+    "path": "/clinical/departments/{department_id}/activate",
+    "handler": "activate_clinical_policy"
+  },
+  {
+    "file": "billing.py",
+    "line": 282,
+    "method": "POST",
+    "path": "/clinical/departments/{department_id}/require-document",
+    "handler": "require_source_document"
+  },
+  {
+    "file": "billing.py",
+    "line": 312,
+    "method": "GET",
+    "path": "/clinical/policy",
+    "handler": "clinical_policy"
+  },
+  {
+    "file": "billing.py",
+    "line": 321,
+    "method": "GET",
+    "path": "/clinical/queue",
+    "handler": "clinical_queue"
+  },
+  {
+    "file": "billing.py",
+    "line": 344,
+    "method": "GET",
+    "path": "/clinical/lines/{line_id}/evidence",
+    "handler": "clinical_evidence"
+  },
+  {
+    "file": "billing.py",
+    "line": 428,
+    "method": "POST",
+    "path": "/clinical/lines/{line_id}/attest",
+    "handler": "attest_clinical_line"
+  },
+  {
+    "file": "billing.py",
+    "line": 434,
+    "method": "POST",
+    "path": "/clinical/lines/{line_id}/attest-document",
+    "handler": "attest_clinical_document"
+  },
+  {
+    "file": "billing.py",
+    "line": 443,
+    "method": "POST",
+    "path": "/clinical/lines/{line_id}/verify-document",
+    "handler": "verify_clinical_document"
+  },
+  {
+    "file": "billing.py",
+    "line": 456,
+    "method": "GET",
+    "path": "/config",
+    "handler": "config"
+  },
+  {
+    "file": "billing.py",
+    "line": 480,
+    "method": "POST",
+    "path": "/points/{point_id}/assign",
+    "handler": "assign_point"
+  },
+  {
+    "file": "billing.py",
+    "line": 498,
+    "method": "POST",
+    "path": "/services",
+    "handler": "create_service"
+  },
+  {
+    "file": "billing.py",
+    "line": 516,
+    "method": "POST",
+    "path": "/services/{service_id}/prices",
+    "handler": "create_price"
+  },
+  {
+    "file": "billing.py",
+    "line": 534,
+    "method": "POST",
+    "path": "/patients",
+    "handler": "create_patient"
+  },
+  {
+    "file": "billing.py",
+    "line": 553,
+    "method": "GET",
+    "path": "/patients",
+    "handler": "patients"
+  },
+  {
+    "file": "billing.py",
+    "line": 576,
+    "method": "POST",
+    "path": "/cases",
+    "handler": "create_case"
+  },
+  {
+    "file": "billing.py",
+    "line": 611,
+    "method": "GET",
+    "path": "/cases",
+    "handler": "cases"
+  },
+  {
+    "file": "billing.py",
+    "line": 632,
+    "method": "GET",
+    "path": "/cases/{case_id}",
+    "handler": "case_detail"
+  },
+  {
+    "file": "billing.py",
+    "line": 650,
+    "method": "POST",
+    "path": "/cases/{case_id}/services",
+    "handler": "add_case_service"
+  },
+  {
+    "file": "billing.py",
+    "line": 683,
+    "method": "POST",
+    "path": "/lines/{line_id}/fulfill",
+    "handler": "fulfill_line"
+  },
+  {
+    "file": "billing.py",
+    "line": 702,
+    "method": "POST",
+    "path": "/lines/{line_id}/cancel",
+    "handler": "cancel_line"
+  },
+  {
+    "file": "billing.py",
+    "line": 722,
+    "method": "POST",
+    "path": "/cases/{case_id}/drafts",
+    "handler": "create_draft"
+  },
+  {
+    "file": "billing.py",
+    "line": 768,
+    "method": "GET",
+    "path": "/drafts/{draft_id}",
+    "handler": "draft_detail"
+  },
+  {
+    "file": "billing.py",
+    "line": 908,
+    "method": "POST",
+    "path": "/points/{point_id}/cash-fund",
+    "handler": "bind_point_cash"
+  },
+  {
+    "file": "billing.py",
+    "line": 933,
+    "method": "POST",
+    "path": "/channels",
+    "handler": "bind_payment_channel"
+  },
+  {
+    "file": "billing.py",
+    "line": 957,
+    "method": "POST",
+    "path": "/drafts/{draft_id}/issue",
+    "handler": "issue_invoice"
+  },
+  {
+    "file": "billing.py",
+    "line": 1045,
+    "method": "POST",
+    "path": "/cases/{case_id}/collect",
+    "handler": "collect_case"
+  },
+  {
+    "file": "billing.py",
+    "line": 1119,
+    "method": "POST",
+    "path": "/cases/{case_id}/apply-advance",
+    "handler": "apply_advance"
+  },
+  {
+    "file": "billing.py",
+    "line": 1149,
+    "method": "GET",
+    "path": "/cases/{case_id}/finance",
+    "handler": "case_finance"
+  },
+  {
+    "file": "billing.py",
+    "line": 1186,
+    "method": "GET",
+    "path": "/collections/{collection_id}",
+    "handler": "collection_receipt"
+  },
+  {
+    "file": "billing.py",
+    "line": 1219,
+    "method": "GET",
+    "path": "/crosscase/resolve",
+    "handler": "resolve_crosspoint"
+  },
+  {
+    "file": "billing.py",
+    "line": 1240,
+    "method": "GET",
+    "path": "/summary",
+    "handler": "billing_summary"
+  },
+  {
+    "file": "billing.py",
+    "line": 1375,
+    "method": "POST",
+    "path": "/cases/{case_id}/credits",
+    "handler": "request_credit"
+  },
+  {
+    "file": "billing.py",
+    "line": 1403,
+    "method": "POST",
+    "path": "/credits/{credit_id}/decision",
+    "handler": "credit_decision"
+  },
+  {
+    "file": "billing.py",
+    "line": 1445,
+    "method": "POST",
+    "path": "/cases/{case_id}/refunds",
+    "handler": "request_refund"
+  },
+  {
+    "file": "billing.py",
+    "line": 1474,
+    "method": "POST",
+    "path": "/refunds/{refund_id}/decision",
+    "handler": "refund_decision"
+  },
+  {
+    "file": "billing.py",
+    "line": 1499,
+    "method": "POST",
+    "path": "/refunds/{refund_id}/pay",
+    "handler": "pay_refund"
+  },
+  {
+    "file": "billing.py",
+    "line": 1546,
+    "method": "GET",
+    "path": "/cases/{case_id}/adjustments",
+    "handler": "case_adjustments"
+  },
+  {
+    "file": "financial_corrections.py",
+    "line": 110,
+    "method": "GET",
+    "path": "",
+    "handler": "tickets"
+  },
+  {
+    "file": "financial_corrections.py",
+    "line": 143,
+    "method": "POST",
+    "path": "",
+    "handler": "open_ticket"
+  },
+  {
+    "file": "financial_corrections.py",
+    "line": 172,
+    "method": "GET",
+    "path": "/{ticket_id}/history",
+    "handler": "history"
+  },
+  {
+    "file": "financial_corrections.py",
+    "line": 194,
+    "method": "POST",
+    "path": "/{ticket_id}/note",
+    "handler": "append_note"
+  },
+  {
+    "file": "financial_corrections.py",
+    "line": 214,
+    "method": "POST",
+    "path": "/{ticket_id}/review",
+    "handler": "review"
+  },
+  {
+    "file": "financial_corrections.py",
+    "line": 264,
+    "method": "GET",
+    "path": "/{ticket_id}/invoice-credit-preview",
+    "handler": "invoice_credit_preview"
+  },
+  {
+    "file": "financial_corrections.py",
+    "line": 287,
+    "method": "POST",
+    "path": "/{ticket_id}/execute-invoice-credit",
+    "handler": "execute_invoice_credit"
+  },
+  {
+    "file": "financial_corrections.py",
+    "line": 441,
+    "method": "POST",
+    "path": "/{ticket_id}/collection-reassign-preview",
+    "handler": "collection_reassign_preview"
+  },
+  {
+    "file": "financial_corrections.py",
+    "line": 468,
+    "method": "POST",
+    "path": "/{ticket_id}/execute-collection-reassign",
+    "handler": "execute_collection_reassign"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 146,
+    "method": "GET",
+    "path": "",
+    "handler": "list_incidents"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 175,
+    "method": "POST",
+    "path": "",
+    "handler": "open_incident"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 214,
+    "method": "GET",
+    "path": "/shortage-open",
+    "handler": "mixed_shortage_board"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 250,
+    "method": "GET",
+    "path": "/overage-open",
+    "handler": "mixed_overage_board"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 281,
+    "method": "GET",
+    "path": "/{incident_id}",
+    "handler": "detail"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 346,
+    "method": "POST",
+    "path": "/{incident_id}/documents",
+    "handler": "add_document"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 368,
+    "method": "POST",
+    "path": "/{incident_id}/documents/{document_id}/link",
+    "handler": "match_document"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 446,
+    "method": "POST",
+    "path": "/{incident_id}/documents/{document_id}/recover-case",
+    "handler": "recover_case"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 510,
+    "method": "POST",
+    "path": "/{incident_id}/documents/{document_id}/clear-booked-cash",
+    "handler": "clear_booked_cash"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 612,
+    "method": "POST",
+    "path": "/{incident_id}/clear-mixed-envelope",
+    "handler": "clear_mixed_envelope"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 771,
+    "method": "POST",
+    "path": "/{incident_id}/action",
+    "handler": "transition"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 823,
+    "method": "POST",
+    "path": "/{incident_id}/evidence",
+    "handler": "upload_evidence"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 857,
+    "method": "GET",
+    "path": "/evidence/{evidence_id}/download",
+    "handler": "download_evidence"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 898,
+    "method": "POST",
+    "path": "/{incident_id}/shortage-recoveries",
+    "handler": "propose_mixed_shortage_recovery"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 957,
+    "method": "POST",
+    "path": "/{incident_id}/shortage-recoveries/{recovery_id}/decision",
+    "handler": "decide_mixed_shortage_recovery"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 1052,
+    "method": "POST",
+    "path": "/{incident_id}/overage-refunds",
+    "handler": "propose_mixed_overage_refund"
+  },
+  {
+    "file": "late_entry_api.py",
+    "line": 1115,
+    "method": "POST",
+    "path": "/{incident_id}/overage-refunds/{refund_id}/decision",
+    "handler": "decide_mixed_overage_refund"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 45,
+    "method": "POST",
+    "path": "/points",
+    "handler": "create_cashier_point"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 94,
+    "method": "GET",
+    "path": "/plans",
+    "handler": "plans"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 117,
+    "method": "POST",
+    "path": "/plans",
+    "handler": "put_plan"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 144,
+    "method": "POST",
+    "path": "/points/{point_id}/policy",
+    "handler": "point_policy"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 157,
+    "method": "POST",
+    "path": "/points/{point_id}/status",
+    "handler": "point_status"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 190,
+    "method": "GET",
+    "path": "/variance-permissions",
+    "handler": "variance_permissions"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 198,
+    "method": "POST",
+    "path": "/variance-permissions",
+    "handler": "set_variance_permission"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 224,
+    "method": "GET",
+    "path": "/treasury-deposits",
+    "handler": "list_treasury_deposits"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 242,
+    "method": "POST",
+    "path": "/treasury-deposits",
+    "handler": "treasury_deposit"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 373,
+    "method": "GET",
+    "path": "/shifts/{shift_id}/attachments",
+    "handler": "shift_attachments"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 380,
+    "method": "POST",
+    "path": "/shifts/{shift_id}/attachments/{kind}",
+    "handler": "upload_shift_attachment"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 409,
+    "method": "GET",
+    "path": "/shift-attachments/{attachment_id}/download",
+    "handler": "download_shift_attachment"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 426,
+    "method": "GET",
+    "path": "/staff-access",
+    "handler": "cashier_staff_access"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 440,
+    "method": "POST",
+    "path": "/staff-access",
+    "handler": "update_cashier_staff_rule"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 481,
+    "method": "GET",
+    "path": "/shortage-repayments",
+    "handler": "shortage_repayments"
+  },
+  {
+    "file": "cashier_api.py",
+    "line": 523,
+    "method": "POST",
+    "path": "/shortage-repayments",
+    "handler": "record_shortage_repayment"
+  },
+  {
+    "file": "app.py",
+    "line": 199,
+    "method": "GET",
+    "path": "/api/fund-access",
+    "handler": "fund_access"
+  },
+  {
+    "file": "app.py",
+    "line": 208,
+    "method": "POST",
+    "path": "/api/fund-access",
+    "handler": "set_fund_access"
+  },
+  {
+    "file": "app.py",
+    "line": 549,
+    "method": "GET",
+    "path": "/",
+    "handler": "homepage"
+  },
+  {
+    "file": "app.py",
+    "line": 554,
+    "method": "GET",
+    "path": "/health",
+    "handler": "health"
+  },
+  {
+    "file": "app.py",
+    "line": 569,
+    "method": "POST",
+    "path": "/api/login",
+    "handler": "login"
+  },
+  {
+    "file": "app.py",
+    "line": 600,
+    "method": "POST",
+    "path": "/api/logout",
+    "handler": "logout"
+  },
+  {
+    "file": "app.py",
+    "line": 608,
+    "method": "GET",
+    "path": "/api/me",
+    "handler": "me"
+  },
+  {
+    "file": "app.py",
+    "line": 613,
+    "method": "GET",
+    "path": "/api/lookups",
+    "handler": "lookups"
+  },
+  {
+    "file": "app.py",
+    "line": 624,
+    "method": "POST",
+    "path": "/api/vouchers",
+    "handler": "create_voucher"
+  },
+  {
+    "file": "app.py",
+    "line": 790,
+    "method": "GET",
+    "path": "/api/vouchers",
+    "handler": "vouchers"
+  },
+  {
+    "file": "app.py",
+    "line": 836,
+    "method": "GET",
+    "path": "/api/vouchers/{voucher_id}/attachments",
+    "handler": "list_voucher_attachments"
+  },
+  {
+    "file": "app.py",
+    "line": 843,
+    "method": "POST",
+    "path": "/api/vouchers/{voucher_id}/attachments",
+    "handler": "upload_voucher_attachment"
+  },
+  {
+    "file": "app.py",
+    "line": 877,
+    "method": "GET",
+    "path": "/api/attachments/{attachment_id}/download",
+    "handler": "download_attachment"
+  },
+  {
+    "file": "app.py",
+    "line": 891,
+    "method": "GET",
+    "path": "/api/reviews",
+    "handler": "reviews"
+  },
+  {
+    "file": "app.py",
+    "line": 913,
+    "method": "POST",
+    "path": "/api/vouchers/{voucher_id}/decision",
+    "handler": "decide"
+  },
+  {
+    "file": "app.py",
+    "line": 961,
+    "method": "POST",
+    "path": "/api/vouchers/{voucher_id}/reverse",
+    "handler": "reverse"
+  },
+  {
+    "file": "app.py",
+    "line": 1051,
+    "method": "GET",
+    "path": "/api/shifts/schedule",
+    "handler": "get_shift_schedule"
+  },
+  {
+    "file": "app.py",
+    "line": 1060,
+    "method": "POST",
+    "path": "/api/shifts/schedule",
+    "handler": "update_shift_schedule"
+  },
+  {
+    "file": "app.py",
+    "line": 1082,
+    "method": "GET",
+    "path": "/api/shifts",
+    "handler": "shifts"
+  },
+  {
+    "file": "app.py",
+    "line": 1176,
+    "method": "GET",
+    "path": "/api/shifts/coverage",
+    "handler": "shift_coverage_report"
+  },
+  {
+    "file": "app.py",
+    "line": 1183,
+    "method": "GET",
+    "path": "/api/shifts/day-summary",
+    "handler": "cashier_day_summary"
+  },
+  {
+    "file": "app.py",
+    "line": 1237,
+    "method": "GET",
+    "path": "/api/shifts/{shift_id}/movements",
+    "handler": "shift_movements"
+  },
+  {
+    "file": "app.py",
+    "line": 1260,
+    "method": "GET",
+    "path": "/api/shifts/open-options",
+    "handler": "shift_open_options"
+  },
+  {
+    "file": "app.py",
+    "line": 1313,
+    "method": "POST",
+    "path": "/api/shifts/open",
+    "handler": "shift_open"
+  },
+  {
+    "file": "app.py",
+    "line": 1404,
+    "method": "POST",
+    "path": "/api/shifts/{shift_id}/count",
+    "handler": "shift_count"
+  },
+  {
+    "file": "app.py",
+    "line": 1453,
+    "method": "POST",
+    "path": "/api/shifts/{shift_id}/handoff",
+    "handler": "shift_handoff"
+  },
+  {
+    "file": "app.py",
+    "line": 1495,
+    "method": "GET",
+    "path": "/api/shifts/{shift_id}/count-history",
+    "handler": "shift_count_history"
+  },
+  {
+    "file": "app.py",
+    "line": 1506,
+    "method": "GET",
+    "path": "/api/shifts/{shift_id}/daily-report",
+    "handler": "shift_daily_report"
+  },
+  {
+    "file": "app.py",
+    "line": 1541,
+    "method": "POST",
+    "path": "/api/shifts/{shift_id}/review",
+    "handler": "shift_review"
+  },
+  {
+    "file": "app.py",
+    "line": 1593,
+    "method": "POST",
+    "path": "/api/shifts/{shift_id}/variance-propose",
+    "handler": "propose_shift_variance"
+  },
+  {
+    "file": "app.py",
+    "line": 1626,
+    "method": "POST",
+    "path": "/api/shifts/{shift_id}/variance-decision",
+    "handler": "decide_shift_variance"
+  },
+  {
+    "file": "app.py",
+    "line": 1696,
+    "method": "GET",
+    "path": "/api/reconciliation/variances",
+    "handler": "unresolved_shift_variances"
+  },
+  {
+    "file": "app.py",
+    "line": 1855,
+    "method": "POST",
+    "path": "/api/bank-reconciliation/import",
+    "handler": "import_bank_csv"
+  },
+  {
+    "file": "app.py",
+    "line": 1920,
+    "method": "GET",
+    "path": "/api/bank-reconciliation",
+    "handler": "bank_reconciliation"
+  },
+  {
+    "file": "app.py",
+    "line": 1974,
+    "method": "GET",
+    "path": "/api/bank-reconciliation/{batch_id}/source.csv",
+    "handler": "download_bank_source"
+  },
+  {
+    "file": "app.py",
+    "line": 1985,
+    "method": "POST",
+    "path": "/api/bank-reconciliation/{batch_id}/match",
+    "handler": "bank_match"
+  },
+  {
+    "file": "app.py",
+    "line": 2012,
+    "method": "POST",
+    "path": "/api/bank-reconciliation/{batch_id}/unmatch",
+    "handler": "bank_unmatch"
+  },
+  {
+    "file": "app.py",
+    "line": 2032,
+    "method": "POST",
+    "path": "/api/bank-reconciliation/{batch_id}/approve",
+    "handler": "bank_approve"
+  },
+  {
+    "file": "app.py",
+    "line": 2068,
+    "method": "POST",
+    "path": "/api/bank-reconciliation/{batch_id}/void",
+    "handler": "bank_void"
+  },
+  {
+    "file": "app.py",
+    "line": 2086,
+    "method": "GET",
+    "path": "/api/bank-reconciliation/export.csv",
+    "handler": "bank_reconciliation_export"
+  },
+  {
+    "file": "app.py",
+    "line": 2106,
+    "method": "GET",
+    "path": "/api/funds",
+    "handler": "funds"
+  },
+  {
+    "file": "app.py",
+    "line": 2125,
+    "method": "POST",
+    "path": "/api/funds",
+    "handler": "create_fund"
+  },
+  {
+    "file": "app.py",
+    "line": 2149,
+    "method": "POST",
+    "path": "/api/funds/{fund_id}/access-policy",
+    "handler": "update_cash_fund_access_policy"
+  },
+  {
+    "file": "app.py",
+    "line": 2172,
+    "method": "POST",
+    "path": "/api/funds/{fund_id}/opening",
+    "handler": "set_opening"
+  },
+  {
+    "file": "app.py",
+    "line": 2202,
+    "method": "GET",
+    "path": "/api/accounting/opening-reviews",
+    "handler": "fund_opening_reviews"
+  },
+  {
+    "file": "app.py",
+    "line": 2225,
+    "method": "POST",
+    "path": "/api/funds/{fund_id}/opening-review",
+    "handler": "submit_fund_opening_review"
+  },
+  {
+    "file": "app.py",
+    "line": 2264,
+    "method": "POST",
+    "path": "/api/accounting/opening-reviews/{review_id}/decision",
+    "handler": "decide_fund_opening_review"
+  },
+  {
+    "file": "app.py",
+    "line": 2315,
+    "method": "GET",
+    "path": "/api/dashboard",
+    "handler": "dashboard"
+  },
+  {
+    "file": "app.py",
+    "line": 2357,
+    "method": "GET",
+    "path": "/api/reports",
+    "handler": "reports"
+  },
+  {
+    "file": "app.py",
+    "line": 2410,
+    "method": "GET",
+    "path": "/api/employees",
+    "handler": "employees"
+  },
+  {
+    "file": "app.py",
+    "line": 2417,
+    "method": "POST",
+    "path": "/api/employees",
+    "handler": "employee_add"
+  },
+  {
+    "file": "app.py",
+    "line": 2434,
+    "method": "POST",
+    "path": "/api/employees/{employee_id}/salary-term",
+    "handler": "employee_salary"
+  },
+  {
+    "file": "app.py",
+    "line": 2482,
+    "method": "GET",
+    "path": "/api/payroll/adjustments",
+    "handler": "list_payroll_adjustments"
+  },
+  {
+    "file": "app.py",
+    "line": 2504,
+    "method": "POST",
+    "path": "/api/payroll/adjustments",
+    "handler": "create_payroll_adjustment"
+  },
+  {
+    "file": "app.py",
+    "line": 2530,
+    "method": "POST",
+    "path": "/api/payroll/adjustments/{adjustment_id}/decision",
+    "handler": "decide_payroll_adjustment"
+  },
+  {
+    "file": "app.py",
+    "line": 2556,
+    "method": "POST",
+    "path": "/api/payroll/adjustments/{adjustment_id}/void",
+    "handler": "void_payroll_adjustment"
+  },
+  {
+    "file": "app.py",
+    "line": 2578,
+    "method": "GET",
+    "path": "/api/payroll/work-entries",
+    "handler": "work_entries"
+  },
+  {
+    "file": "app.py",
+    "line": 2603,
+    "method": "GET",
+    "path": "/api/payroll/work-entries/export.csv",
+    "handler": "export_work_entries"
+  },
+  {
+    "file": "app.py",
+    "line": 2624,
+    "method": "POST",
+    "path": "/api/payroll/work-entries",
+    "handler": "create_work_entry"
+  },
+  {
+    "file": "app.py",
+    "line": 2661,
+    "method": "POST",
+    "path": "/api/payroll/work-entries/{entry_id}/decision",
+    "handler": "review_work_entry"
+  },
+  {
+    "file": "app.py",
+    "line": 2686,
+    "method": "POST",
+    "path": "/api/payroll/work-entries/{entry_id}/void",
+    "handler": "void_work_entry"
+  },
+  {
+    "file": "app.py",
+    "line": 2707,
+    "method": "GET",
+    "path": "/api/payroll",
+    "handler": "payroll"
+  },
+  {
+    "file": "app.py",
+    "line": 2771,
+    "method": "POST",
+    "path": "/api/payroll/accrual",
+    "handler": "payroll_accrue"
+  },
+  {
+    "file": "app.py",
+    "line": 2815,
+    "method": "POST",
+    "path": "/api/payroll/accrual/{accrual_id}/decision",
+    "handler": "decide_payroll_accrual"
+  },
+  {
+    "file": "app.py",
+    "line": 2840,
+    "method": "POST",
+    "path": "/api/payroll/accrual/{accrual_id}/resubmit",
+    "handler": "resubmit_payroll_accrual"
+  },
+  {
+    "file": "app.py",
+    "line": 2858,
+    "method": "POST",
+    "path": "/api/payroll/accrual/{accrual_id}/correct",
+    "handler": "correct_payroll_accrual"
+  },
+  {
+    "file": "app.py",
+    "line": 2898,
+    "method": "GET",
+    "path": "/api/payroll/export.csv",
+    "handler": "export_payroll"
+  },
+  {
+    "file": "app.py",
+    "line": 2923,
+    "method": "POST",
+    "path": "/api/payroll/allocate-advance",
+    "handler": "allocate"
+  },
+  {
+    "file": "app.py",
+    "line": 2941,
+    "method": "GET",
+    "path": "/api/legacy",
+    "handler": "legacy"
+  },
+  {
+    "file": "app.py",
+    "line": 2966,
+    "method": "GET",
+    "path": "/api/audit",
+    "handler": "audit_events"
+  },
+  {
+    "file": "app.py",
+    "line": 2992,
+    "method": "GET",
+    "path": "/api/accounting/trial-balance",
+    "handler": "accounting_trial_balance"
+  },
+  {
+    "file": "app.py",
+    "line": 2999,
+    "method": "GET",
+    "path": "/api/accounting/trial-balance.csv",
+    "handler": "accounting_trial_balance_csv"
+  },
+  {
+    "file": "app.py",
+    "line": 3017,
+    "method": "GET",
+    "path": "/api/accounting/journals",
+    "handler": "accounting_journals"
+  },
+  {
+    "file": "app.py",
+    "line": 3034,
+    "method": "POST",
+    "path": "/api/accounting/journals",
+    "handler": "accounting_create_journal"
+  },
+  {
+    "file": "app.py",
+    "line": 3063,
+    "method": "POST",
+    "path": "/api/accounting/journals/{journal_id}/decision",
+    "handler": "accounting_decision"
+  },
+  {
+    "file": "app.py",
+    "line": 3093,
+    "method": "POST",
+    "path": "/api/accounting/journals/{journal_id}/reverse",
+    "handler": "accounting_reverse"
+  },
+  {
+    "file": "app.py",
+    "line": 3117,
+    "method": "GET",
+    "path": "/api/periods",
+    "handler": "periods"
+  },
+  {
+    "file": "app.py",
+    "line": 3266,
+    "method": "GET",
+    "path": "/api/accounting/treasury-reconciliation",
+    "handler": "treasury_reconciliation"
+  },
+  {
+    "file": "app.py",
+    "line": 3274,
+    "method": "GET",
+    "path": "/api/accounting/treasury-reconciliation.csv",
+    "handler": "treasury_reconciliation_csv"
+  },
+  {
+    "file": "app.py",
+    "line": 3299,
+    "method": "GET",
+    "path": "/api/accounting/patient-reconciliation",
+    "handler": "patient_reconciliation"
+  },
+  {
+    "file": "app.py",
+    "line": 3304,
+    "method": "GET",
+    "path": "/api/periods/preflight",
+    "handler": "period_preflight"
+  },
+  {
+    "file": "app.py",
+    "line": 3316,
+    "method": "POST",
+    "path": "/api/periods/close",
+    "handler": "close_period"
+  },
+  {
+    "file": "app.py",
+    "line": 3329,
+    "method": "GET",
+    "path": "/api/users",
+    "handler": "users"
+  },
+  {
+    "file": "app.py",
+    "line": 3335,
+    "method": "POST",
+    "path": "/api/users",
+    "handler": "add_user"
+  },
+  {
+    "file": "app.py",
+    "line": 3352,
+    "method": "POST",
+    "path": "/api/users/{user_id}/status",
+    "handler": "user_status"
+  },
+  {
+    "file": "app.py",
+    "line": 3375,
+    "method": "POST",
+    "path": "/api/users/{user_id}/password",
+    "handler": "user_password"
+  },
+  {
+    "file": "app.py",
+    "line": 3404,
+    "method": "GET",
+    "path": "/api/export/vouchers.csv",
+    "handler": "export_vouchers"
+  },
+  {
+    "file": "app.py",
+    "line": 3418,
+    "method": "GET",
+    "path": "/api/sync-status",
+    "handler": "sync_status"
+  },
+  {
+    "file": "app.py",
+    "line": 3477,
+    "method": "POST",
+    "path": "/api/sync-google",
+    "handler": "sync_google"
+  },
+  {
+    "file": "bed_stays.py",
+    "line": 102,
+    "method": "GET",
+    "path": "/catalog",
+    "handler": "catalog"
+  },
+  {
+    "file": "bed_stays.py",
+    "line": 110,
+    "method": "POST",
+    "path": "/catalog",
+    "handler": "create_bed"
+  },
+  {
+    "file": "bed_stays.py",
+    "line": 134,
+    "method": "GET",
+    "path": "/cases/{case_id}",
+    "handler": "case_beds"
+  },
+  {
+    "file": "bed_stays.py",
+    "line": 143,
+    "method": "POST",
+    "path": "/cases/{case_id}/admit",
+    "handler": "admit"
+  },
+  {
+    "file": "bed_stays.py",
+    "line": 177,
+    "method": "POST",
+    "path": "/stays/{stay_id}/release",
+    "handler": "release"
+  },
+  {
+    "file": "bed_stays.py",
+    "line": 200,
+    "method": "POST",
+    "path": "/stays/{stay_id}/charge",
+    "handler": "charge_nights"
+  },
+  {
+    "file": "bed_stays.py",
+    "line": 249,
+    "method": "POST",
+    "path": "/stays/{stay_id}/transfer",
+    "handler": "transfer_bed"
+  },
+  {
+    "file": "case_settlement.py",
+    "line": 149,
+    "method": "GET",
+    "path": "/cases/{case_id}",
+    "handler": "status"
+  },
+  {
+    "file": "case_settlement.py",
+    "line": 156,
+    "method": "POST",
+    "path": "/cases/{case_id}/request",
+    "handler": "request_clearance"
+  },
+  {
+    "file": "case_settlement.py",
+    "line": 190,
+    "method": "POST",
+    "path": "/requests/{clearance_id}/decision",
+    "handler": "decide_clearance"
+  },
+  {
+    "file": "inventory.py",
+    "line": 220,
+    "method": "POST",
+    "path": "/access",
+    "handler": "change_access"
+  },
+  {
+    "file": "inventory.py",
+    "line": 238,
+    "method": "POST",
+    "path": "/vendors",
+    "handler": "create_vendor"
+  },
+  {
+    "file": "inventory.py",
+    "line": 250,
+    "method": "POST",
+    "path": "/items",
+    "handler": "create_item"
+  },
+  {
+    "file": "inventory.py",
+    "line": 367,
+    "method": "GET",
+    "path": "/overview",
+    "handler": "overview"
+  },
+  {
+    "file": "inventory.py",
+    "line": 458,
+    "method": "GET",
+    "path": "/purchase-orders",
+    "handler": "purchase_orders"
+  },
+  {
+    "file": "inventory.py",
+    "line": 465,
+    "method": "POST",
+    "path": "/purchase-orders",
+    "handler": "prepare_purchase_order"
+  },
+  {
+    "file": "inventory.py",
+    "line": 500,
+    "method": "POST",
+    "path": "/purchase-orders/{order_id}/decision",
+    "handler": "decide_purchase_order"
+  },
+  {
+    "file": "inventory.py",
+    "line": 519,
+    "method": "POST",
+    "path": "/receipts",
+    "handler": "prepare_receipt"
+  },
+  {
+    "file": "inventory.py",
+    "line": 585,
+    "method": "POST",
+    "path": "/receipts/{receipt_id}/decision",
+    "handler": "decide_receipt"
+  },
+  {
+    "file": "inventory.py",
+    "line": 620,
+    "method": "GET",
+    "path": "/supplier-payables",
+    "handler": "supplier_payables"
+  },
+  {
+    "file": "inventory.py",
+    "line": 645,
+    "method": "GET",
+    "path": "/supplier-invoices",
+    "handler": "supplier_invoices"
+  },
+  {
+    "file": "inventory.py",
+    "line": 651,
+    "method": "POST",
+    "path": "/supplier-invoices",
+    "handler": "prepare_supplier_invoice"
+  },
+  {
+    "file": "inventory.py",
+    "line": 700,
+    "method": "POST",
+    "path": "/supplier-invoices/{match_id}/decision",
+    "handler": "decide_supplier_invoice"
+  },
+  {
+    "file": "inventory.py",
+    "line": 809,
+    "method": "GET",
+    "path": "/supplier-due-schedules",
+    "handler": "supplier_due_list"
+  },
+  {
+    "file": "inventory.py",
+    "line": 815,
+    "method": "GET",
+    "path": "/supplier-aging",
+    "handler": "supplier_aging"
+  },
+  {
+    "file": "inventory.py",
+    "line": 821,
+    "method": "POST",
+    "path": "/supplier-due-schedules",
+    "handler": "prepare_supplier_due"
+  },
+  {
+    "file": "inventory.py",
+    "line": 864,
+    "method": "POST",
+    "path": "/supplier-due-schedules/{schedule_id}/decision",
+    "handler": "decide_supplier_due"
+  },
+  {
+    "file": "inventory.py",
+    "line": 925,
+    "method": "GET",
+    "path": "/supplier-payment-requests",
+    "handler": "supplier_payment_requests"
+  },
+  {
+    "file": "inventory.py",
+    "line": 931,
+    "method": "POST",
+    "path": "/supplier-payment-requests",
+    "handler": "prepare_supplier_payment_request"
+  },
+  {
+    "file": "inventory.py",
+    "line": 972,
+    "method": "POST",
+    "path": "/supplier-payment-requests/{payment_request_id}/decision",
+    "handler": "decide_supplier_payment_request"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1033,
+    "method": "POST",
+    "path": "/supplier-payment-requests/{payment_request_id}/bank-voucher",
+    "handler": "create_supplier_bank_voucher"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1172,
+    "method": "GET",
+    "path": "/supplier-settlements",
+    "handler": "supplier_settlements"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1205,
+    "method": "GET",
+    "path": "/supplier-attributions",
+    "handler": "supplier_attributions"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1212,
+    "method": "POST",
+    "path": "/supplier-attributions",
+    "handler": "propose_supplier_attribution"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1241,
+    "method": "POST",
+    "path": "/supplier-attributions/{attribution_id}/decision",
+    "handler": "review_supplier_attribution"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1293,
+    "method": "GET",
+    "path": "/supplier-opening-statements",
+    "handler": "supplier_opening_statements"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1301,
+    "method": "POST",
+    "path": "/supplier-opening-statements",
+    "handler": "propose_supplier_opening"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1338,
+    "method": "POST",
+    "path": "/supplier-opening-statements/{statement_id}/decision",
+    "handler": "decide_supplier_opening"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1366,
+    "method": "GET",
+    "path": "/supplier-control-ledger",
+    "handler": "supplier_control_ledger_report"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1373,
+    "method": "POST",
+    "path": "/issues",
+    "handler": "prepare_issue"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1441,
+    "method": "POST",
+    "path": "/issues/{issue_id}/decision",
+    "handler": "decide_issue"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1473,
+    "method": "GET",
+    "path": "/issues/{issue_id}/returnable",
+    "handler": "issue_returnable"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1512,
+    "method": "POST",
+    "path": "/returns",
+    "handler": "prepare_return"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1565,
+    "method": "POST",
+    "path": "/returns/{return_id}/decision",
+    "handler": "decide_return"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1600,
+    "method": "GET",
+    "path": "/inspections/queue",
+    "handler": "pending_medical_inspections"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1628,
+    "method": "POST",
+    "path": "/inspections/{return_line_id}/decision",
+    "handler": "decide_return_inspection"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1691,
+    "method": "GET",
+    "path": "/writeoffs/queue",
+    "handler": "rejected_return_writeoff_queue"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1698,
+    "method": "POST",
+    "path": "/writeoffs",
+    "handler": "prepare_return_writeoff"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1741,
+    "method": "POST",
+    "path": "/writeoffs/{writeoff_id}/decision",
+    "handler": "decide_return_writeoff"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1795,
+    "method": "GET",
+    "path": "/cases/{case_id}/cost",
+    "handler": "case_consumables_cost"
+  },
+  {
+    "file": "inventory.py",
+    "line": 1876,
+    "method": "GET",
+    "path": "/reconciliation",
+    "handler": "inventory_reconciliation"
+  }
+]

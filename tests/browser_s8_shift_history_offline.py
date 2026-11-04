@@ -2,6 +2,7 @@
 
 Test fixtures are artificial; HTTP navigation is not asserted in this test.
 """
+from browser_helpers import chromium_options
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -47,7 +48,7 @@ def run():
             'pending_accounting_review':0}
     }
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True, executable_path='/usr/bin/chromium',
+        browser = playwright.chromium.launch(headless=True, **chromium_options(),
                                              args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page = browser.new_page(viewport={'width':1280,'height':800})

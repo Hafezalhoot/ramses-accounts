@@ -1,4 +1,5 @@
 """Real Chromium verifies case consumables cost lookup and stale-result removal in RTL."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from test_v82_g2t_inventory_ui import BOOT
@@ -22,7 +23,7 @@ window.api=async function(path){
 
 def run():
     with sync_playwright() as p:
-        browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,
+        browser=p.chromium.launch(**chromium_options(),headless=True,
                                   args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (1440,375,320):

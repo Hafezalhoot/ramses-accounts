@@ -1,4 +1,5 @@
 """Optional real-Chromium isolated UI smoke; does not use live hospital data."""
+from browser_helpers import chromium_options
 from pathlib import Path
 import json
 from playwright.sync_api import sync_playwright
@@ -51,7 +52,7 @@ window.api=async url=>{
 };
 '''
 with sync_playwright() as p:
- browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+ browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
  for width,height in [(1365,900),(375,812)]:
   page=browser.new_page(viewport={'width':width,'height':height},device_scale_factor=1)
   page.set_content('<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main id="content"></main><script id="mock" type="application/json">'+json.dumps(mock,ensure_ascii=False)+'</script></body></html>')

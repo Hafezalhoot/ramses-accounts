@@ -6,6 +6,7 @@ REAL FastAPI app with per-browser TestClient session cookies. NO business API is
 This DOES NOT prove reverse proxy, real HTTP, CSP, TLS, or real hospital network behavior.
 """
 from __future__ import annotations
+from browser_helpers import chromium_options
 
 import os
 import re
@@ -58,7 +59,7 @@ def run():
         bridge_calls=[]
         def virtual_browser(pw,login_user,area):
             session=TestClient(app)
-            browser=pw.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+            browser=pw.chromium.launch(headless=True,**chromium_options(),
               args=['--no-sandbox','--disable-dev-shm-usage'])
             page=browser.new_page(viewport={'width':375,'height':800})
             errors=[];page.on('pageerror',lambda e:errors.append(str(e)))

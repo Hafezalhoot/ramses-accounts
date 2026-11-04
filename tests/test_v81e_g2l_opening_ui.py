@@ -1,4 +1,5 @@
 """Headless Chromium opening review UX (real shipped assets; synthetic API fixture)."""
+from browser_helpers import chromium_options
 from pathlib import Path
 import re
 from playwright.sync_api import sync_playwright
@@ -31,7 +32,7 @@ def main():
                 'cash_difference_piasters':0,'pending':0,'daily':[],'latest':[],'legacy_issues':0}
     }
     with sync_playwright() as pw:
-        browser=pw.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=pw.chromium.launch(headless=True,**chromium_options(),
                         args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1440,'height':920})

@@ -1,4 +1,5 @@
 """Chromium visual and interaction smoke for bank matching with synthetic data only."""
+from browser_helpers import chromium_options
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -33,7 +34,7 @@ def run():
        '/api/bank-reconciliation?period=2026-10&fund_id=4':overview,
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1440,'height':920})
             errors=[];page.on('pageerror',lambda e:errors.append(str(e)))

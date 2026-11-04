@@ -1,4 +1,5 @@
 """G2E browser smoke: staged shortage cash handover and independent review."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -38,7 +39,7 @@ def run():
        'shortage_outstanding_piasters':5000,'mixed_shortage_recovery_requests':[]}
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=p.chromium.launch(headless=True,**chromium_options(),
                                   args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (1365,375):

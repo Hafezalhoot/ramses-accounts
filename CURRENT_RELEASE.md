@@ -1,3 +1,17 @@
+# S11 — الحالة الحالية، 4 نوفمبر 2026 / TEST ONLY
+
+استُعيد المصدر من S10 `49167d9` على `stabilization/s11-operational-review`. أُصلح حفظ مستخدم/موظف/خزنة دون audit عند الفشل، وإقفال حالة مع صرف مخزون معلق، وغموض استثناءات اليومية. عولج تشغيل المتصفحات عبر المنصات، وحُدثت cryptography إلى50.0.2 بعد فحص أمني وتوافق النسخ.
+
+**الدليل الحالي:** الاختبارات الشاملة150 =145 PASS +5 SKIP، صفر FAIL/TIMEOUT/BLOCKED، exit0؛ CI74/74، exit0. ترقية مخطط V8.0 من الأرشيف الأصلي المقدم PASS على بيانات وهمية، واستعادة نسخة46.0.7 بواسطة50.0.2 متطابقة منطقيًا. فحص الاعتماديات المثبتة: لا ثغرات معروفة وقت الفحص.
+
+**ما زال مفتوحًا:** عيب فوترة ليلة آخر الشهر (مقترح جاهز لاعتماد رئيس الحسابات)، حد حجم الطلب قبل parsing، فتح runtimeDB عند فقد الملف، مصدر العميل خلفproxy، دورات الأطباء والتأمين والضرائب والأصول والإقفال السنوي والمخازن المتعددة، والقبول والتعافي الفعلي وأرصدة الافتتاح الموقعة.
+
+[المراجعة الشاملة](docs/project-autopilot/S11_COMPREHENSIVE_REVIEW_AR.md) — [مقترح الإقامة](docs/project-autopilot/MONTH_END_STAY_POLICY_PROPOSAL_AR.md) — [دليل S11](README_S11_AR.md).
+
+**PRODUCTION NO-GO.** لا نشر أو وصول لبيانات تشغيل. كل الإشارات التالية إلى غياب أرشيفV8.0 أو أعدادS10 محفوظة كسجل تاريخي؛ النتيجة الحالية أعلاه هي الأحدث. ترحيل مخطط أصلي لا يعوض ترحيل قاعدة المستشفى.
+
+---
+
 # Current: Ramses Accounts G3N-S10 — approved non-working days no longer create false incomplete cash daily summary / TEST ONLY / NO-GO
 
 From S9 `54a3084`, adjusted only `/api/shifts/day-summary` status aggregation: explicitly non-working `not_required` station-days are neutral and at least one required and fully closed station must exist. Unknown or incomplete scheduled shifts still make the day provisional; `financially_certified` stays false. Coverage UI shows a readable no-duty Arabic label. See `README_S10_AR.md` and synthetic tests. No live deployment, money/GL, schema, RBAC or past-cash-session mutation. Original V8.0, off-device restore, real hospital UAT and account 2200 close policy remain blockers.

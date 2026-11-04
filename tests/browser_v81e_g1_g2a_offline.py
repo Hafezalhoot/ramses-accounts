@@ -1,6 +1,7 @@
 """Chromium regression: Arabic emergency shift register and RTL responsiveness.
 All network and patient data are synthetic; no real server or financial posting.
 """
+from browser_helpers import chromium_options
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -56,7 +57,7 @@ def run():
     }
     fixtures[f'/api/late-entries?month={month}']=fixtures['/api/late-entries']
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=p.chromium.launch(headless=True,**chromium_options(),
                 args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             ctx=browser.new_context(viewport={'width':1365,'height':900},timezone_id='Africa/Cairo')

@@ -1,3 +1,19 @@
+# S11 — الأولويات المحدثة / 4 نوفمبر 2026
+
+- [x] استعادة S10 ومطابقة المصدر وبصمات الحزمة وحفظ Git.
+- [x] إعادة ترحيل V8.0 الأصلي على قاعدة وهمية؛ السابق «المصدر مفقود» لم يعد مانعًا لهذا الاختبار.
+- [x] TDD: atomic audit، منع إقفال حالة وصرف معلق، تفاصيل اليومية؛ اختبارات API وChrome وTCP محلي.
+- [x] full150:145 PASS/5 SKIP؛ CI74/74؛ audit الاعتماديات صفر معلوم؛ توافق نسخ cryptography46→50.
+- [ ] P1: حد حجم stream قبل parsing والرفع؛ ثم runtimeDB fail-closed وهوية المصدر خلفproxy.
+- [ ] P1: اعتماد مقترح استحقاق الإقامة ونهاية الشهر ثم تنفيذ الدورة والفحوص كاملة.
+- [ ] P1: سياسات2200 وافتتاح المورد والمخزون؛ دفاتر الأطباء والتأمين والضرائب والإقفال السنوي.
+- [ ] مصادر الترقيات التاريخية الثلاثة وملف يونيو الخاص: 5 SKIP تبقى ظاهرة.
+- [ ] أرصدة افتتاح فعلية موقعة، استعادة مشهودة على جهاز مستقل، HTTPS/LAN وطابعات وUAT طبي/مالي/IT وتدريب وتشغيل موازٍ.
+
+المراجعة التفصيلية: [S11_COMPREHENSIVE_REVIEW_AR.md](S11_COMPREHENSIVE_REVIEW_AR.md). طلب صاحب المشروع تجهيز مقترح لرئيس الحسابات؛ لا تُفعّل السياسة المالية قبل اعتمادها. **NO-GO للإنتاج.**
+
+---
+
 # S10 — controlled fix: cashier off-day / complete day status
 
 - [x] Reproduce false incomplete daily summary with effective-dated non-operating point, artificial data and authenticated route.

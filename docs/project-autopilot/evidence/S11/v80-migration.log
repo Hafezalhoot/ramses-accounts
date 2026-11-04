@@ -1,0 +1,8 @@
+Verified encrypted pre-upgrade rollback: /private/var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/tmpgxofgg7v/pre_billing_upgrade_backups/before_v81_20261103_045731_39b77ff1.rbe
+G3A clinician role added with original user IDs and old viewer grants suspended
+Upgraded legacy shift names after an encrypted rollback snapshot
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/tmpgxofgg7v/db.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/tmpgxofgg7v/db.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS V8.1A migration from V8.0: voucher/GL intact, consistent pre-upgrade backup, two points, idempotent

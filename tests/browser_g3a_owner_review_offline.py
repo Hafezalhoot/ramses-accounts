@@ -1,4 +1,5 @@
 """Chromium owner UI checks medical identity review without real identities or network."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -12,7 +13,7 @@ def run():
                   '<script src="/static/billing.js" defer></script>'):
         html=html.replace(asset,'')
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=p.chromium.launch(headless=True,**chromium_options(),
                                   args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (375,1440):

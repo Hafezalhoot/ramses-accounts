@@ -1,4 +1,5 @@
 """Isolated Chromium smoke for G2G financial correction UI, no live hospital data."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -23,7 +24,7 @@ window.api=async url=>{
 window.post=async(url,data)=>{window.lastPost={url,data};return {new_due_piasters:40000}};
 '''
 with sync_playwright() as p:
- browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+ browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
  for width,height in ((1365,900),(375,812)):
   page=browser.new_page(viewport={'width':width,'height':height})
   page.set_content('<!doctype html><html lang="ar" dir="rtl"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><main id="content"></main></body></html>')

@@ -1,4 +1,5 @@
 """Offline Chromium: G2T stock UI owner/reviewer and small screens; no real hospital data."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1]
@@ -39,7 +40,7 @@ const roleLabels={clerk:'مدخل بيانات'};
 
 def run():
     with sync_playwright() as p:
-        browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(**chromium_options(),headless=True,args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (1440,375,320):
                 page=browser.new_page(viewport={'width':width,'height':900},device_scale_factor=1)

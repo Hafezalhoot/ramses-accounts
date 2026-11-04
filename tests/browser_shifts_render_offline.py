@@ -3,6 +3,7 @@
 This validates DOM, forms, keyboard buttons and desktop/mobile overflow, but is
 NOT a real HTTP/browser integration test (the sandbox blocks navigation).
 """
+from browser_helpers import chromium_options
 import json
 from pathlib import Path
 
@@ -32,7 +33,7 @@ def run():
       '/api/payroll?period=2026-10':{'period':'2026-10','items':[{'id':5,'code':'EMP05','name':'موظف تجريبي','department':'الإدارة','pay_type':'monthly','hourly_rate_piasters':None,'approved_work_minutes':0,'approved_work_entries':0,'pending_work_entries':0,'estimated_base_piasters':300000,'monthly_piasters':300000,'accrual_piasters':320000,'accrual_id':55,'signoff_status':'approved','prepared_by':1,'pending_adjustments':0,'can_correct':True,'additions_piasters':25000,'deductions_piasters':5000,'payments_piasters':0,'allocated_advances_piasters':0,'due_piasters':320000,'advances_outstanding_piasters':0}], 'hourly_employees':0,'monthly_employees':1,'pending_work_entries':0,'accrual_total_piasters':320000,'due_total_piasters':320000,'note':'اختبار فقط'},
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1280,'height':800},device_scale_factor=1)
             errors=[]

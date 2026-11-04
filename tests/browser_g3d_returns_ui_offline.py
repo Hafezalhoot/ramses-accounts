@@ -1,4 +1,5 @@
 """G3D real Chromium: return lookup, lot-level form, independent review, stale access denial."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from test_v82_g2t_inventory_ui import BOOT
@@ -26,7 +27,7 @@ recFixture.approved_returns=0;
 
 def run():
     with sync_playwright() as p:
-        browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,
+        browser=p.chromium.launch(**chromium_options(),headless=True,
              args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (1440,375,320):

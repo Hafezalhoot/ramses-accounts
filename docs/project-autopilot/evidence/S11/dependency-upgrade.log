@@ -1,0 +1,19 @@
+Collecting cryptography==50.0.2
+  Using cached cryptography-50.0.2-cp311-abi3-macosx_11_0_arm64.whl.metadata (4.4 kB)
+Collecting pip==26.3
+  Downloading pip-26.3-py3-none-any.whl.metadata (4.6 kB)
+Requirement already satisfied: cffi>=2.0.0 in ./.venv/lib/python3.13/site-packages (from cryptography==50.0.2) (2.1.1)
+Requirement already satisfied: pycparser in ./.venv/lib/python3.13/site-packages (from cffi>=2.0.0->cryptography==50.0.2) (3.12)
+Using cached cryptography-50.0.2-cp311-abi3-macosx_11_0_arm64.whl (3.9 MB)
+Downloading pip-26.3-py3-none-any.whl (2.0 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.0/2.0 MB 787.9 kB/s eta 0:00:00
+Installing collected packages: pip, cryptography
+  Attempting uninstall: pip
+    Found existing installation: pip 24.3.1
+    Uninstalling pip-24.3.1:
+      Successfully uninstalled pip-24.3.1
+  Attempting uninstall: cryptography
+    Found existing installation: cryptography 46.0.7
+    Uninstalling cryptography-46.0.7:
+      Successfully uninstalled cryptography-46.0.7
+Successfully installed cryptography-50.0.2 pip-26.3

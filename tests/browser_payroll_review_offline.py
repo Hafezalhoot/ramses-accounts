@@ -1,4 +1,5 @@
 """Offline Chromium for V7.5 maker/checker payroll and adjustment mobile UI."""
+from browser_helpers import chromium_options
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -29,7 +30,7 @@ def run():
           'created_by_name':'owner','reviewed_by_name':'reviewer','note':'مكافأة تجريبية تمت مراجعتها'}]}
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1440,'height':900})
             errors=[]

@@ -3,6 +3,7 @@
 Only the browser-to-ASGI transport is bridged (loopback HTTP unavailable here).
 Neither real API handlers nor SQLite accounting results are mocked.
 """
+from browser_helpers import chromium_options
 import re
 import sys
 from pathlib import Path
@@ -17,7 +18,7 @@ def verify_cashier_ui(app, source_shift_id, connect):
     with sync_playwright() as pw:
         for width, amount in ((375, '30'), (1440, '20')):
             session = TestClient(app)
-            browser = pw.chromium.launch(headless=True, executable_path='/usr/bin/chromium',
+            browser = pw.chromium.launch(headless=True, **chromium_options(),
                 args=['--no-sandbox', '--disable-dev-shm-usage'])
             try:
                 page = browser.new_page(viewport={'width': width, 'height': 850})

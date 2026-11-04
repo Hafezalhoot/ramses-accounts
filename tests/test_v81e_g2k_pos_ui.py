@@ -1,4 +1,5 @@
 """Headless Chromium POS settlement UI smoke; synthetic fixture, no network/backend."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 import re
@@ -36,7 +37,7 @@ def run():
      '/api/pos/settlements?period='+month+'&bank_fund_id=4':pos,
     }
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             page=browser.new_page(viewport={'width':1440,'height':920})
             errors=[];page.on('pageerror',lambda e:errors.append(str(e)))

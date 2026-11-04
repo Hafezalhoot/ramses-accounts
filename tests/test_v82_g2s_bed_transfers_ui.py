@@ -1,4 +1,5 @@
 """G2S standalone Chromium browser test: owner bed flow and restricted views."""
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 from test_v82_g2p_case_settlement_ui import SETUP
@@ -34,7 +35,7 @@ window.fixtureSettlement.preflight.blockers=['هناك سرير مشغول له�
 
 def run():
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
+        browser=p.chromium.launch(headless=True,**chromium_options(),args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (1440,375,320):
                 page=browser.new_page(viewport={'width':width,'height':900})

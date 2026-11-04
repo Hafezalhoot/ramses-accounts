@@ -2,6 +2,7 @@
 
 All patient labels, auth identities and responses are synthetic; the network is stubbed.
 """
+from browser_helpers import chromium_options
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -16,7 +17,7 @@ def run():
         html=html.replace(tag,'')
     source=(ROOT/'static/app.js').read_text()
     with sync_playwright() as p:
-        browser=p.chromium.launch(headless=True,executable_path='/usr/bin/chromium',
+        browser=p.chromium.launch(headless=True,**chromium_options(),
                                   args=['--no-sandbox','--disable-dev-shm-usage'])
         try:
             for width in (320,375,1440):

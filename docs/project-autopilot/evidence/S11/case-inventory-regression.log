@@ -1,0 +1,26 @@
+TEST tests/test_v82_g2p_case_settlement.py
+/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/tmp28epfupo/sandbox.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS: ready, invoice, financial close maker/checker, no-charge, concurrent approval, immutable closure
+
+EXIT_CODE=0
+
+TEST tests/test_v82_g3c_case_consumables_cost.py
+/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/tmpof1utt5o/cost.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3C case FIFO costs from approved immutable issues, no phantom costs, dual grants and revocation
+
+EXIT_CODE=0
+
+TEST tests/test_v82_g3d_inventory_returns.py
+/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/ramses-g3d-returns-imhgnmtd/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS G3D independent source-lot partial returns, accurate net case FIFO cost, balanced GL, immutable documents, direct SQLite guard, revocation and month-close preflight
+
+EXIT_CODE=0

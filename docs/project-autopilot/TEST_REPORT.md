@@ -1,3 +1,49 @@
+# S11 — تقرير الاختبارات الفعلي / 4 نوفمبر 2026
+
+المصدر: `stabilization/s11-operational-review` من S10 `49167d9`. البيئة: macOS ARM64، Python 3.13.1، FastAPI 0.162.0، cryptography 50.0.2، pip 26.3، Playwright 1.64.1 مع Chrome مثبت. لقطة الإصدارات تشمل أدوات الاختبار والفحص في `evidence/S11/runtime-freeze.txt`. البيانات وهمية بالكامل.
+
+جميع مسارات الأدلة التالية داخل `evidence/S11/`، ما لم يذكر خلاف ذلك.
+
+| الفحص | النتيجة | الدليل |
+|---|---|---|
+| مطابقة التسليم | 607 بصمات سليمة، و596 ملف سورس مطابق لـGit | تقرير المراجعة ومصدر التسليم المحفوظ |
+| أول مجموعة على S10 | 147 = 128 PASS و5 SKIP و14 FAIL | `baseline-full.tsv`؛ 12 مسار متصفح Linux واختبارا TCP ممنوعان داخل sandbox |
+| المجموعة بعد إصلاحات S11 وقبل تحديث التشفير | 150 = 145 PASS و5 SKIP، صفر FAIL | `final-full.tsv` |
+| **المجموعة النهائية بعد التشفير وتحسين عرض الموبايل** | **150 = 145 PASS و5 SKIP، صفر FAIL/TIMEOUT/BLOCKED، exit 0** | `final-secure-full.tsv` و`final-secure-full.log` |
+| **CI النهائي** | **74/74 PASS، exit 0** | `ci-secure-final.log` |
+| ترحيل V8.0 الأصلي | PASS؛ حفظ السند والحركة وحالة GL، وترقية متكررة واستعادة rollback مشفر | `v80-migration.log` ونتيجة المجموعة الكاملة |
+| ذرية إنشاء البيانات الأساسية | RED ثم GREEN؛ يرجع المستخدم والموظف والخزنة وربط GL عند فشل audit | `atomic-red.log` و`atomic-green.log` |
+| إقفال الحالة مع صرف معلق | RED ثم GREEN؛ حظر الطلب والاعتماد المتأخر وإتاحة الرفض المستقل | `case-inventory-red.log` و`case-inventory-green.log` و`case-inventory-regression.log` |
+| استثناءات اليومية | RED ثم GREEN؛ نقص التسجيل والمراجعة والمواعيد القادمة وعدم الرصد ونطاق القراءة | `daily-exceptions-red.log` و`daily-exceptions-green.log` |
+| Chrome يومية S11 | PASS على 375 و1440؛ RTL وتحميل Cairo فعلي، وبطاقات موبايل مقروءة دون تمدد أفقي أو أخطاء JS | `daily-browser-red.log` و`daily-mobile-cards-red.log` و`daily-browser-green.log` وصورتا الشاشة |
+| Chrome تغطية الورديات | PASS كمبيوتر وموبايل، وفلاتر وحالة يوم بلا ورديات مطلوبة | `coverage-browser.log` |
+| إصلاحات S11 عبر TCP محلي | PASS؛ ثلاثة خوادم وقواعد معزولة | `s11-http.log` |
+| اليوم المالي الموحد S4 عبر TCP | PASS؛ 161 طلبًا يربط المريض والخزن والمورد والبنك والظرف القديم وGL | `integrated-http.log` |
+| فحص التبعيات قبل التحديث | 19 سجل تحذير في حزمتين، يتضمن تكرارات | `dependency-audit.json`؛ cryptography 46.0.7 وpip 24.3.1؛ لا يثبت استغلالها عبر التطبيق |
+| فحص التبعيات بعد التحديث | **لا ثغرات معروفة في البيئة المثبتة وقت الفحص، exit 0** | `dependency-audit-final.json` و`dependency-audit-final.log` |
+| توافق النسخ المشفرة القديمة | PASS؛ إنشاء بـ46.0.7 واستعادة بـ50.0.2 مع تطابق المخطط وكل الصفوف منطقيًا | `crypto-backup-compatibility.log`؛ القاعدة والمفتاح الوهميان خارج الإصدار |
+| سلامة الاعتماديات والصياغة | PASS؛ pip check وPython compile وNode check وفحص diff | `pip-check.log` و`syntax.log` |
+
+## التجاوزات الخمسة
+
+- `test_free_preview.py`: SKIP: private June historical workbook intentionally excluded from development ZIP
+- `test_preview_modes.py`: SKIP: private June historical workbook intentionally excluded from development ZIP
+- `test_v81e_g2j_schema_upgrade.py`: SKIP G2J G2I upgrade: original preceding source checkout unavailable
+- `test_v81e_g2k_upgrade.py`: SKIP G2K historical G2J -> G2K upgrade: G2J source checkout not packaged
+- `test_v81e_g2l_schema_upgrade.py`: SKIP G2L G2K source checkout not available; migration must be rerun with historical source
+
+## إعادة التشغيل وحدود النتيجة
+
+الأوامر في README_S11_AR.md. أُعيدت المجموعة الشاملة وCI بعد تحديث التشفير، وأُعيدت المجموعة الشاملة والاختبار المرئي بعد تحسين بطاقات الموبايل. العدد يحصي سكربتات، ولا يمثل تغطية الأسطر أو الفروع. CI مجموعة فرعية من الاختبارات الشاملة وليست 74 اختبارًا إضافيًا مستقلًا عنها.
+
+اختبار Chrome اليومي يمرر الطلبات إلى ASGI وSQLite حقيقيين عبر جسر اختباري. مشغلا S11 وS4 يختبران TCP/HTTP محليًا في عمليات Uvicorn مستقلة. لا توجد نتيجة HTTPS أو شبكة مستشفى أو طابعة فعلية أو توقيع طاقم أو حمل وفق SLA معتمد.
+
+ظهرت رسالة إهمال من Starlette عن استخدام httpx داخل TestClient؛ لم تسبب فشل الاختبارات، وتستلزم متابعة توافق أداة الاختبار مستقبلًا. بناء Docker/Linux غير منفذ هنا. فحص الثغرات يتعلق بالاعتماديات المثبتة وقت الفحص، ولا يغلق عيوب التطبيق الأمنية المفتوحة.
+
+لم تطبق سياسة الاستحقاق المقترحة، ولم يحل عيب FIN-01. لا توجد هجرة مخطط جديدة ضمن S11. اختبار V8.0 يستخدم مخططًا أصليًا مع بيانات وهمية؛ لا يوجد ترحيل قاعدة تشغيل أو توقيع أرصدة افتتاحية. **الحالة: TEST ONLY / PRODUCTION NO-GO.**
+
+---
+
 # S10 synthetic acceptance (2026-11-02)
 
 **RED evidence:** original `/api/shifts/day-summary` returned `shift_coverage_complete=false` for `[{'status':'complete'}, {'status':'not_required'}]`; the new synthetic API test failed at that exact field. After code fix the S10 direct acceptance passes, preserving not-monitored/missing/zero-required blocks and zero GL/fund/audit read side effects. Browser test for new off-day label passes at Chromium 1280/375 after fixing a stale October 2026 fixture. CI/full source QA and integrated financial day results are recorded when finished. No original V8.0 archive or real hospital workstation tested.

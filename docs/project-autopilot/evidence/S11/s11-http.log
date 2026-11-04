@@ -1,0 +1,21 @@
+/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/ramses-s11-llkk7w4f/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=74105 ready on 127.0.0.1
+PASS S11 daily exceptions: missing/review/unknown/upcoming, scoped report, no certification or writes
+PASS S11 real local Uvicorn HTTP: test_s11_daily_exceptions.py {'http_requests': 10, 'server_process': 74105, 'server_exit': None, 'transport': 'requests.Session real TCP HTTP to Uvicorn', 'tls': False, 'chromium_http': False, 'synthetic_database': True}
+/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/ramses-s11-atomic-97th8u3a/synthetic.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=74133 ready on 127.0.0.1
+PASS S11 atomic master data: audit failure rolls back all 3 entities + GL, retry once, duplicate denied
+PASS S11 real local Uvicorn HTTP: test_s11_atomic_master_data.py {'http_requests': 10, 'server_process': 74133, 'server_exit': None, 'transport': 'requests.Session real TCP HTTP to Uvicorn', 'tls': False, 'chromium_http': False, 'synthetic_database': True}
+/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/tmpfw1sdbyq/case_inventory.sqlite3
+Historical rows: 0 (quarantined, not posted)
+S3 HTTP Uvicorn subprocess=74136 ready on 127.0.0.1
+PASS S11 pending case consumables block no-charge/settled clearance and stale approval; independent rejection, unrelated cases and cash/GL remain unchanged
+PASS S11 real local Uvicorn HTTP: test_s11_case_inventory_pending.py {'http_requests': 48, 'server_process': 74136, 'server_exit': None, 'transport': 'requests.Session real TCP HTTP to Uvicorn', 'tls': False, 'chromium_http': False, 'synthetic_database': True}
