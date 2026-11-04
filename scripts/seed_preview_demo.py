@@ -30,8 +30,10 @@ def seed_demo(root: Path, admin_password: str) -> dict:
     try:
         from app import app
         from fastapi.testclient import TestClient
-        maker = TestClient(app)
-        checker = TestClient(app)
+        # Protected previews issue Secure cookies. The in-process seed client
+        # must use an HTTPS origin too, rather than weakening cookie settings.
+        maker = TestClient(app, base_url='https://testserver')
+        checker = TestClient(app, base_url='https://testserver')
         who = os.getenv('RAMSES_ADMIN_USER', 'owner')
         resp = maker.post('/api/login', json={'username': who, 'password': admin_password})
         if resp.status_code != 200:

@@ -36,9 +36,11 @@ import opening_balances
 import shift_schedule
 import shift_coverage
 import cashier_ops
+from request_limits import RequestBodyLimitMiddleware
 
 ROOT = Path(__file__).resolve().parent
 app = FastAPI(title="Ramses Hospital Accounts", docs_url=None, redoc_url=None, openapi_url=None)
+app.add_middleware(RequestBodyLimitMiddleware)
 app.mount("/static", StaticFiles(directory=str(ROOT / "static")), name="static")
 SYNC_LOCK = threading.Lock()
 LOG = logging.getLogger("ramses.sync")
@@ -93,7 +95,10 @@ def current_month():
 
 
 def db():
-    c = connect()
+    try:
+        c = connect(create=False)
+    except sqlite3.Error:
+        fail('قاعدة البيانات غير متاحة؛ تواصل مع مسؤول النظام',503)
     try:
         yield c
     finally:
@@ -556,7 +561,7 @@ def health():
     if not DB.is_file():
         fail("قاعدة البيانات غير متاحة", 503)
     try:
-        with sqlite3.connect(f"file:{DB.as_posix()}?mode=ro", uri=True, timeout=2) as c:
+        with sqlite3.connect(DB.resolve().as_uri()+'?mode=ro', uri=True, timeout=2) as c:
             ok = c.execute("SELECT 1 FROM sync_status WHERE id=1").fetchone()
         if not ok:
             fail("قاعدة البيانات غير جاهزة", 503)
@@ -3429,7 +3434,7 @@ def sync_dirty(force=False):
         return {"skipped":"not configured"}
     from google_sync import sync_to_google
     with SYNC_LOCK:
-        c=connect()
+        c=connect(create=False)
         try:
             state=c.execute("SELECT revision,dirty FROM sync_status WHERE id=1").fetchone()
             if not force and not state["dirty"]:

@@ -1,0 +1,13 @@
+S11 baseline 0acb2db3aea4dd0de8f2debf880e221dc824b31b with S12 regression test; expected RED
+/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/ramses-s12-runtime-1pifcghr/mount/synthetic ledger #? عربية.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Traceback (most recent call last):
+  File "/var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/ramses-s12-red-baseline-sghn82jc/tests/test_s12_runtime_database.py", line 53, in <module>
+    run()
+    ~~~^^
+  File "/var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/ramses-s12-red-baseline-sghn82jc/tests/test_s12_runtime_database.py", line 35, in run
+    assert not path.exists() and not path.parent.exists(), 'Request recreated missing ledger storage'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: Request recreated missing ledger storage

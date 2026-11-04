@@ -1,0 +1,29 @@
+{
+  "stage": "S12",
+  "cairo_date": "2026-11-04",
+  "baseline": "0acb2db3aea4dd0de8f2debf880e221dc824b31b",
+  "branch": "stabilization/s12-request-limits-preview",
+  "python": "3.13.1",
+  "full": {
+    "total": 153,
+    "pass": 148,
+    "skip": 5,
+    "fail": 0,
+    "blocked": 0,
+    "timeout": 0
+  },
+  "ci": {
+    "pass": 77,
+    "total": 77
+  },
+  "s12_real_http_requests": 21,
+  "integrated_day_real_http_requests": 161,
+  "external_https_browser_widths": [
+    375,
+    1440
+  ],
+  "external_protection": "bcrypt Basic gate before application; independent Secure app session",
+  "patient_and_financial_data": "synthetic only",
+  "production": "NO_GO",
+  "policy_month_end": "proposal, not activated"
+}

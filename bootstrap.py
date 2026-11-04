@@ -64,11 +64,16 @@ def hash_password(password):
     return "pbkdf2_sha256$290000$" + salt.hex() + "$" + digest.hex()
 
 
-def connect():
-    DB.parent.mkdir(parents=True, exist_ok=True)
+def connect(*, create=True):
+    if create:
+        DB.parent.mkdir(parents=True, exist_ok=True)
     # FastAPI sync dependencies and endpoints may run in different worker threads.
     # Connections remain request-scoped; timeout=30 also sets SQLite busy_timeout.
-    c = sqlite3.connect(DB, isolation_level=None, timeout=30, check_same_thread=False)
+    # Runtime opens must fail if storage disappears, never create a replacement
+    # ledger. as_uri() also quotes '?'/'#'/Unicode in the filesystem path.
+    target = DB if create else DB.resolve().as_uri() + '?mode=rw'
+    c = sqlite3.connect(target, uri=not create, isolation_level=None,
+                        timeout=30, check_same_thread=False)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys=ON")
     c.execute("PRAGMA journal_mode=WAL")
