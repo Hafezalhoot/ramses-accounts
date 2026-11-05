@@ -37,7 +37,9 @@ def reconcile_fee_liability(c: sqlite3.Connection) -> dict:
     ''').fetchone()[0]
     broken_approvals = c.execute('''
         SELECT COUNT(*) FROM service_fee_decisions d WHERE d.decision='approved'
-          AND (COALESCE((SELECT SUM(l.credit_piasters-l.debit_piasters)
+          AND (NOT EXISTS (SELECT 1 FROM gl_journals j WHERE j.id=d.journal_id
+                            AND j.origin='manual' AND j.reversal_of_id IS NULL)
+            OR COALESCE((SELECT SUM(l.credit_piasters-l.debit_piasters)
                   FROM gl_journals j JOIN gl_lines l ON l.journal_id=j.id
                   JOIN gl_accounts a ON a.id=l.account_id
                   WHERE j.id=d.journal_id AND j.status='posted' AND a.code='2320'),0)
@@ -59,7 +61,10 @@ def reconcile_fee_liability(c: sqlite3.Connection) -> dict:
     broken_reversals = c.execute('''
         SELECT COUNT(*) FROM service_fee_reversals r
         JOIN service_fee_decisions d ON d.id=r.decision_id
-        WHERE d.decision!='approved' OR COALESCE((SELECT SUM(l.debit_piasters-l.credit_piasters)
+        WHERE d.decision!='approved' OR NOT EXISTS (
+            SELECT 1 FROM gl_journals j WHERE j.id=r.journal_id
+              AND j.origin='manual_reversal' AND j.reversal_of_id=d.journal_id)
+          OR COALESCE((SELECT SUM(l.debit_piasters-l.credit_piasters)
                   FROM gl_journals j JOIN gl_lines l ON l.journal_id=j.id
                   JOIN gl_accounts a ON a.id=l.account_id
                   WHERE j.id=r.journal_id AND j.status='posted' AND a.code='2320'),0)
