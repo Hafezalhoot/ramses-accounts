@@ -18,6 +18,14 @@ KNOWN_SKIPS = frozenset({
     'test_v81e_g2l_schema_upgrade.py',
 })
 KNOWN_BLOCKED = frozenset({'test_billing_upgrade_v81.py'})
+SKIP_REASONS = {
+    'test_free_preview.py': 'private June historical workbook intentionally excluded',
+    'test_preview_modes.py': 'private June historical workbook intentionally excluded',
+    'test_v81e_g2j_schema_upgrade.py': 'original preceding source checkout unavailable',
+    'test_v81e_g2k_upgrade.py': 'G2J source checkout not packaged',
+    'test_v81e_g2l_schema_upgrade.py': 'G2K source checkout not available',
+}
+BLOCKED_REASONS = {'test_billing_upgrade_v81.py': 'Original V8.0 ZIP not found'}
 MUST_REPORT = frozenset({
     'test_s14_service_fees.py',
     'test_s14_pricing.py',
@@ -51,10 +59,16 @@ def evaluate(rows: list[dict], *, strict_fixtures: bool = False) -> dict:
             errors.append(f'Unrecognized test status for {name}: {state}')
         elif state in ('FAIL', 'TIMEOUT'):
             errors.append(f'{state}: {name}')
-        elif state == 'SKIP' and (strict_fixtures or name not in KNOWN_SKIPS):
-            errors.append('Unapproved SKIP: ' + name)
-        elif state == 'BLOCKED_NO_V80' and (strict_fixtures or name not in KNOWN_BLOCKED):
-            errors.append('Unapproved BLOCKED: ' + name)
+        elif state == 'SKIP':
+            if strict_fixtures or name not in KNOWN_SKIPS:
+                errors.append('Unapproved SKIP: ' + name)
+            elif SKIP_REASONS[name] not in item.get('last_output', ''):
+                errors.append('Unverified SKIP reason: ' + name)
+        elif state == 'BLOCKED_NO_V80':
+            if strict_fixtures or name not in KNOWN_BLOCKED:
+                errors.append('Unapproved BLOCKED: ' + name)
+            elif BLOCKED_REASONS[name] not in item.get('last_output', ''):
+                errors.append('Unverified BLOCKED reason: ' + name)
     return {
         'ok': not errors,
         'counts': {key: counts[key] for key in ('PASS', 'SKIP', 'BLOCKED_NO_V80', 'FAIL', 'TIMEOUT')},
