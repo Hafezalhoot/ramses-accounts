@@ -29,6 +29,20 @@ implementation and Git history. The current functional stage is S14; start with
 - Keep tariff/package terms and invoice snapshots historical; do not silently reprice.
 - FIN-01 month-end stay policy is a proposal awaiting the chief accountant's approval.
 
+## Owner policy: zero GitHub Actions minutes
+
+- The repository owner deliberately keeps GitHub Actions disabled for this private repository.
+  **Do not enable Actions, create active workflows, trigger jobs or use self-hosted
+  GitHub Actions without explicit new approval.**
+- Run all tests in an authorized Work/cloud-computer or local developer checkout
+  using `python scripts/run_local_qa.py --full`; that script records the exact
+  Git SHA and test evidence without consuming GitHub Actions minutes.
+- Keep the PR as draft until the exact commit is tested. Do not claim an automatic
+  GitHub required check has passed. See
+  `docs/project-autopilot/CI_NO_ACTIONS_WORKFLOW_AR.md`.
+- GitHub is the code/PR host, not the test executor. A restricted chat container
+  may be unable to resolve github.com; do not bypass TLS or move live data.
+
 ## Verification and handoff
 
 - Use Python 3.13 in an isolated environment and `requirements.txt`.

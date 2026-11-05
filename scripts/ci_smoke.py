@@ -31,6 +31,8 @@ TESTS = (
     'test_v82_g3f_upgrade.py',
     'test_v82_g3e_inventory_privacy.py',
     'test_qa_skip_reporting.py',
+    'test_ci_audit_gate.py',
+    'test_local_qa_runner.py',
     'test_v82_g3d_inventory_returns.py',
     'test_v82_g3d_return_date_guards.py',
     'test_v82_g3d_upgrade.py',
