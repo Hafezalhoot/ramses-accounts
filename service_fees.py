@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 import ledger
+from service_fee_reconciliation import reconcile_fee_liability
 from app import (audit, c_piasters, db, fail, get_user, month_open, require,
                  require_reviewer_shift_fund, stamp)
 from billing import (cairo_today, case_scope, invoice_receipted, remember,
@@ -382,6 +383,13 @@ def reverse(decision_id: int, body: ReverseForm, user=Depends(get_user), c: sqli
         remember(c, key, 'service_fee_reverse', user['id'], fingerprint, cur.lastrowid)
         audit(c, user['id'], 'service_fee_reversed', 'service_fee_reversal', cur.lastrowid, {'decision_id': decision_id, 'journal_id': journal})
         return {'id': cur.lastrowid, 'decision_id': decision_id, 'status': 'reversed', 'journal_id': journal, 'replayed': False}
+
+
+@router.get('/payables-reconciliation')
+def payables_reconciliation(user=Depends(get_user), c: sqlite3.Connection=Depends(db)):
+    """Owner-only, read-only GL 2320 control; it does not certify or pay fees."""
+    require(user, 'owner')
+    return reconcile_fee_liability(c)
 
 
 @router.get('/balances')
