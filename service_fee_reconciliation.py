@@ -18,6 +18,9 @@ def reconcile_fee_liability(c: sqlite3.Connection) -> dict:
     account_present = account is not None
     account_valid = bool(account_present and account['class'] == 'liability'
                          and account['control'] == '' and account['active'] == 1)
+    expense = c.execute("SELECT class,control,active FROM gl_accounts WHERE code='5196'").fetchone()
+    expense_account_valid = bool(expense and expense['class'] == 'expense'
+                                 and expense['control'] == '' and expense['active'] == 1)
     totals = c.execute('''
         SELECT COALESCE(SUM(CASE WHEN r.id IS NULL THEN d.amount_piasters ELSE 0 END), 0) liability,
                COUNT(*) approvals,
@@ -41,7 +44,17 @@ def reconcile_fee_liability(c: sqlite3.Connection) -> dict:
             !=d.amount_piasters OR (SELECT COUNT(*) FROM gl_lines l
                   JOIN gl_accounts a ON a.id=l.account_id
                   JOIN gl_journals j ON j.id=l.journal_id
-                  WHERE j.id=d.journal_id AND j.status='posted' AND a.code='2320') != 1)
+                  WHERE j.id=d.journal_id AND j.status='posted' AND a.code='2320') != 1
+            OR (SELECT COUNT(*) FROM gl_lines l WHERE l.journal_id=d.journal_id) != 2
+            OR COALESCE((SELECT SUM(l.debit_piasters-l.credit_piasters)
+                FROM gl_journals j JOIN gl_lines l ON l.journal_id=j.id
+                JOIN gl_accounts a ON a.id=l.account_id
+                WHERE j.id=d.journal_id AND j.status='posted' AND a.code='5196'),0)
+                != d.amount_piasters
+            OR (SELECT COUNT(*) FROM gl_lines l
+                JOIN gl_journals j ON j.id=l.journal_id
+                JOIN gl_accounts a ON a.id=l.account_id
+                WHERE j.id=d.journal_id AND j.status='posted' AND a.code='5196') != 1)
     ''').fetchone()[0]
     broken_reversals = c.execute('''
         SELECT COUNT(*) FROM service_fee_reversals r
@@ -54,6 +67,16 @@ def reconcile_fee_liability(c: sqlite3.Connection) -> dict:
                   JOIN gl_accounts a ON a.id=l.account_id
                   JOIN gl_journals j ON j.id=l.journal_id
                   WHERE j.id=r.journal_id AND j.status='posted' AND a.code='2320') != 1
+            OR (SELECT COUNT(*) FROM gl_lines l WHERE l.journal_id=r.journal_id) != 2
+            OR COALESCE((SELECT SUM(l.credit_piasters-l.debit_piasters)
+                FROM gl_journals j JOIN gl_lines l ON l.journal_id=j.id
+                JOIN gl_accounts a ON a.id=l.account_id
+                WHERE j.id=r.journal_id AND j.status='posted' AND a.code='5196'),0)
+                != d.amount_piasters
+            OR (SELECT COUNT(*) FROM gl_lines l
+                JOIN gl_journals j ON j.id=l.journal_id
+                JOIN gl_accounts a ON a.id=l.account_id
+                WHERE j.id=r.journal_id AND j.status='posted' AND a.code='5196') != 1
     ''').fetchone()[0]
     unlinked_postings = c.execute('''
         SELECT COUNT(DISTINCT j.id)
@@ -70,6 +93,7 @@ def reconcile_fee_liability(c: sqlite3.Connection) -> dict:
     return {
         'account_present': account_present,
         'account_valid': account_valid,
+        'expense_account_valid': expense_account_valid,
         'liability_piasters': liability,
         'gl_balance_piasters': ledger,
         'difference_piasters': difference,
@@ -78,7 +102,7 @@ def reconcile_fee_liability(c: sqlite3.Connection) -> dict:
         'broken_approvals': int(broken_approvals),
         'broken_reversals': int(broken_reversals),
         'unlinked_postings': int(unlinked_postings),
-        'matched': bool(account_valid and liability >= 0 and difference == 0
+        'matched': bool(account_valid and expense_account_valid and liability >= 0 and difference == 0
                         and not (broken_approvals or broken_reversals or unlinked_postings)),
         'certified': False,
     }
