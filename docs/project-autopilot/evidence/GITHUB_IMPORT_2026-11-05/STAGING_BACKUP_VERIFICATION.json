@@ -1,0 +1,11 @@
+{
+  "result": "PASS",
+  "source_commit": "682b8338ef1e24eace67c01c86af5f1133e92dd5",
+  "encrypted_snapshot_created": true,
+  "authenticated_integrity_verified": true,
+  "restore_to_new_temporary_database": true,
+  "snapshot_sha256": "31f88281a13d3c86027cd9fc02f7b25063d12441fb34ab4f37793c04d6bf6ac3",
+  "test_data_only": true,
+  "off_device_restore_demonstrated": false,
+  "note": "Same-device staging baseline; not hospital disaster recovery approval."
+}

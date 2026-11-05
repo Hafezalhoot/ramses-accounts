@@ -1,0 +1,58 @@
+[
+  {
+    "name": "archive/github-initial-2026-11-05",
+    "commit": {
+      "sha": "1db4d194aee9a9d62dfd5afbcd381062a68b0e02",
+      "url": "https://api.github.com/repos/Hafezalhoot/ramses-accounts/commits/1db4d194aee9a9d62dfd5afbcd381062a68b0e02"
+    },
+    "protected": false
+  },
+  {
+    "name": "development/s13-cashier-printing",
+    "commit": {
+      "sha": "30fb06bd24514234963ff8f40c11c323a5b92ebf",
+      "url": "https://api.github.com/repos/Hafezalhoot/ramses-accounts/commits/30fb06bd24514234963ff8f40c11c323a5b92ebf"
+    },
+    "protected": false
+  },
+  {
+    "name": "development/s14-pricing-and-payment-options",
+    "commit": {
+      "sha": "c408e07589a7d46602044273c6a8c0848469b3cc",
+      "url": "https://api.github.com/repos/Hafezalhoot/ramses-accounts/commits/c408e07589a7d46602044273c6a8c0848469b3cc"
+    },
+    "protected": false
+  },
+  {
+    "name": "main",
+    "commit": {
+      "sha": "682b8338ef1e24eace67c01c86af5f1133e92dd5",
+      "url": "https://api.github.com/repos/Hafezalhoot/ramses-accounts/commits/682b8338ef1e24eace67c01c86af5f1133e92dd5"
+    },
+    "protected": false
+  },
+  {
+    "name": "stabilization/s10-coverage-certificate",
+    "commit": {
+      "sha": "49167d9e152d4314d4be79476eadd11a5b9db359",
+      "url": "https://api.github.com/repos/Hafezalhoot/ramses-accounts/commits/49167d9e152d4314d4be79476eadd11a5b9db359"
+    },
+    "protected": false
+  },
+  {
+    "name": "stabilization/s11-operational-review",
+    "commit": {
+      "sha": "0acb2db3aea4dd0de8f2debf880e221dc824b31b",
+      "url": "https://api.github.com/repos/Hafezalhoot/ramses-accounts/commits/0acb2db3aea4dd0de8f2debf880e221dc824b31b"
+    },
+    "protected": false
+  },
+  {
+    "name": "stabilization/s12-request-limits-preview",
+    "commit": {
+      "sha": "a4485e0c8854308b65df960b526290cf958ec507",
+      "url": "https://api.github.com/repos/Hafezalhoot/ramses-accounts/commits/a4485e0c8854308b65df960b526290cf958ec507"
+    },
+    "protected": false
+  }
+]

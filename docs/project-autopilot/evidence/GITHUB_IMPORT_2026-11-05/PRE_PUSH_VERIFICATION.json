@@ -1,0 +1,12 @@
+{
+  "head": "682b8338ef1e24eace67c01c86af5f1133e92dd5",
+  "commits": 54,
+  "tracked_files": 808,
+  "history_blobs_scanned": 1333,
+  "bytes_scanned": 39449218,
+  "known_private_values_compared": 6,
+  "matches": [],
+  "active_main_workflows": 0,
+  "bundle_and_checksums": "PASS",
+  "scope": "known local secrets and high-confidence token/private-key patterns, plus sensitive history paths; not an exhaustive secret certification"
+}
