@@ -36,7 +36,7 @@
 **Files:** `scripts/ci_audit_gate.py`, `tests/test_ci_audit_gate.py`.
 
 - [x] Write failing synthetic unittest first; observe missing module.
-- [x] Implement gate, run 9 positive/negative unittest cases; check Python compilation.
+- [x] Implement gate, run 11 positive/negative unittest cases (including skip reason integrity); check Python compilation.
 - [ ] Run those tests from checked-out actual S14 CI branch; compare full-QA report counts.
 
 ### Task 3: Add branch-scoped workflow
