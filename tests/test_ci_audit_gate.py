@@ -16,6 +16,13 @@ REQUIRED = {
     'test_s14_split_payments.py', 'test_s14_upgrade.py',
     'test_ci_audit_gate.py', 'test_billing_upgrade_v81.py',
 }
+SKIP_MESSAGES = {
+    'test_free_preview.py': 'private June historical workbook intentionally excluded',
+    'test_preview_modes.py': 'private June historical workbook intentionally excluded',
+    'test_v81e_g2j_schema_upgrade.py': 'original preceding source checkout unavailable',
+    'test_v81e_g2k_upgrade.py': 'G2J source checkout not packaged',
+    'test_v81e_g2l_schema_upgrade.py': 'G2K source checkout not available',
+}
 SKIPS = {
     'test_free_preview.py', 'test_preview_modes.py',
     'test_v81e_g2j_schema_upgrade.py', 'test_v81e_g2k_upgrade.py',
@@ -30,7 +37,10 @@ def records():
     for name in SKIPS:
         base[name] = 'SKIP'
     base['test_billing_upgrade_v81.py'] = 'BLOCKED_NO_V80'
-    return [{'name': name, 'status': value, 'seconds': '0.1', 'last_output': ''}
+    return [{'name': name, 'status': value, 'seconds': '0.1',
+             'last_output': ('SKIP: ' + SKIP_MESSAGES[name]) if name in SKIPS
+                 else 'Original V8.0 ZIP not found' if name == 'test_billing_upgrade_v81.py'
+                 else ''}
             for name, value in base.items()]
 
 
@@ -53,6 +63,16 @@ class AuditGate(unittest.TestCase):
         r[0]['status'] = 'SKIP' if r[0]['name'] not in SKIPS else 'PASS'
         if r[0]['status'] == 'PASS':
             next(x for x in r if x['name'].startswith('test_synthetic_'))['status'] = 'SKIP'
+        self.assertFalse(evaluate(r)['ok'])
+
+    def test_known_skip_requires_its_original_missing_fixture_reason(self):
+        r = records()
+        next(x for x in r if x['name'] == 'test_free_preview.py')['last_output'] = 'SKIP: network failure'
+        self.assertFalse(evaluate(r)['ok'])
+
+    def test_known_blocked_requires_missing_v80_fixture_message(self):
+        r = records()
+        next(x for x in r if x['name'] == 'test_billing_upgrade_v81.py')['last_output'] = 'Database access denied'
         self.assertFalse(evaluate(r)['ok'])
 
     def test_unexpected_blocked_is_rejected(self):
