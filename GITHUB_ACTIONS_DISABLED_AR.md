@@ -1,13 +1,14 @@
-# GitHub Actions — سجل النقل التاريخي S14 ثم الاستعادة الآمنة
+# GitHub Actions — قرار المالك: تبقى معطلة للمستودع الخاص
 
-## ما حدث عند النقل (سجل تاريخي)
+أثناء نقل S14 إلى GitHub، تم تعطيل GitHub Actions على مستوى المستودع وحذف ملفات التشغيل النشطة من الفرع الرئيسي. **المالك أكد في 5 نوفمبر 2026 أنه لا يريد إعادة تشغيل GitHub Actions لأنها تستهلك رصيد التشغيل في المستودع الخاص.**
 
-الـWorkflow القديم محفوظ في `docs/project-autopilot/qa-smoke.workflow.DISABLED.yml`، وكان قد أُزيل من `.github/workflows/` على `main` ضمن تأمين استيراد المستودع. وعُطلت GitHub Actions على مستوى إعدادات المستودع قبل رفع الفروع التاريخية.
+## ما نعتمده بدلًا منها
 
-## ماذا أُضيف بعد ذلك؟
+- GitHub: حفظ السورس وتاريخ Git والفروع وPull Requests، دون تشغيل اختبارات على GitHub-hosted runners.
+- Work أو جهاز موثوق: تشغيل فحوص Python 3.13 وGit وNode من نسخة كاملة للتاريخ، باستخدام `python scripts/run_local_qa.py --full`.
+- تقرير مرتبط بالـCommit وبنتيجة كل بوابة، مع فصل `PASS` و`SKIP` و`BLOCKED`. لا اعتماد تشغيل حقيقي من نتائج صناعية.
+- ملف التشغيل القديم محفوظ تاريخيًا ضمن `docs/project-autopilot/qa-smoke.workflow.DISABLED.yml`. **لا يوجد ملف Workflow نشط مطلوب ولا تُنشئ واحدًا دون موافقة جديدة صريحة.**
 
-يحتوي فرع `infra/ci-python313-isolated-gates` على workflow جديد مستقل باسم `.github/workflows/finance-ci.yml`، وبوابة `scripts/ci_audit_gate.py`، لا ينشر التطبيق ولا يصل إلى قاعدة المستشفى. يُنفذ Python 3.13 بصلاحية قراءة فقط، مع تاريخ Git كامل واختبارات على بيانات صناعية. هذا لا يعني أنه نُفذ على GitHub بالفعل.
+راجع: `docs/project-autopilot/CI_NO_ACTIONS_WORKFLOW_AR.md` و`AGENTS.md`.
 
-**لا يزال تفعيل Actions من إعدادات GitHub والتحقق من أول تشغيل فعلي خطوة منفصلة لصاحب المستودع.** اقرأ `docs/project-autopilot/CI_SAFE_ENABLEMENT_AR.md` قبل التفعيل. الفروع التاريخية قد تحتوي على Workflows أقدم غير مقيدة، فلا تُجرِ push عليها للتجربة.
-
-**TEST ONLY / PRODUCTION NO-GO**: نجاح CI، عند حدوثه، ليس موافقة على مالية أو طبية أو تشغيل مستشفى فعلي.
+**تنبيه:** فروع التطوير التاريخية قد تحتوي على Workflows قديمة؛ لا تفعّل Actions للمستودع أو تدفع إليها فقط لتجربة اختبارات. لا تُفترض نتائج اختبارات آلية في واجهة GitHub. يبقى المشروع `TEST ONLY / PRODUCTION NO-GO`.
