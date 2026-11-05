@@ -16,7 +16,7 @@ def database():
     c.row_factory = sqlite3.Row
     c.executescript('''
     CREATE TABLE gl_accounts(id INTEGER PRIMARY KEY,code TEXT UNIQUE,class TEXT,control TEXT,active INTEGER);
-    CREATE TABLE gl_journals(id INTEGER PRIMARY KEY,status TEXT NOT NULL);
+    CREATE TABLE gl_journals(id INTEGER PRIMARY KEY,status TEXT NOT NULL,origin TEXT NOT NULL,reversal_of_id INTEGER);
     CREATE TABLE gl_lines(id INTEGER PRIMARY KEY,journal_id INTEGER,account_id INTEGER,debit_piasters INTEGER,credit_piasters INTEGER);
     CREATE TABLE service_fee_decisions(id INTEGER PRIMARY KEY,decision TEXT,amount_piasters INTEGER,journal_id INTEGER);
     CREATE TABLE service_fee_reversals(id INTEGER PRIMARY KEY,decision_id INTEGER,journal_id INTEGER);
@@ -25,8 +25,10 @@ def database():
     return c
 
 
-def journal(c, journal_id, signed_credit_piasters, *, posted=True):
-    c.execute('INSERT INTO gl_journals VALUES(?,?)', (journal_id, 'posted' if posted else 'pending'))
+def journal(c, journal_id, signed_credit_piasters, *, posted=True, reversal_of_id=None):
+    c.execute('INSERT INTO gl_journals VALUES(?,?,?,?)',
+              (journal_id, 'posted' if posted else 'pending',
+               'manual_reversal' if reversal_of_id is not None else 'manual', reversal_of_id))
     debit = max(0, -signed_credit_piasters)
     credit = max(0, signed_credit_piasters)
     c.execute('INSERT INTO gl_lines(journal_id,account_id,debit_piasters,credit_piasters) VALUES(?,?,?,?)',
@@ -78,7 +80,7 @@ def run():
     assert assert_read_only(c)['matched']
 
     # Reversal requires an exact opposite, posted entry. A bare reversal row is not enough.
-    journal(c, 14, -5000, posted=False)
+    journal(c, 14, -5000, posted=False, reversal_of_id=10)
     c.execute("INSERT INTO service_fee_reversals VALUES(1,2,14)")
     bad_reverse = assert_read_only(c)
     assert not bad_reverse['matched'] and bad_reverse['broken_reversals'] == 1
