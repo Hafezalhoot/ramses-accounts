@@ -39,14 +39,15 @@ async function api(path,options={}) {
   try{result=await response.json();}catch {result={};}
   if(!response.ok){
     if(response.status===401&&path!=="/api/login") showLogin();
-    throw Error(typeof result.detail==="string"?result.detail:`خطأ بالخادم (${response.status})`);
+    const error=Error(typeof result.detail==="string"?result.detail:`خطأ بالخادم (${response.status})`);
+    error.status=response.status;throw error;
   }
   return result;
 }
 function post(path,data={}){return api(path,{method:"POST",body:JSON.stringify(data)});}
 function toast(message,bad=false){const e=$("#toast");e.textContent=message;e.classList.toggle("error",bad);e.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.hidden=true,4800);}
 function errorView(message){$("#content").innerHTML=`<div class="info-box warning">${ico("alert")}<div>${esc(message)}</div></div>`;}
-function showLogin(){state.treasuryDepositDrafts={};state.me=null;state.csrf="";state.view="dashboard";$("#content").replaceChildren();$("#shell").hidden=true;$("#loginPage").hidden=false;}
+function showLogin(){$('#pricingDialog')?.close();state.treasuryDepositDrafts={};state.me=null;state.csrf="";state.view="dashboard";$("#content").replaceChildren();$("#shell").hidden=true;$("#loginPage").hidden=false;}
 async function login(e){
  e.preventDefault();const form=e.currentTarget;$("#loginError").hidden=true;
  const button=$("button[type=submit]",form);button.disabled=true;
@@ -85,14 +86,14 @@ async function navigate(view){
  if(state.me.role==='clinician' && view!=='clinical'){
    toast('الحساب الطبي مخصص لإثبات الخدمات فقط',true);return;
  }
- const restricted={clinical:["clinician"],inventory:["owner","reviewer","clerk"],billing:["owner","reviewer","clerk"],shifts:["owner","reviewer","clerk"],calendar:["owner","reviewer","clerk"],cashierCorrections:["owner","reviewer","clerk"],lateEntries:["owner","reviewer","clerk"],cashierRecoveries:["owner","reviewer","clerk"],cashierSettings:["owner"],reviews:["owner","reviewer"],legacy:["owner","reviewer"],payroll:["owner","reviewer"],reports:["owner","reviewer","viewer"],accounting:["owner","reviewer"],bank:["owner","reviewer"],admin:["owner"],new:["owner","reviewer","clerk"]};
+ const restricted={pricing:["owner"],serviceFees:["owner","reviewer"],clinical:["clinician"],inventory:["owner","reviewer","clerk"],billing:["owner","reviewer","clerk"],shifts:["owner","reviewer","clerk"],calendar:["owner","reviewer","clerk"],cashierCorrections:["owner","reviewer","clerk"],lateEntries:["owner","reviewer","clerk"],cashierRecoveries:["owner","reviewer","clerk"],cashierSettings:["owner"],reviews:["owner","reviewer"],legacy:["owner","reviewer"],payroll:["owner","reviewer"],reports:["owner","reviewer","viewer"],accounting:["owner","reviewer"],bank:["owner","reviewer"],admin:["owner"],new:["owner","reviewer","clerk"]};
  if(restricted[view]&&!restricted[view].includes(state.me.role)){toast("ليست لديك صلاحية لهذه الصفحة",true);return;}
  state.view=view;hideMenu();$$('.nav-link[data-view]').forEach(b=>b.classList.toggle("active",b.dataset.view===view));
- const titles={clinical:"إثبات الخدمات الطبي",inventory:"المخزن المركزي",billing:"الحالات والفواتير",dashboard:"نظرة عامة",new:"تسجيل سند",ledger:"دفتر الحركات",reviews:"الاعتمادات",funds:"الخزن والحسابات",shifts:"الورديات والجرد",calendar:"تقويم الورديات",cashierSettings:"إعدادات ورديات الكاشير",cashierRecoveries:"تسوية فروق الخزنة",cashierCorrections:"بلاغات تصحيح العمليات",lateEntries:"استدراك العمليات المتأخرة",payroll:"المرتبات",reports:"التقارير",accounting:"دفتر الأستاذ",bank:"مطابقة البنك",legacy:"الأرشيف التاريخي",admin:"الإدارة"};
+ const titles={pricing:"التسعير والباقات",serviceFees:"مراجعة أتعاب الخدمات",clinical:"إثبات الخدمات الطبي",inventory:"المخزن المركزي",billing:"الحالات والفواتير",dashboard:"نظرة عامة",new:"تسجيل سند",ledger:"دفتر الحركات",reviews:"الاعتمادات",funds:"الخزن والحسابات",shifts:"الورديات والجرد",calendar:"تقويم الورديات",cashierSettings:"إعدادات ورديات الكاشير",cashierRecoveries:"تسوية فروق الخزنة",cashierCorrections:"بلاغات تصحيح العمليات",lateEntries:"استدراك العمليات المتأخرة",payroll:"المرتبات",reports:"التقارير",accounting:"دفتر الأستاذ",bank:"مطابقة البنك",legacy:"الأرشيف التاريخي",admin:"الإدارة"};
  $("#crumbTitle").textContent=titles[view]||"الإدارة المالية";
  $("#content").innerHTML='<div class="loading-state">جاري تحميل البيانات…</div>';
  try{
-  const f={clinical:renderClinical,inventory:window.renderInventory,billing:window.renderBilling,dashboard:renderDashboard,new:renderNew,ledger:renderLedger,reviews:renderReviews,funds:renderFunds,shifts:renderShifts,calendar:window.renderCashierCalendar,cashierSettings:window.renderCashierSettings,cashierRecoveries:window.renderCashierRecoveries,cashierCorrections:window.renderFinancialCorrections,lateEntries:window.renderLateEntries,payroll:renderPayroll,reports:renderReports,accounting:renderAccounting,bank:renderBankReconciliation,legacy:renderLegacy,admin:renderAdmin}[view];
+  const f={pricing:window.renderPricing,serviceFees:window.renderServiceFees,clinical:renderClinical,inventory:window.renderInventory,billing:window.renderBilling,dashboard:renderDashboard,new:renderNew,ledger:renderLedger,reviews:renderReviews,funds:renderFunds,shifts:renderShifts,calendar:window.renderCashierCalendar,cashierSettings:window.renderCashierSettings,cashierRecoveries:window.renderCashierRecoveries,cashierCorrections:window.renderFinancialCorrections,lateEntries:window.renderLateEntries,payroll:renderPayroll,reports:renderReports,accounting:renderAccounting,bank:renderBankReconciliation,legacy:renderLegacy,admin:renderAdmin}[view];
   await f();
  }catch(error){errorView(error.message);}
 }

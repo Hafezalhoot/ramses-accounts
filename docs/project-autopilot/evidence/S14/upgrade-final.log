@@ -1,0 +1,6 @@
+Verified encrypted pre-upgrade rollback: /private/var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/s14-upgrade-sukx2mwh/pre_schema_upgrade_backups/before_schema_20261104_182221_d6314118.rbe
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/s14-upgrade-sukx2mwh/s13.sqlite3
+Historical rows: 0 (quarantined, not posted)
+Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/s14-upgrade-sukx2mwh/s13.sqlite3
+Historical rows: 0 (quarantined, not posted)
+PASS S14 authentic frozenS13 upgrade twice, legacy service/evidence/draft unchanged, empty pricing and fee records, encrypted rollback independently restored

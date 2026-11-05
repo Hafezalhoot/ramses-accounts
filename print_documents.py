@@ -53,11 +53,15 @@ def print_invoice(invoice_id:int,paper:Literal['a4','80mm']='a4',user=Depends(ge
     detail=draft_detail(invoice['draft_id'],user,c)
     content=fields([('تاريخ الإصدار',invoice['issued_date']),('الحالة',detail['case_no']),
                     ('كود المريض',detail['patient_code']),('اسم المريض',detail['patient_name'])])
-    content+=table(['الخدمة','الكمية','سعر الوحدة','الإجمالي'],[
-        (line['service_name_snapshot'],line['quantity'],money(line['unit_price_piasters']),money(line['total_piasters']))
+    content+=table(['الخدمة','الكمية','سعر الوحدة','خصم الباقة','الصافي'],[
+        (line['service_name_snapshot']+(' · '+line['location_name'] if line.get('location_name') else '')+
+         (' / '+line['unit'] if line.get('unit') else ''),line['quantity'],money(line['unit_price_piasters']),
+         money(line['unit_price_piasters']*line['quantity']-line['total_piasters']),money(line['total_piasters']))
         for line in detail['lines']])
     content+=fields([('إجمالي الفاتورة الأصلية',money(invoice['total_piasters'])),
                      ('المتبقي الحالي بعد المدفوعات والتسويات',money(invoice_due(c,invoice_id)))])
+    lists=sorted({x['price_list_name'] for x in detail['lines'] if x.get('price_list_name')})
+    if lists:content+=fields([('قوائم الأسعار','، '.join(lists))])
     content+='<p class="notice">إصدار الفاتورة يثبت المبلغ المستحق؛ إثبات القبض يكون بإيصال التحصيل المستقل.</p>'
     return document('فاتورة خدمات',invoice['invoice_no'],content,paper)
 

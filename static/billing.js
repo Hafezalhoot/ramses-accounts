@@ -72,10 +72,12 @@ function renderBillingCasePanel(info,cfg,perms,finance,adjustments,settlement,be
  const lines=info.services||[];
  const drafts=info.drafts||[];
  const ready=lines.filter(x=>x.state==='fulfilled').length;
- return `<div class="billing-block-head"><div><span class="billing-eyebrow">الملف ${esc(c.case_no)}</span><h2>${esc(c.patient_name)}</h2><p>${esc(c.patient_code)} · ${esc(billingKinds[c.kind]||c.kind)} · ${esc(c.business_date)}</p></div>${perms.cashier?`<button id="billingAddLine" class="btn btn-primary">${ico('plus')} إضافة خدمة</button>`:''}</div>`+
+ const cancellablePackages=perms.cashier?[...new Set(lines.filter(x=>x.package_version_id).map(x=>x.pricing_order_id))].filter(id=>lines.filter(x=>x.pricing_order_id===id).every(x=>x.state==='ordered')):[];
+ return `<div class="billing-block-head"><div><span class="billing-eyebrow">الملف ${esc(c.case_no)}</span><h2>${esc(c.patient_name)}</h2><p>${esc(c.patient_code)} · ${esc(billingKinds[c.kind]||c.kind)} · ${esc(c.business_date)}</p></div>${perms.cashier?`<div class="billing-actions"><button id="billingAddLine" class="btn btn-primary">${ico('plus')} إضافة خدمة</button><button id="billingPricedOrder" class="btn btn-secondary">خدمة مسعرة / باقة</button></div>`:''}</div>`+
    `<div class="billing-stats"><div><span>خدمات مسجلة</span><strong>${integer(lines.length)}</strong></div><div><span>خدمات منفذة</span><strong>${integer(ready)}</strong></div><div><span>منفذ غير مفوتر</span><strong>${fmt(info.unbilled_piasters)} ج.م</strong></div></div>`+
    `<div class="billing-divider"></div><div class="billing-section-title"><h3>خدمات الحالة</h3><small>الفاتورة بعد إثبات التنفيذ فقط</small></div>`+
-   (lines.length?`<div class="billing-services-list">${lines.map(x=>`<div class="billing-service-row"><div class="billing-service-main"><strong>${esc(x.service_name_snapshot)}</strong><span>${fmt(x.unit_price_piasters)} × ${integer(x.quantity)} = ${fmt(x.unit_price_piasters*x.quantity)} ج.م</span><small>${esc(billingLineStates[x.state]||x.state)}</small></div><div class="billing-service-actions">${x.state==='ordered'&&perms.canFulfill?`<button class="btn btn-small btn-outline" data-billing-fulfill="${x.id}">إثبات التنفيذ</button>`:''}${x.state==='ordered'&&perms.cashier&&!x.is_bed_night?`<button class="btn btn-small btn-secondary" data-billing-cancel="${x.id}">إلغاء الطلب</button>`:''}</div></div>`).join('')}</div>`:empty('لم تُضاف خدمات بعد. أضف خدمة بسعرها المعتمد ثم سجّل تنفيذها قبل إعداد المسودة.'))+
+   (lines.length?`<div class="billing-services-list">${lines.map(x=>`<div class="billing-service-row"><div class="billing-service-main"><strong>${esc(x.service_name_snapshot)}</strong><span>${fmt(x.unit_price_piasters)} × ${integer(x.quantity)}${x.line_total_piasters!=null&&x.line_total_piasters!==x.unit_price_piasters*x.quantity?` − خصم ${fmt(x.unit_price_piasters*x.quantity-x.line_total_piasters)}`:''} = ${fmt(x.line_total_piasters??x.unit_price_piasters*x.quantity)} ج.م${x.location_name?` · ${esc(x.location_name)}`:''}</span><small>${esc(billingLineStates[x.state]||x.state)}</small></div><div class="billing-service-actions">${x.state==='ordered'&&perms.canFulfill?`<button class="btn btn-small btn-outline" data-billing-fulfill="${x.id}">إثبات التنفيذ</button>`:''}${x.state==='ordered'&&perms.cashier&&!x.is_bed_night&&!x.package_version_id?`<button class="btn btn-small btn-secondary" data-billing-cancel="${x.id}">إلغاء الطلب</button>`:''}</div></div>`).join('')}</div>`:empty('لم تُضاف خدمات بعد. أضف خدمة بسعرها المعتمد ثم سجّل تنفيذها قبل إعداد المسودة.'))+
+   (cancellablePackages.length?`<div class="billing-actions">${cancellablePackages.map(id=>`<button class="btn btn-secondary" data-pricing-cancel-order="${id}">إلغاء الباقة #${id} قبل التنفيذ</button>`).join('')}</div>`:'')+
    `<div class="billing-divider"></div><div class="billing-section-title"><h3>مسودات الفواتير</h3>${perms.cashier?`<button class="btn btn-small btn-outline" id="billingDraft" ${info.unbilled_piasters<=0?'disabled':''}>${ico('file')} إنشاء مسودة</button>`:''}</div>`+
    (drafts.length?`<div class="billing-drafts">${drafts.map(d=>`<div class="billing-draft-row"><button class="billing-draft" data-billing-draft="${d.id}"><span>${esc(d.draft_no)}<small>${(info.invoices||[]).some(x=>x.draft_id===d.id)?'تم إصدارها وترحيلها':'مسودة غير مرحلة'}</small></span><strong>${fmt(d.total_piasters)} ج.م</strong></button>${perms.cashier&&!(info.invoices||[]).some(x=>x.draft_id===d.id)?`<button class="btn btn-small btn-primary" data-billing-issue="${d.id}">إصدار فاتورة</button>`:''}</div>`).join('')}</div>`:empty('لم تُنشأ مسودات.'))+
    renderBillingBedSection(bedInfo,bedCatalog,perms,c)+
@@ -258,17 +260,17 @@ function renderBillingFinance(finance,perms){
 
 async function billingPaymentForm({caseId,point,invoiceId,patientCode,cfg}){
  if(!point.own_open_shift){toast('افتح ورديتك الحالية أولًا لتسجيل مدفوعات باسمها',true);return;}
- const methods=[['cash','نقدي'],...(cfg.payment_channels||[]).map(x=>[x.method,{card:'بطاقة POS',instapay:'InstaPay',wallet:'محفظة',transfer:'تحويل تحت التسوية'}[x.method]])];
- const form=await modal(invoiceId?'تحصيل فاتورة تجريبية':'تسجيل مقدم تجريبي','اختر وسيلة أو وسيلتين؛ المبالغ الإلكترونية تذهب لحساب مقاصة وليس حساب بنك مباشر.',[
-   {name:'method_1',type:'select',label:'طريقة الدفع الأولى',options:methods,required:true},
-   {name:'amount_1',type:'number',label:'المبلغ الأول بالجنيه',required:true,step:'0.01'},
-   {name:'method_2',type:'select',label:'طريقة دفع ثانية (اختياري)',options:methods},
-   {name:'amount_2',type:'number',label:'مبلغ الدفع الثاني (اختياري)',step:'0.01'}]);
+ const methods=[['cash','نقدي'],...(cfg.payment_channels||[]).map(x=>[x.method,{card:'بطاقة POS',instapay:'InstaPay',wallet:'فودافون كاش / محفظة',transfer:'تحويل بنكي تحت التسوية'}[x.method]])];
+ const fields=Array.from({length:5},(_,index)=>[
+   {name:`method_${index+1}`,type:'select',label:`وسيلة الدفع ${index+1}${index?' (اختياري)':''}`,options:methods,required:index===0},
+   {name:`amount_${index+1}`,type:'number',label:`المبلغ ${index+1} بالجنيه`,required:index===0,step:'0.01'}]).flat();
+ const form=await modal(invoiceId?'تحصيل فاتورة تجريبية':'تسجيل مقدم تجريبي','يمكن تقسيم الدفعة على خمس وسائل، أو تسجيل دفعات متتالية بإيصالات مستقلة. المقدم يبقى رصيدًا تحت الحساب؛ المتبقي دين غير محصل. التأمين والآجل لا يُسجلان كقبض. الإلكتروني يذهب إلى المقاصة حتى المطابقة.',fields);
  if(!form)return;
- const parts=[{method:form.method_1,amount:form.amount_1}];
- if(form.method_2&&form.amount_2)parts.push({method:form.method_2,amount:form.amount_2});
- if((form.method_2&&!form.amount_2)||(!form.method_2&&form.amount_2)){
-   toast('أكمل طريقة الدفع الثانية والمبلغ معًا',true);return;
+ const parts=[];
+ for(let i=1;i<=5;i++){
+   const method=form[`method_${i}`],amount=form[`amount_${i}`];
+   if((method&&!amount)||(!method&&amount)){toast(`أكمل وسيلة الدفع ${i} والمبلغ معًا`,true);return;}
+   if(method&&amount)parts.push({method,amount});
  }
  const data=await billingMutation('cashier-collect-'+caseId,`/api/billing/cases/${caseId}/collect`,
    {point_id:point.id,invoice_id:invoiceId||null,patient_code:patientCode||'',parts});
@@ -285,6 +287,8 @@ async function billingPaymentForm({caseId,point,invoiceId,patientCode,cfg}){
 }
 
 function bindBillingActions({point,cfg,selected,owner,cashier,canFulfill,finance}){
+ $('#billingPricedOrder')?.addEventListener('click',()=>window.pricingOrderForCase(selected.case.id));
+ $$('[data-pricing-cancel-order]').forEach(b=>b.onclick=async()=>{const form=await modal('إلغاء الباقة كاملة','الإلغاء متاح قبل تنفيذ أي مكون؛ لا تنشأ حركة قبض أو قيد.',[{name:'reason',type:'textarea',label:'سبب الإلغاء',required:true}]);if(!form)return;await billingAction(b,async()=>{await post(`/api/pricing/orders/${Number(b.dataset.pricingCancelOrder)}/cancel`,form);toast('أُلغيت الباقة كاملة قبل التنفيذ');navigate('billing');});});
  $('#billingOpenShift')?.addEventListener('click',async()=>{
    const suggested=cfg.suggested_shift||{business_date:new Date().toLocaleDateString('sv-SE',{timeZone:'Africa/Cairo'}),shift:'morning'};
    const form=await modal('فتح وردية الكاشير','\u064a\u062a\u0628\u0639 \u062a\u0627\u0631\u064a\u062e \u0627\u0644\u0633\u0647\u0631 \u064a\u0648\u0645 \u0628\u062f\u0627\u064a\u062a\u0647 \u0639\u0646\u062f \u0645\u0646\u062a\u0635\u0641 \u0627\u0644\u0644\u064a\u0644.',[
@@ -428,7 +432,7 @@ function bindBillingActions({point,cfg,selected,owner,cashier,canFulfill,finance
    });
  });
  $('#billingAddLine')?.addEventListener('click',async()=>{
-   const priced=cfg.services.filter(s=>s.current_price_piasters>0);
+   const priced=cfg.services.filter(s=>s.current_price_piasters>0&&!s.managed_pricing);
    if(!priced.length){toast('أضف أسعار خدمات معتمدة تجريبيًا من لوحة المالك أولًا',true);return;}
    const form=await modal('تسجيل خدمة على الحالة','الخدمة تُسجّل مطلوبة أولًا. إتمام التنفيذ يُوثّقه مسؤول مختلف.',[
       {name:'service_id',label:'الخدمة',type:'select',options:priced.map(s=>[s.id,`${s.name} — ${fmt(s.current_price_piasters)} ج.م`]),required:true},

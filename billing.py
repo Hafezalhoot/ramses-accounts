@@ -361,7 +361,11 @@ def complete_line(c,line,actor):
     service_day=(night['night_date'] if night else
                  (late['original_business_date'] if late else cairo_today()))
     month_open(c,(cairo_today() if late else service_day)[:7])
-    if night:
+    agreed=c.execute('SELECT 1 FROM pricing_line_terms WHERE case_line_id=?',(line['id'],)).fetchone()
+    if agreed:
+        c.execute("UPDATE billing_case_lines SET state='fulfilled',service_date=?,fulfilled_by=?,fulfilled_at=? WHERE id=?",
+                  (service_day,actor,stamp(),line['id']))
+    elif night:
         c.execute("UPDATE billing_case_lines SET state='fulfilled',service_date=?,fulfilled_by=?,fulfilled_at=? WHERE id=?",
                   (service_day,actor,stamp(),line['id']))
     else:
@@ -461,6 +465,7 @@ def config(user=Depends(get_user),c:sqlite3.Connection=Depends(db)):
         p['active_shift']=dict(sh) if sh else None
         p['own_open_shift']=bool(sh and sh['responsible_id']==user['id'])
     services=[dict(r) for r in c.execute('''SELECT s.id,s.code,s.name,s.department_id,s.suggested_point,
+       EXISTS(SELECT 1 FROM pricing_rate_versions pr WHERE pr.service_id=s.id) managed_pricing,
        d.name department_name, (SELECT p.price_piasters FROM billing_service_prices p
        WHERE p.service_id=s.id AND p.valid_from<=? ORDER BY p.valid_from DESC LIMIT 1) current_price_piasters
        FROM billing_services s JOIN departments d ON d.id=s.department_id WHERE s.active=1 ORDER BY s.id''',
@@ -620,7 +625,7 @@ def cases(point_id:int=0,limit:int=50,user=Depends(get_user),c:sqlite3.Connectio
     if point_id:filters+=['b.default_point_id=?'];args.append(point_id)
     q='''SELECT b.*, p.code patient_code,p.display_name patient_name, t.name point_name,
           (SELECT COUNT(*) FROM billing_case_lines l WHERE l.case_id=b.id AND l.state='fulfilled') fulfilled_count,
-          (SELECT COALESCE(SUM(l.unit_price_piasters*l.quantity),0) FROM billing_case_lines l
+          (SELECT COALESCE(SUM(COALESCE((SELECT net_piasters FROM pricing_line_terms pt WHERE pt.case_line_id=l.id),l.unit_price_piasters*l.quantity)),0) FROM billing_case_lines l
             WHERE l.case_id=b.id AND l.state='fulfilled' AND NOT EXISTS
             (SELECT 1 FROM billing_invoice_draft_lines dl WHERE dl.case_line_id=l.id)) unbilled_piasters
           FROM billing_cases b JOIN billing_patients p ON p.id=b.patient_id
@@ -636,11 +641,17 @@ def case_detail(case_id:int,user=Depends(get_user),c:sqlite3.Connection=Depends(
               EXISTS(SELECT 1 FROM bed_night_charges n WHERE n.case_line_id=l.id) is_bed_night
               FROM billing_case_lines l
               JOIN billing_services s ON s.id=l.service_id WHERE l.case_id=? ORDER BY l.id''',(case_id,))]
+    from pricing import line_net
+    for line in lines:
+        line['line_total_piasters']=line_net(c,line)
+        priced=c.execute('''SELECT t.order_id,o.package_version_id,json_extract(t.terms_json,'$.location_name') location_name
+           FROM pricing_line_terms t JOIN pricing_orders o ON o.id=t.order_id WHERE t.case_line_id=?''',(line['id'],)).fetchone()
+        if priced:line.update({'pricing_order_id':priced['order_id'],'package_version_id':priced['package_version_id'],'location_name':priced['location_name']})
     drafts=[dict(r) for r in c.execute('''SELECT id,draft_no,total_piasters,status,created_at
               FROM billing_invoice_drafts WHERE case_id=? ORDER BY id DESC''',(case_id,))]
     issued=[dict(r) for r in c.execute('SELECT id,invoice_no,draft_id,issued_date,total_piasters FROM billing_invoices WHERE case_id=? ORDER BY id DESC',(case_id,))]
     return {'case':dict(case),'services':lines,'drafts':drafts,'invoices':issued,
-            'unbilled_piasters':sum(x['unit_price_piasters']*x['quantity'] for x in lines
+            'unbilled_piasters':sum(x['line_total_piasters'] for x in lines
                       if x['state']=='fulfilled' and not c.execute(
                       'SELECT 1 FROM billing_invoice_draft_lines WHERE case_line_id=?',(x['id'],)).fetchone()),
             'notice':'الخدمات المطلوبة لا ترحل، والفواتير الصادرة فقط تُثبت ذممًا وإيرادًا تجريبيًا.'}
@@ -663,6 +674,8 @@ def add_case_service(case_id:int,body:LineForm,user=Depends(get_user),c:sqlite3.
                        (case_id,)).fetchone()
         service_day=late['original_business_date'] if late else cairo_today()
         require_case_document_period(c,case,cairo_today())
+        if c.execute('SELECT 1 FROM pricing_rate_versions WHERE service_id=?',(body.service_id,)).fetchone():
+            fail('هذه الخدمة لها قائمة ومكان؛ أضفها من عرض التسعير المعتمد',409)
         service=c.execute('SELECT * FROM billing_services WHERE id=? AND active=1',(body.service_id,)).fetchone()
         if not service:fail('الخدمة غير موجودة أو غير نشطة',404)
         price=c.execute('''SELECT * FROM billing_service_prices WHERE service_id=? AND valid_from<=?
@@ -709,6 +722,9 @@ def cancel_line(line_id:int,body:LineDecision,user=Depends(get_user),c:sqlite3.C
         case=case_scope(c,user,line['case_id'],write=True)
         if case['status']!='open' or line['state']!='ordered':
             fail('لا يمكن إلغاء خدمة منفذة أو مفوترة؛ استخدم إشعارًا دائنًا عند تفعيله',409)
+        if c.execute('''SELECT 1 FROM pricing_line_terms t JOIN pricing_orders o ON o.id=t.order_id
+              WHERE t.case_line_id=? AND o.package_version_id IS NOT NULL''',(line_id,)).fetchone():
+            fail('لا يُلغى مكون باقة منفردًا؛ ألغِ طلب الباقة كله قبل التنفيذ',409)
         if c.execute('SELECT 1 FROM bed_night_charges WHERE case_line_id=?',(line_id,)).fetchone():
             fail('ليلة السرير موثقة بالفعل؛ لا تُلغى من شاشة الخدمات، بل بمسار تصحيح مالي مستقل',409)
         require_case_document_period(c,case)
@@ -746,7 +762,9 @@ def create_draft(case_id:int,body:DraftForm,user=Depends(get_user),c:sqlite3.Con
               (case_id,case['business_date'],*allowed_periods)).fetchall()
         if not rows:fail('لا توجد خدمات منفذة غير مضافة لمسودة سابقة',409)
         require_invoice_clinical_evidence(c,rows)
-        total=sum(int(r['unit_price_piasters'])*int(r['quantity']) for r in rows)
+        from pricing import line_net,require_complete_packages
+        require_complete_packages(c,rows)
+        total=sum(line_net(c,r) for r in rows)
         cur=c.execute('''INSERT INTO billing_invoice_drafts(draft_no,case_id,point_id,total_piasters,
                       created_by,created_at) VALUES (?,?,?,?,?,?)''',
                       ('DRAFT-'+secrets.token_hex(6),case_id,case['default_point_id'],total,user['id'],stamp()))
@@ -757,7 +775,7 @@ def create_draft(case_id:int,body:DraftForm,user=Depends(get_user),c:sqlite3.Con
             c.execute('''INSERT INTO billing_invoice_draft_lines(draft_id,case_line_id,
                          unit_price_piasters,quantity,total_piasters) VALUES (?,?,?,?,?)''',
                       (draft_id,row['id'],row['unit_price_piasters'],row['quantity'],
-                       int(row['unit_price_piasters'])*int(row['quantity'])))
+                       line_net(c,row)))
         remember(c,key,'invoice_draft',user['id'],fingerprint,draft_id)
         audit(c,user['id'],'billing_draft_invoice','billing_case',case_id,
               {'draft_id':draft_id,'total_piasters':total,'line_count':len(rows)})
@@ -770,8 +788,11 @@ def draft_detail(draft_id:int,user=Depends(get_user),c:sqlite3.Connection=Depend
     d=c.execute('SELECT * FROM billing_invoice_drafts WHERE id=?',(draft_id,)).fetchone()
     if not d:fail('المسودة غير موجودة',404)
     case=case_scope(c,user,d['case_id'])
-    lines=[dict(r) for r in c.execute('''SELECT dl.*,l.service_name_snapshot,l.department_id
+    lines=[dict(r) for r in c.execute('''SELECT dl.*,l.service_name_snapshot,l.department_id,
+       json_extract(t.terms_json,'$.location_name') location_name,json_extract(t.terms_json,'$.unit') unit,
+       json_extract(t.terms_json,'$.price_list_name') price_list_name
        FROM billing_invoice_draft_lines dl JOIN billing_case_lines l ON l.id=dl.case_line_id
+       LEFT JOIN pricing_line_terms t ON t.case_line_id=l.id
        WHERE dl.draft_id=? ORDER BY dl.id''',(draft_id,))]
     if sum(x['total_piasters'] for x in lines)!=d['total_piasters']:
         fail('خلل في سلامة مبالغ المسودة',500)
@@ -1421,6 +1442,9 @@ def credit_decision(credit_id:int,body:CreditDecisionForm,user=Depends(get_user)
             fail('فاتورة مستدركة سُوّيت من الظرف؛ لا تعتمد إشعارًا دائنًا قبل مسار استرداد النقدية المخصصة',409)
         day=cairo_today();month_open(c,day[:7])
         invoice=c.execute('SELECT * FROM billing_invoices WHERE id=?',(credit['invoice_id'],)).fetchone()
+        from service_fees import has_active_approvals
+        if has_active_approvals(c,invoice['id']):
+            fail('اعكس الأتعاب المعتمدة المرتبطة بالفاتورة قبل تخفيضها، ثم راجع الاستحقاقات من جديد',409)
         old_credits=c.execute("SELECT COALESCE(SUM(amount_piasters),0) FROM billing_credit_requests WHERE invoice_id=? AND status='approved'",(invoice['id'],)).fetchone()[0]
         amount=credit['amount_piasters']
         if amount>invoice['total_piasters']-old_credits:fail('Approved credits already use up the invoice',409)

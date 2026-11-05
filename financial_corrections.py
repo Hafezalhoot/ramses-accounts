@@ -314,6 +314,8 @@ def execute_invoice_credit(ticket_id:int,body:InvoiceCreditFix,
             fail('البلاغ ليس معتمدًا للمراجعة المالية المستقلة',409)
         invoice,reason=_credit_eligibility(c,ticket)
         if reason:fail(reason,409)
+        from service_fees import has_active_approvals
+        if has_active_approvals(c,invoice['id']):fail('اعكس الأتعاب المعتمدة قبل تصحيح الفاتورة',409)
         if body.expected_due_piasters!=invoice['total_piasters']:
             fail('رصيد الفاتورة تغير؛ راجع المعاينة وأعد المحاولة',409)
         if amount>invoice['total_piasters']:
@@ -500,6 +502,9 @@ def execute_collection_reassign(ticket_id:int,body:CollectionReassignFix,
         target_invoice_scope(c,user,body.target_invoice_id)
         source,target,reason=_reassign_eligibility(c,ticket,body.target_invoice_id,body.target_patient_code)
         if reason:fail(reason,409)
+        from service_fees import has_active_approvals
+        if has_active_approvals(c,source['invoice_id']) or has_active_approvals(c,target['id']):
+            fail('اعكس الأتعاب المعتمدة قبل تغيير تخصيص القبض',409)
         before_source=invoice_due(c,source['invoice_id'])
         before_target=invoice_due(c,target['id'])
         if (before_source!=body.expected_source_due_piasters

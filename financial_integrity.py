@@ -11,7 +11,7 @@ from collections import defaultdict
 # payroll liabilities, cash variances or medical revenue without source documents.
 PROTECTED_CODES = frozenset({
     '1200', '2300', '2310', '2350', '1190', '2190',
-    '2110', '1120', '4100', '4195',
+    '2110', '1120', '4100', '4195', '2320', '5196',
 })
 
 

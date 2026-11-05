@@ -3499,6 +3499,10 @@ from billing import router as billing_router
 app.include_router(billing_router)
 from print_documents import router as print_router
 app.include_router(print_router)
+from pricing import router as pricing_router
+app.include_router(pricing_router)
+from service_fees import router as service_fees_router
+app.include_router(service_fees_router)
 from cashier_api import router as cashier_router
 app.include_router(cashier_router)
 

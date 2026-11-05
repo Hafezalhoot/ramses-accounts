@@ -2460,3 +2460,161 @@ CREATE TRIGGER IF NOT EXISTS supplier_opening_review_fields_locked
  BEFORE UPDATE OF reviewed_by,reviewed_at,review_note ON supplier_opening_statements
  WHEN NEW.status=OLD.status
  BEGIN SELECT RAISE(ABORT,'Opening evidence reviewer fields cannot be prefilled'); END;
+-- S14: additive pricing contracts. Legacy service, evidence and invoice IDs stay intact.
+CREATE TABLE IF NOT EXISTS pricing_lists (
+ id INTEGER PRIMARY KEY,code TEXT NOT NULL UNIQUE,name TEXT NOT NULL,
+ active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pricing_locations (
+ id INTEGER PRIMARY KEY,code TEXT NOT NULL UNIQUE,name TEXT NOT NULL,
+ department_id INTEGER NOT NULL REFERENCES departments(id),active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+ created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pricing_people (
+ id INTEGER PRIMARY KEY,code TEXT NOT NULL UNIQUE,name TEXT NOT NULL,
+ category TEXT NOT NULL CHECK(category IN ('doctor','nurse','technician','other')),
+ active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pricing_service_details (
+ service_id INTEGER PRIMARY KEY REFERENCES billing_services(id),unit TEXT NOT NULL,description TEXT NOT NULL DEFAULT '',
+ changed_by INTEGER NOT NULL REFERENCES users(id),changed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pricing_rate_versions (
+ id INTEGER PRIMARY KEY,price_list_id INTEGER NOT NULL REFERENCES pricing_lists(id),
+ location_id INTEGER NOT NULL REFERENCES pricing_locations(id),service_id INTEGER NOT NULL REFERENCES billing_services(id),
+ valid_from TEXT NOT NULL,price_piasters INTEGER NOT NULL CHECK(price_piasters>0),
+ estimated_cost_piasters INTEGER CHECK(estimated_cost_piasters IS NULL OR estimated_cost_piasters>=0),
+ rules_json TEXT NOT NULL DEFAULT '[]',created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS pricing_rate_lookup ON pricing_rate_versions(price_list_id,location_id,service_id,valid_from,id);
+CREATE TABLE IF NOT EXISTS pricing_packages (
+ id INTEGER PRIMARY KEY,price_list_id INTEGER NOT NULL REFERENCES pricing_lists(id),code TEXT NOT NULL,name TEXT NOT NULL,
+ created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL,UNIQUE(price_list_id,code)
+);
+CREATE TABLE IF NOT EXISTS pricing_package_versions (
+ id INTEGER PRIMARY KEY,package_id INTEGER NOT NULL REFERENCES pricing_packages(id),valid_from TEXT NOT NULL,
+ gross_piasters INTEGER NOT NULL CHECK(gross_piasters>0),net_piasters INTEGER NOT NULL CHECK(net_piasters>0 AND net_piasters<=gross_piasters),
+ items_json TEXT NOT NULL,created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pricing_orders (
+ id INTEGER PRIMARY KEY,case_id INTEGER NOT NULL REFERENCES billing_cases(id),price_list_id INTEGER NOT NULL REFERENCES pricing_lists(id),
+ package_version_id INTEGER REFERENCES pricing_package_versions(id),total_piasters INTEGER NOT NULL CHECK(total_piasters>0),
+ created_by INTEGER NOT NULL REFERENCES users(id),created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pricing_line_terms (
+ case_line_id INTEGER PRIMARY KEY REFERENCES billing_case_lines(id),order_id INTEGER NOT NULL REFERENCES pricing_orders(id),
+ rate_version_id INTEGER NOT NULL REFERENCES pricing_rate_versions(id),gross_piasters INTEGER NOT NULL CHECK(gross_piasters>0),
+ net_piasters INTEGER NOT NULL CHECK(net_piasters>0 AND net_piasters<=gross_piasters),
+ estimated_cost_piasters INTEGER CHECK(estimated_cost_piasters IS NULL OR estimated_cost_piasters>=0),terms_json TEXT NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS pricing_rate_no_update BEFORE UPDATE ON pricing_rate_versions BEGIN SELECT RAISE(ABORT,'Tariff versions are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS pricing_rate_no_delete BEFORE DELETE ON pricing_rate_versions BEGIN SELECT RAISE(ABORT,'Tariff versions are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS pricing_package_no_update BEFORE UPDATE ON pricing_package_versions BEGIN SELECT RAISE(ABORT,'Package versions are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS pricing_package_no_delete BEFORE DELETE ON pricing_package_versions BEGIN SELECT RAISE(ABORT,'Package versions are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS pricing_order_no_update BEFORE UPDATE ON pricing_orders BEGIN SELECT RAISE(ABORT,'Accepted pricing orders are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS pricing_order_no_delete BEFORE DELETE ON pricing_orders BEGIN SELECT RAISE(ABORT,'Accepted pricing orders are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS pricing_terms_no_update BEFORE UPDATE ON pricing_line_terms BEGIN SELECT RAISE(ABORT,'Accepted price terms are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS pricing_terms_no_delete BEFORE DELETE ON pricing_line_terms BEGIN SELECT RAISE(ABORT,'Accepted price terms are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS pricing_terms_validate BEFORE INSERT ON pricing_line_terms
+ WHEN NOT EXISTS (SELECT 1 FROM billing_case_lines l JOIN pricing_orders o ON o.id=NEW.order_id
+  JOIN pricing_rate_versions r ON r.id=NEW.rate_version_id
+  WHERE l.id=NEW.case_line_id AND l.case_id=o.case_id AND l.service_id=r.service_id
+   AND r.price_list_id=o.price_list_id AND l.state='ordered' AND l.unit_price_piasters=r.price_piasters
+   AND NEW.gross_piasters=l.quantity*l.unit_price_piasters)
+ BEGIN SELECT RAISE(ABORT,'Pricing terms do not match service/order/rate'); END;
+CREATE TRIGGER IF NOT EXISTS pricing_line_snapshot_guard BEFORE UPDATE ON billing_case_lines
+ WHEN EXISTS(SELECT 1 FROM pricing_line_terms t WHERE t.case_line_id=OLD.id)
+ AND (NEW.case_id<>OLD.case_id OR NEW.service_id<>OLD.service_id OR NEW.quantity<>OLD.quantity
+  OR NEW.unit_price_piasters<>OLD.unit_price_piasters OR NEW.price_version_id<>OLD.price_version_id
+  OR NEW.service_name_snapshot<>OLD.service_name_snapshot OR NEW.department_id<>OLD.department_id)
+ BEGIN SELECT RAISE(ABORT,'Accepted pricing line snapshots cannot change'); END;
+
+-- S14 service fee review: append-only decisions; no payable before individual approval.
+-- 5195 remains inventory losses; 5196 is the separate service fee accrual expense.
+INSERT OR IGNORE INTO gl_accounts(code,name,class) VALUES('5196','أتعاب خدمات معتمدة مستحقة','expense');
+INSERT OR IGNORE INTO gl_accounts(code,name,class) VALUES('2320','مستحقات مقدمي الخدمات المعتمدة','liability');
+CREATE TABLE IF NOT EXISTS service_fee_decisions (
+ id INTEGER PRIMARY KEY,
+ line_id INTEGER NOT NULL REFERENCES billing_case_lines(id),
+ invoice_id INTEGER NOT NULL REFERENCES billing_invoices(id),
+ occurrence_no INTEGER NOT NULL CHECK(occurrence_no>0),
+ rule_index INTEGER NOT NULL CHECK(rule_index>=0),
+ person_id INTEGER NOT NULL REFERENCES pricing_people(id),
+ person_name_snapshot TEXT NOT NULL,
+ amount_piasters INTEGER NOT NULL CHECK(amount_piasters>0),
+ calculation_hash TEXT NOT NULL CHECK(length(calculation_hash)=64),
+ snapshot_json TEXT NOT NULL CHECK(json_valid(snapshot_json)),
+ decision TEXT NOT NULL CHECK(decision IN ('approved','rejected')),
+ reason TEXT NOT NULL CHECK(length(trim(reason)) BETWEEN 8 AND 500),
+ maker_id INTEGER NOT NULL REFERENCES users(id),
+ decided_by INTEGER NOT NULL REFERENCES users(id),
+ decided_at TEXT NOT NULL,
+ journal_id INTEGER UNIQUE REFERENCES gl_journals(id),
+ CHECK(maker_id!=decided_by),
+ CHECK((decision='approved' AND journal_id IS NOT NULL) OR (decision='rejected' AND journal_id IS NULL)),
+ UNIQUE(line_id,occurrence_no,rule_index,person_id,calculation_hash)
+);
+CREATE INDEX IF NOT EXISTS service_fee_by_invoice ON service_fee_decisions(invoice_id,decision);
+CREATE INDEX IF NOT EXISTS service_fee_by_person ON service_fee_decisions(person_id,decision);
+CREATE UNIQUE INDEX IF NOT EXISTS service_fee_one_rejection
+ ON service_fee_decisions(line_id,occurrence_no,rule_index,person_id) WHERE decision='rejected';
+CREATE TABLE IF NOT EXISTS service_fee_reversals (
+ id INTEGER PRIMARY KEY,
+ decision_id INTEGER NOT NULL UNIQUE REFERENCES service_fee_decisions(id),
+ reason TEXT NOT NULL CHECK(length(trim(reason)) BETWEEN 8 AND 500),
+ reversed_by INTEGER NOT NULL REFERENCES users(id),
+ reversed_at TEXT NOT NULL,
+ journal_id INTEGER NOT NULL UNIQUE REFERENCES gl_journals(id)
+);
+CREATE TRIGGER IF NOT EXISTS service_fee_decision_insert_guard BEFORE INSERT ON service_fee_decisions
+ WHEN NOT EXISTS (
+   SELECT 1 FROM pricing_line_terms t JOIN pricing_orders o ON o.id=t.order_id
+   JOIN billing_case_lines l ON l.id=t.case_line_id
+   JOIN billing_invoice_draft_lines dl ON dl.case_line_id=l.id
+   JOIN billing_invoices i ON i.draft_id=dl.draft_id
+   JOIN users u ON u.id=NEW.decided_by
+   WHERE l.id=NEW.line_id AND i.id=NEW.invoice_id AND l.state='fulfilled'
+     AND NEW.occurrence_no<=l.quantity AND o.created_by=NEW.maker_id
+     AND u.active=1 AND u.role IN ('owner','reviewer') AND u.id!=o.created_by
+ ) OR EXISTS (
+   SELECT 1 FROM service_fee_decisions d
+   LEFT JOIN service_fee_reversals r ON r.decision_id=d.id
+   WHERE d.line_id=NEW.line_id AND d.occurrence_no=NEW.occurrence_no
+     AND d.rule_index=NEW.rule_index AND d.person_id=NEW.person_id
+     AND (d.decision='rejected' OR r.id IS NOT NULL)
+ ) OR (NEW.decision='approved' AND (
+   NOT EXISTS(SELECT 1 FROM gl_journals j WHERE j.id=NEW.journal_id AND j.status='posted'
+     AND j.created_by=NEW.maker_id AND j.reviewed_by=NEW.decided_by AND j.reversal_of_id IS NULL)
+   OR (SELECT COUNT(*) FROM gl_lines WHERE journal_id=NEW.journal_id)!=2
+   OR NOT EXISTS(SELECT 1 FROM gl_lines l JOIN gl_accounts a ON a.id=l.account_id
+      WHERE l.journal_id=NEW.journal_id AND a.code='5196' AND a.class='expense'
+        AND l.debit_piasters=NEW.amount_piasters AND l.credit_piasters=0)
+   OR NOT EXISTS(SELECT 1 FROM gl_lines l JOIN gl_accounts a ON a.id=l.account_id
+      WHERE l.journal_id=NEW.journal_id AND a.code='2320' AND a.class='liability'
+        AND l.credit_piasters=NEW.amount_piasters AND l.debit_piasters=0)
+ ))
+ BEGIN SELECT RAISE(ABORT,'Service fee requires independent individual review and exact payable journal'); END;
+CREATE TRIGGER IF NOT EXISTS service_fee_decision_no_update BEFORE UPDATE ON service_fee_decisions
+ BEGIN SELECT RAISE(ABORT,'Service fee decision evidence is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS service_fee_decision_no_delete BEFORE DELETE ON service_fee_decisions
+ BEGIN SELECT RAISE(ABORT,'Service fee decision evidence is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS service_fee_reversal_insert_guard BEFORE INSERT ON service_fee_reversals
+ WHEN NOT EXISTS(
+   SELECT 1 FROM service_fee_decisions d JOIN users u ON u.id=NEW.reversed_by
+   JOIN gl_journals j ON j.id=NEW.journal_id
+   WHERE d.id=NEW.decision_id AND d.decision='approved'
+     AND u.active=1 AND u.role IN ('owner','reviewer')
+     AND u.id!=d.decided_by AND u.id!=d.maker_id
+     AND j.status='posted' AND j.reversal_of_id=d.journal_id
+     AND j.created_by=NEW.reversed_by AND j.reviewed_by=NEW.reversed_by
+     AND (SELECT COUNT(*) FROM gl_lines WHERE journal_id=NEW.journal_id)=2
+     AND EXISTS(SELECT 1 FROM gl_lines l JOIN gl_accounts a ON a.id=l.account_id
+       WHERE l.journal_id=NEW.journal_id AND a.code='5196' AND l.credit_piasters=d.amount_piasters AND l.debit_piasters=0)
+     AND EXISTS(SELECT 1 FROM gl_lines l JOIN gl_accounts a ON a.id=l.account_id
+       WHERE l.journal_id=NEW.journal_id AND a.code='2320' AND l.debit_piasters=d.amount_piasters AND l.credit_piasters=0)
+ )
+ BEGIN SELECT RAISE(ABORT,'Service fee reversal requires independent reviewer and exact reversing journal'); END;
+CREATE TRIGGER IF NOT EXISTS service_fee_reversal_no_update BEFORE UPDATE ON service_fee_reversals
+ BEGIN SELECT RAISE(ABORT,'Service fee reversal evidence is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS service_fee_reversal_no_delete BEFORE DELETE ON service_fee_reversals
+ BEGIN SELECT RAISE(ABORT,'Service fee reversal evidence is immutable'); END;
