@@ -13,3 +13,7 @@ imports/
 __pycache__/
 *.pyc
 .venv/
+*.bundle
+*.rbe
+.DS_Store
+deliverables/
