@@ -87,6 +87,7 @@ TESTS = (
     'test_s14_pricing.py',
     'test_s14_service_fees.py',
     'test_s15_fee_liability_reconciliation.py',
+    'test_s15_fee_counterparty_controls.py',
     'test_s14_split_payments.py',
     'test_s14_upgrade.py',
     'test_s13_cashier_print.py',
