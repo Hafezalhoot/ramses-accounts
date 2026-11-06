@@ -67,3 +67,12 @@ Authorized merge after matching SHA success, review of code and base compatibili
 **Do not activate a required-check ruleset yet.** First verify the fallback end-to-end on a second trusted device, using the real V8.0 source fixture, and confirm it can post a status accepted by the repository. Private repository rulesets require an eligible GitHub plan; check availability before configuring. Preferred future rules: PRs required, **0 mandatory reviewer approvals** (AI provider failover), status `ramses/mac-local-qa` from any authorized source, no force push/deletion, and upstream-current integration verification. The connected GitHub app in this chat has no action to change rulesets, so no repository protection was modified here.
 
 **Actual verification so far:** portable runner Python syntax and local safety/audit regression tests; GitHub upload read-back. **Not yet verified:** Docker image build, full historical suite on a second machine, fallback status publishing, and branch protection. Project remains TEST ONLY / PRODUCTION NO-GO.
+
+
+## Checked merge implementation; actual GitHub plan limitation (6 Nov 2026)
+
+`scripts/qa_checked_merge.py --pr PR_NUMBER` checks an open Ready PR from an approved same-repo author targeting current `main`, the exact current head SHA, the latest successful `ramses/mac-local-qa` status with zero BLOCKED, and that the PR branch contains current `main`. `--merge` repeats checks and invokes GitHub's SHA-constrained merge API; without it no merge occurs. The same authorized AI may run both commands; no mandatory second AI.
+
+GitHub's live API returned **HTTP 403** for the private repository rulesets list: **"Upgrade to GitHub Pro or make this repository public to enable this feature."** The `main` branch was **unprotected** when inspected. Do **not** make the hospital repository public. The checked merge helper cannot enforce policy against direct push by an account with write access; private-repo branch protection needs an eligible GitHub subscription. No GitHub protections were enabled or changed in this turn.
+
+See [Arabic Quickstart](AI_FAILOVER_QUICKSTART_AR.md) and [Implementation Plan](../superpowers/plans/2026-11-06-ai-failover-qa.md). The new fallback and checked-merge scripts are in **draft PR #6**, pending real Docker/PR integration and review. TEST ONLY / PRODUCTION NO-GO.
