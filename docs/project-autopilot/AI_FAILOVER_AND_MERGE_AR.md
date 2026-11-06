@@ -39,4 +39,31 @@ The source of truth is `Hafezalhoot/ramses-accounts` Git history, the current PR
 - **Tests fail:** keep the PR unmerged, identify root cause, create/re-run focused tests, then repeat the full gate. Never bypass by fabricating green status.
 - **Merge conflicts or outdated QA status:** synchronize/retest, do not reuse a previous green result.
 
-**Current state:** proposal only. The actual Mac installation, distinct-bot filtering, `main` branch protection and authorized alternate reporter must be separately inspected/configured and verified. Project status remains TEST ONLY / PRODUCTION NO-GO.
+**State (2026-11-06):** portable fallback code is in draft PR #6; Mac installation details are external. Bot filtering, fallback end-to-end behavior, and branch protection still require explicit verification. TEST ONLY / PRODUCTION NO-GO.
+
+
+## Portable fallback now implemented in this PR (not yet merged or end-to-end verified)
+
+A second trusted Mac/Linux machine can use a reviewed `main` checkout, Docker, Python 3.13, GitHub CLI (`gh`), and the **original V8.0 source ZIP** to test any authorized same-repo PR. The launcher MUST come from reviewed, updated `main`; never execute an unreviewed PR's copy of the launcher on the host.
+
+```bash
+gh auth status
+docker info
+git checkout main
+git pull --ff-only
+python3.13 tests/test_qa_fallback.py
+python3.13 scripts/qa_fallback.py --pr PR_NUMBER \
+  --v80-archive "/path/to/original/Ramses_Accounts_V8_0_Double_Entry_Decision_Foundation.zip"
+```
+
+Inspect the local report directory outside Git. To intentionally post **a new, actually executed** result and a sanitized comment, repeat the same call with `--publish`. No secret, patient information, V8.0 archive, or raw log is published to GitHub.
+
+The fallback validates PR author against `tools/qa/trusted_pr_authors.txt`, same-repository source, exact SHA before and after tests, clean trusted `main`, and a full-history checkout; rejects tracked private/DB files; runs in a disposable Docker container with networking off, dropped Linux capabilities, no host credentials or Docker socket; and audits all test statuses. Known historical SKIP remains a SKIP; missing V8.0 is BLOCKED and **cannot produce a green result**. This runner deliberately publishes to the **existing** `ramses/mac-local-qa` status context for compatibility, with the description `fallback Docker` identifying the reporter. Do not run the Mac watcher and fallback reporter simultaneously on the same SHA; most recent GitHub commit status wins.
+
+Allowlist today: only `Hafezalhoot`. A separately authenticated bot/Claude identity needs explicit owner approval, an allowlist commit to trusted `main`, and a distinct approval for the Mac watcher's own allowlist. The model provider does not grant GitHub credentials or approval by itself.
+
+Authorized merge after matching SHA success, review of code and base compatibility, and GitHub permissions is independent of any single AI: `gh pr merge PR_NUMBER --repo Hafezalhoot/ramses-accounts --merge`. No `--admin` bypass, no force pushes, and no production effects.
+
+**Do not activate a required-check ruleset yet.** First verify the fallback end-to-end on a second trusted device, using the real V8.0 source fixture, and confirm it can post a status accepted by the repository. Private repository rulesets require an eligible GitHub plan; check availability before configuring. Preferred future rules: PRs required, **0 mandatory reviewer approvals** (AI provider failover), status `ramses/mac-local-qa` from any authorized source, no force push/deletion, and upstream-current integration verification. The connected GitHub app in this chat has no action to change rulesets, so no repository protection was modified here.
+
+**Actual verification so far:** portable runner Python syntax and local safety/audit regression tests; GitHub upload read-back. **Not yet verified:** Docker image build, full historical suite on a second machine, fallback status publishing, and branch protection. Project remains TEST ONLY / PRODUCTION NO-GO.
