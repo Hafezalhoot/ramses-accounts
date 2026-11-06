@@ -61,7 +61,7 @@ A night dated the last day of a month cannot be created before the next day: the
 
 - No statutory Egyptian accounting/tax/medical legal conclusion: no legal policy was supplied and no compliance claim is made.
 - No production readiness certification from synthetic test counts; operational signoff and real installation not observed.
-- V8.0 update from coordinator: supplied archive `/Users/hafez/Downloads/Ramses_Accounts_V8_0_Double_Entry_Decision_Foundation.zip`, SHA256 `4a4db9de12b3f21b93310248cfa0b3c000c750d8bcf13561db3a361924fa62cb`, passed the parent full baseline with `RAMSES_V80_ARCHIVE` plus a standalone targeted upgrade. This reviewer did not independently execute it. Older release documents saying the source archive is missing are stale. No migration of an authentic hospital production database or signed starting-balance reconciliation was observed.
+- V8.0 update from coordinator: supplied archive `<local-archive>/Ramses_Accounts_V8_0_Double_Entry_Decision_Foundation.zip`, SHA256 `4a4db9de12b3f21b93310248cfa0b3c000c750d8bcf13561db3a361924fa62cb`, passed the parent full baseline with `RAMSES_V80_ARCHIVE` plus a standalone targeted upgrade. This reviewer did not independently execute it. Older release documents saying the source archive is missing are stale. No migration of an authentic hospital production database or signed starting-balance reconciliation was observed.
 - No exhaustive security route matrix, browser/accessibility audit or full financial suite rerun by this reviewer; those require dedicated evidence. Parent performs suite verification for this change.
 - No source change for physician/insurance/year-end workflows or supplier 2200 policy; these are missing authorized domain designs, not license to invent rules.
 

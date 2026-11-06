@@ -372,13 +372,13 @@ curl --fail http://127.0.0.1:8000/health
 
 ### 4) المزامنة مع Google Sheets (اختياري بعد فحص الموقع)
 
-- شيت **التجارب فقط** `1BIjVrtYUlt8lOtaarZPyz4Cci0XIp5eWIJwOCfUfTTk`، ولا توجّه أي اختبارات إلى شيت الإدارة الأصلي.
+- شيت **التجارب فقط** `<STAGING_SHEET_ID>`، ولا توجّه أي اختبارات إلى شيت الإدارة الأصلي.
 - أنشئ Google Cloud Service Account له صلاحيات Sheets المطلوبة، وشارك **الشيت التجريبي فقط** مع بريد الخدمة، دون مشاركته مع الموظفين.
 - ضع ملف JSON السري داخل `/opt/ramses/secrets/service-account.json` بصلاحيات وصول لحساب تشغيل الحاوية فقط (`chmod 600` و`chown 10001:10001`).
 - أضف داخل `.env`:
 
 ```ini
-GOOGLE_SHEET_ID=1BIjVrtYUlt8lOtaarZPyz4Cci0XIp5eWIJwOCfUfTTk
+GOOGLE_SHEET_ID=<STAGING_SHEET_ID>
 GOOGLE_SERVICE_ACCOUNT_JSON=/secrets/service-account.json
 # شرط G2Q: لا تفعل المزامنة إلا بعد مراجعة موافقة الإدارة والخصوصية
 # يتضمن التصدير أسماء العاملين وبعض بيانات الرواتب/السندات وسجلات التدقيق

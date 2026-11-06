@@ -104,7 +104,7 @@ python scripts/free_preview.py --email "YOUR-EMAIL@example.com" --legacy "/local
 
 الشيت التجريبي الموجود والخاضع لك:
 
-https://docs.google.com/spreadsheets/d/1BIjVrtYUlt8lOtaarZPyz4Cci0XIp5eWIJwOCfUfTTk/edit
+https://docs.google.com/spreadsheets/d/<STAGING_SHEET_ID>/edit
 
 هذا الشيت فيه بالفعل التبويبات: `Ramses_Vouchers`, `Ramses_Funds`, `Ramses_Payroll`, `Ramses_Audit`, `Ramses_Sync_Status`.
 
