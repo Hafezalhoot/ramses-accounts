@@ -50,6 +50,16 @@ def reject_tracked_paths(paths: list[str]) -> bool:
     return False
 
 
+def pin_test_drivers(trusted_main: Path, checkout: Path) -> None:
+    """Audit the PR using trusted main's runner, not a PR-edited result generator."""
+    for name in ('ci_smoke.py', 'qa_g2t_full.py'):
+        source = trusted_main / 'scripts' / name
+        target = checkout / 'scripts' / name
+        if not source.is_file() or not target.is_file() or target.is_symlink():
+            raise ValueError('Cannot safely pin source-owned test runner: ' + name)
+        shutil.copyfile(source, target)
+
+
 def docker_command(checkout: str | Path, command: list[str], archive: Path | None = None) -> list[str]:
     cmd = ['docker', 'run', '--rm', '--init', '--network', 'none', '--read-only',
            '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
@@ -183,6 +193,7 @@ def main() -> int:
                 f'https://github.com/{REPO}.git'])
         if reject_tracked_paths(invoke(['git', '-C', str(checkout), 'ls-files', '-z']).split('\0')):
             ap.error('PR tracks sensitive source; refusing to execute')
+        pin_test_drivers(root, checkout)  # Trust main for suite enumeration and smoke selection.
         commands = {
             'syntax': ['sh', '-ec', 'python -m compileall -q app.py bootstrap.py scripts tests; '
                        'for f in static/*.js; do [ -f "$f" ] || continue; node --check "$f"; done'],
