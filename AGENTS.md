@@ -55,3 +55,5 @@ ChatGPT, Codex, Claude or a new assistant may continue implementation, run QA vi
 Mac watcher or a trusted alternate machine, and merge an authorized, verified PR
 without requiring another AI. Quotas/sessions must not be dependencies. No direct
 production changes or unverified green status; GitHub Actions remain disabled.
+
+**Quickstart for any AI:** [Arabic handoff, offline QA, checked merge](docs/project-autopilot/AI_FAILOVER_QUICKSTART_AR.md). Keep all source changes on PRs; a green check on an older SHA does not authorize the current PR.
