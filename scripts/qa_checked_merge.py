@@ -7,14 +7,24 @@ import json
 from pathlib import Path
 import re
 
-from qa_fallback import REPO, STATUS_CONTEXT, invoke, validate_pr
+from qa_fallback import REPO, STATUS_CONTEXT, invoke, validate_pr, approved_authors
 
 
-def preflight(pr: dict, status: dict, comparison: dict, authors: set[str]) -> str:
+def preflight(pr: dict, status: dict, comparison: dict, authors: set[str], *, check_runs=None) -> str:
     sha = validate_pr(pr, authors)
     if (pr.get('draft') is not False or pr.get('mergeable') is not True
             or (pr.get('base') or {}).get('ref') != 'main'):
         raise ValueError('PR must be ready, mergeable, and target main')
+    if comparison.get('status') != 'ahead':
+        raise ValueError('PR head must contain the current main tip; update/retest first')
+    if check_runs is not None:
+        for name in ('ramses-core-ci', 'ramses-security'):
+            values=[c for c in check_runs if c.get('name')==name]
+            latest=max(values,key=lambda c:c.get('id',0),default={})
+            if (latest.get('head_sha')!=sha or (latest.get('app') or {}).get('id')!=15368
+                    or latest.get('status')!='completed' or latest.get('conclusion')!='success'):
+                raise ValueError('Latest GitHub Actions check is not successful for exact SHA: '+name)
+        return sha
     if status.get('sha') != sha or status.get('state') != 'success':
         raise ValueError('Commit status is not SUCCESS for the exact PR SHA')
     matches = [v for v in status.get('statuses', [])
@@ -48,13 +58,15 @@ def main() -> int:
 
     def current():
         pr = json.loads(invoke(['gh', 'api', f'repos/{REPO}/pulls/{args.pr}'], timeout=60))
-        sha = validate_pr(pr, authors)
+        allowed = approved_authors(pr, authors)
+        sha = validate_pr(pr, allowed)
         main_head = json.loads(invoke(['gh', 'api', f'repos/{REPO}/branches/main'], timeout=60))['commit']['sha']
         if pr['base']['sha'] != main_head:
             raise ValueError('Base SHA does not match current GitHub main; re-evaluate PR')
         status = json.loads(invoke(['gh', 'api', f'repos/{REPO}/commits/{sha}/status'], timeout=60))
         comparison = json.loads(invoke(['gh', 'api', f'repos/{REPO}/compare/{main_head}...{sha}'], timeout=60))
-        return preflight(pr, status, comparison, authors)
+        checks=json.loads(invoke(['gh','api',f'repos/{REPO}/commits/{sha}/check-runs?per_page=100'],timeout=60))
+        return preflight(pr, status, comparison, allowed,check_runs=checks.get('check_runs',[]))
 
     head_sha = current()
     if not args.merge:

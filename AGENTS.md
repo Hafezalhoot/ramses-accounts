@@ -1,3 +1,7 @@
+## Active owner policy — 2026-11-06
+
+The owner approved Public visibility after full-history/content audit and attested that published evidence is synthetic. GitHub Actions is now authorized for isolated TEST-ONLY CI. Use `docs/project-autopilot/PUBLIC_CI_AI_WORKFLOW_AR.md`. Historical no-Actions/private-repo instructions below are superseded by this explicit policy. No production deployment or real hospital data. Any legitimately authorized assistant may complete implementation, read CI, and perform a permitted SHA-checked merge; no particular AI reviewer is required.
+
 # Ramses Accounts: project continuity
 
 Hospital accounting application: Python/FastAPI, SQLite, server-enforced permissions,
@@ -54,6 +58,6 @@ See [AI failover and merge protocol](docs/project-autopilot/AI_FAILOVER_AND_MERG
 ChatGPT, Codex, Claude or a new assistant may continue implementation, run QA via the
 Mac watcher or a trusted alternate machine, and merge an authorized, verified PR
 without requiring another AI. Quotas/sessions must not be dependencies. No direct
-production changes or unverified green status; GitHub Actions remain disabled.
+production changes or unverified green status; GitHub Actions provides least-privilege public core CI.
 
 **Quickstart for any AI:** [Arabic handoff, offline QA, checked merge](docs/project-autopilot/AI_FAILOVER_QUICKSTART_AR.md). Keep all source changes on PRs; a green check on an older SHA does not authorize the current PR.

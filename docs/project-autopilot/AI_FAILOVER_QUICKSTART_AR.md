@@ -1,3 +1,7 @@
+## Active owner policy — 2026-11-06
+
+The owner approved Public visibility after full-history/content audit and attested that published evidence is synthetic. GitHub Actions is now authorized for isolated TEST-ONLY CI. Use `docs/project-autopilot/PUBLIC_CI_AI_WORKFLOW_AR.md`. Historical no-Actions/private-repo instructions below are superseded by this explicit policy. No production deployment or real hospital data. Any legitimately authorized assistant may complete implementation, read CI, and perform a permitted SHA-checked merge; no particular AI reviewer is required.
+
 # استلام مشروع حسابات رمسيس بين ChatGPT وCodex وClaude
 
 **حالة التنفيذ: مسار بديل جديد داخل PR #6، ولم يُدمج أو يُختبر بالكامل على جهاز ثانٍ بعد. المشروع TEST ONLY / PRODUCTION NO-GO.**

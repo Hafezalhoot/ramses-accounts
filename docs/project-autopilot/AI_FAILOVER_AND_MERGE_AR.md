@@ -1,3 +1,7 @@
+## Active owner policy — 2026-11-06
+
+The owner approved Public visibility after full-history/content audit and attested that published evidence is synthetic. GitHub Actions is now authorized for isolated TEST-ONLY CI. Use `docs/project-autopilot/PUBLIC_CI_AI_WORKFLOW_AR.md`. Historical no-Actions/private-repo instructions below are superseded by this explicit policy. No production deployment or real hospital data. Any legitimately authorized assistant may complete implementation, read CI, and perform a permitted SHA-checked merge; no particular AI reviewer is required.
+
 # Ramses AI Failover and Merge Protocol — proposed / 2026-11-06
 
 **Scope:** source development and TEST-ONLY validation. This document does **not** grant production access, install a local runner, change repository permissions/rulesets, turn on GitHub Actions, or approve hospital financial policies.

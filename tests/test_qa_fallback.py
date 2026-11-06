@@ -27,7 +27,7 @@ def run():
         else:
             raise AssertionError('Untrusted PR accepted')
 
-    args = qa_fallback.docker_command('/tmp/trusted-checkout', ['python', 'app.py'])
+    args = qa_fallback.docker_command('ramses-fallback-work-' + 'a'*32, ['python', 'app.py'])
     assert '--network' in args and args[args.index('--network') + 1] == 'none'
     assert '--cap-drop' in args and args[args.index('--cap-drop') + 1] == 'ALL'
     assert '--read-only' in args

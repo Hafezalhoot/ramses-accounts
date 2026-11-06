@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Trusted-main, Docker-isolated fallback for GitHub PR synthetic QA (no Actions)."""
+"""Trusted-main, Docker-isolated fallback for GitHub PR synthetic QA (Mac/Linux backup for public CI)."""
 from __future__ import annotations
 
 import argparse
@@ -10,9 +10,14 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools' / 'qa'))
+import container_runtime as runtime
+from historical_fixture import stage_archive
 
 REPO = 'Hafezalhoot/ramses-accounts'
 STATUS_CONTEXT = 'ramses/mac-local-qa'  # Existing check; also served by trusted fallback.
@@ -40,10 +45,23 @@ def validate_pr(data: dict, allowed_authors: set[str]) -> str:
     return sha
 
 
+def approved_authors(pr: dict, configured: set[str]) -> set[str]:
+    """Use reviewed identities or GitHub writer rights, independent of AI vendor."""
+    login=(pr.get('user') or {}).get('login','')
+    if login in configured:
+        return configured
+    if not re.fullmatch(r'[A-Za-z0-9-]+(?:\[bot\])?',login):
+        raise ValueError('Invalid author identity')
+    data=json.loads(invoke(['gh','api',f'repos/{REPO}/collaborators/{login}/permission']))
+    if data.get('permission') not in {'write','maintain','admin'}:
+        raise ValueError('GitHub has not confirmed write permission for this author')
+    return configured | {login}
+
+
 def reject_tracked_paths(paths: list[str]) -> bool:
     for raw in paths:
         p = Path(raw)
-        if (raw.startswith('.env') and raw != '.env.example'
+        if (p.name.startswith('.env') and p.name != '.env.example'
                 or p.name.lower().endswith(('.db', '.sqlite', '.sqlite3', '.pem', '.p12', '.rbe'))
                 or p.parts and p.parts[0] in {'private', 'secrets', 'backups', 'data'}):
             return True
@@ -60,22 +78,13 @@ def pin_test_drivers(trusted_main: Path, checkout: Path) -> None:
         shutil.copyfile(source, target)
 
 
-def docker_command(checkout: str | Path, command: list[str], archive: Path | None = None) -> list[str]:
-    cmd = ['docker', 'run', '--rm', '--init', '--network', 'none', '--read-only',
-           '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
-           '--pids-limit', '256', '--memory', '4g', '--cpus', '3', '--shm-size', '256m',
-           '--tmpfs', '/tmp:rw,nosuid,size=512m',
-           '--user', f'{os.getuid()}:{os.getgid()}',
-           '--mount', f'type=bind,src={Path(checkout).resolve()},dst=/work',
-           '--workdir', '/work', '-e', 'CI=true', '-e', 'HOME=/tmp',
-           '-e', 'PYTHONUNBUFFERED=1', '-e', 'PYTHONDONTWRITEBYTECODE=1']
-    if archive:
-        cmd.extend(['--mount', f'type=bind,src={archive.resolve()},dst=/fixtures/v80.zip,readonly',
-                    '-e', 'RAMSES_V80_ARCHIVE=/fixtures/v80.zip'])
-    return cmd + [IMAGE] + command
+def docker_command(volume, command, *, image_ref=IMAGE, container_name=None):
+    return runtime.command(volume, command, image_ref=image_ref, container_name=container_name)
 
 
-def audit_results(tsv: Path, tests: Path, min_scripts: int = MIN_SCRIPTS) -> dict:
+def audit_results(tsv: Path, tests: Path, min_scripts: int = MIN_SCRIPTS, *, allow_missing_v80: bool = False) -> dict:
+    if tsv.is_symlink() or not tsv.is_file() or tsv.stat().st_size > 2097152:
+        return {'ok':False,'counts':dict.fromkeys(('PASS','SKIP','FAIL','TIMEOUT','BLOCKED_NO_V80'),0),'problems':['Fresh safe TSV report missing']}
     expected = {p.name for p in tests.glob('test_*.py')}
     counts = {key: 0 for key in ('PASS', 'SKIP', 'FAIL', 'TIMEOUT', 'BLOCKED_NO_V80')}
     problems: list[str] = []
@@ -96,7 +105,10 @@ def audit_results(tsv: Path, tests: Path, min_scripts: int = MIN_SCRIPTS) -> dic
             problems.append('Unknown test status')
             continue
         counts[status] += 1
-        if status in ('FAIL', 'TIMEOUT', 'BLOCKED_NO_V80'):
+        expected_external = (allow_missing_v80 and name == 'test_billing_upgrade_v81.py'
+                             and status == 'BLOCKED_NO_V80'
+                             and 'Original V8.0 ZIP not found' in row.get('last_output', ''))
+        if status in ('FAIL', 'TIMEOUT', 'BLOCKED_NO_V80') and not expected_external:
             problems.append('Unsuccessful test: ' + name[:100])
         if status == 'SKIP' and (name not in SKIP_REASONS or SKIP_REASONS[name] not in row.get('last_output', '')):
             problems.append('Unverified SKIP: ' + name[:100])
@@ -125,10 +137,48 @@ def run_logged(args: list[str], logfile: Path, timeout: int, cwd: Path | None = 
         except OSError as error:
             log.write('EXECUTION ERROR: ' + type(error).__name__ + '\n')
             return 127
+        finally:
+            if args[:2] == ['docker','run'] and '--name' in args:
+                runtime.remove_container(args[args.index('--name')+1])
         return result.returncode
 
 
+def execute_checkout(checkout: Path, trusted: Path, report: Path, *, archive=None,
+                     allow_missing_v80=False, image_ref=IMAGE):
+    paths=invoke(['git','-C',str(checkout),'ls-files','-z']).split('\0')
+    if reject_tracked_paths(paths) or any((checkout/p).is_symlink() for p in paths if p):
+        raise ValueError('Unsafe tracked source; test refused')
+    if checkout.resolve()!=trusted.resolve():
+        pin_test_drivers(trusted, checkout)
+    fixture=stage_archive(checkout,archive) if archive else None
+    tsv=checkout/'QA_G2T_TEST_RESULTS.tsv'
+    tsv.unlink(missing_ok=True)
+    image_id=invoke(['docker','image','inspect','--format','{{.Id}}',image_ref])
+    if not re.fullmatch('sha256:[0-9a-f]{64}',image_id):raise ValueError('Immutable image ID required')
+    commands={
+        'syntax':['sh','-ec','python -m compileall -q app.py bootstrap.py scripts tests; '
+                  'for f in static/*.js; do [ -f "$f" ] || continue; node --check "$f"; done'],
+        'smoke':['python','-u','scripts/ci_smoke.py'],
+        'full':['python','-u','scripts/qa_g2t_full.py']}
+    steps={}
+    with runtime.workspace(checkout,image_id) as (volume,keeper):
+        for name,command in commands.items():
+            steps[name]=run_logged(docker_command(volume,command,image_ref=image_id,
+                                   container_name=runtime.name()),report/(name+'.log'),4200)
+        runtime.export_report(keeper,tsv)
+    audit=audit_results(tsv,checkout/'tests',allow_missing_v80=allow_missing_v80 and not archive)
+    if tsv.is_file() and not tsv.is_symlink():shutil.copyfile(tsv,report/tsv.name)
+    ok=audit['ok'] and all(x==0 for x in steps.values())
+    return {'status':'success' if ok else 'failure','steps':steps,'counts':audit['counts'],
+            'problems':audit['problems'],'image_id':image_id,'runner':'docker-api-v2',
+            'historical_fixture':fixture,'production_certified':False,
+            'gate_scope':'public-core' if allow_missing_v80 and not archive else 'historical-complete'}
+
+
 def main() -> int:
+    def stop(*_):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, stop)
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--pr', required=True, type=int, help='Same-repository Pull Request number')
     ap.add_argument('--v80-archive', type=Path, help='Original historical V8.0 source ZIP, never a hospital DB')
@@ -164,6 +214,7 @@ def main() -> int:
     authors = {line.strip() for line in authors_path.read_text(encoding='utf-8').splitlines()
                if line.strip() and not line.lstrip().startswith('#')}
     pr = json.loads(invoke(['gh', 'api', f'repos/{REPO}/pulls/{args.pr}'], timeout=60))
+    authors = approved_authors(pr, authors)
     sha = validate_pr(pr, authors)
     # Use only the trusted, up-to-date main tooling. The PR code runs inside Docker only.
     invoke(['git', '-C', str(root), 'fetch', 'origin', 'main'], timeout=240)
@@ -193,25 +244,10 @@ def main() -> int:
                 f'https://github.com/{REPO}.git'])
         if reject_tracked_paths(invoke(['git', '-C', str(checkout), 'ls-files', '-z']).split('\0')):
             ap.error('PR tracks sensitive source; refusing to execute')
-        pin_test_drivers(root, checkout)  # Trust main for suite enumeration and smoke selection.
-        commands = {
-            'syntax': ['sh', '-ec', 'python -m compileall -q app.py bootstrap.py scripts tests; '
-                       'for f in static/*.js; do [ -f "$f" ] || continue; node --check "$f"; done'],
-            'smoke': ['python', '-u', 'scripts/ci_smoke.py'],
-            'full': ['python', '-u', 'scripts/qa_g2t_full.py'],
-        }
-        steps: dict[str, int] = {}
-        for name, command in commands.items():
-            steps[name] = run_logged(docker_command(checkout, command, args.v80_archive),
-                                     report / (name + '.log'), 4200)
-        tsv = checkout / 'QA_G2T_TEST_RESULTS.tsv'
-        audit = audit_results(tsv, checkout / 'tests')
-        if tsv.is_file():
-            shutil.copy2(tsv, report / 'QA_G2T_TEST_RESULTS.tsv')
-        ok = audit['ok'] and all(v == 0 for v in steps.values())
-    result = {'sha': sha, 'pr': args.pr, 'status': 'success' if ok else 'failure',
-              'steps': steps, 'counts': audit['counts'], 'problems': audit['problems'],
-              'runner': IMAGE, 'production_certified': False, 'github_actions_used': False}
+        result = execute_checkout(checkout, root, report, archive=args.v80_archive)
+        ok = result['status'] == 'success'
+    result.update(sha=sha, pr=args.pr, github_actions_used=False)
+    audit = {'counts':result['counts']}
     (report / 'run.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
     if args.publish:
         current = json.loads(invoke(['gh', 'api', f'repos/{REPO}/pulls/{args.pr}'], timeout=60))
