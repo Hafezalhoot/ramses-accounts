@@ -1,0 +1,34 @@
+{
+  "source_commit": "682b8338ef1e24eace67c01c86af5f1133e92dd5",
+  "main_commits": 54,
+  "main_files": 808,
+  "system_scripts": {
+    "total": 159,
+    "PASS": 154,
+    "SKIP": 5,
+    "FAIL": 0,
+    "TIMEOUT": 0,
+    "BLOCKED": 0
+  },
+  "local_ci_subset": {
+    "PASS": 82,
+    "FAIL": 0
+  },
+  "v80_original_archive": "PASS",
+  "external_https_browser_widths": [
+    375,
+    1440
+  ],
+  "role_journeys": [
+    "owner pricing",
+    "external cashier",
+    "independent fee reviewer"
+  ],
+  "s14_browser_journey": "PASS",
+  "first_s14_browser_attempt": "Stopped at missing open-shift precondition; a new synthetic zero-opening shift was opened; resumed checkpoints then PASS.",
+  "staging_url": "https://estate-mailman-went-theme.trycloudflare.com",
+  "synthetic_only": true,
+  "production": "NO-GO",
+  "github_actions_used": false,
+  "published_tsv_format": "CRLF record endings normalized to LF; parsed rows unchanged; original raw report retained in local evidence."
+}

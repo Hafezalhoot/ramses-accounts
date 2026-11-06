@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/github-import-2026-11-05/verified-from-github/scripts/qa_s14_preview.py", line 174, in <module>
+    if __name__=='__main__':main()
+                            ~~~~^^
+  File "/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/github-import-2026-11-05/verified-from-github/scripts/qa_s14_preview.py", line 80, in main
+    assert point['own_open_shift'],'Keep the assigned cashier practice shift open for this exercise'
+           ~~~~~^^^^^^^^^^^^^^^^^^
+AssertionError: Keep the assigned cashier practice shift open for this exercise

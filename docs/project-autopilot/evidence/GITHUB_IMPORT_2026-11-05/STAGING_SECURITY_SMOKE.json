@@ -1,0 +1,16 @@
+{
+  "source_commit": "682b8338ef1e24eace67c01c86af5f1133e92dd5",
+  "url": "https://estate-mailman-went-theme.trycloudflare.com",
+  "external_gateway_without_auth": "401 PASS",
+  "wrong_gateway_password": "401 PASS",
+  "gateway_health_with_auth": "200 PASS",
+  "app_without_session": "401 PASS",
+  "owner_login_and_session": "200 PASS",
+  "cookie_secure_httponly": true,
+  "missing_csrf": "403 PASS",
+  "secret_and_db_permissions": "0600 PASS",
+  "google_mirror": "disabled",
+  "data": "fresh synthetic-only database",
+  "raw_app_bind": "127.0.0.1:8785",
+  "gateway_bind": "127.0.0.1:8786"
+}

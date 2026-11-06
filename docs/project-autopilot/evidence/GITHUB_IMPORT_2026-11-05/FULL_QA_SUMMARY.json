@@ -1,0 +1,36 @@
+{
+  "source_commit": "682b8338ef1e24eace67c01c86af5f1133e92dd5",
+  "exit_code": 0,
+  "total": 159,
+  "counts": {
+    "PASS": 154,
+    "SKIP": 5
+  },
+  "exceptions": [
+    {
+      "name": "test_free_preview.py",
+      "status": "SKIP",
+      "detail": "SKIP: private June historical workbook intentionally excluded from development ZIP"
+    },
+    {
+      "name": "test_preview_modes.py",
+      "status": "SKIP",
+      "detail": "SKIP: private June historical workbook intentionally excluded from development ZIP"
+    },
+    {
+      "name": "test_v81e_g2j_schema_upgrade.py",
+      "status": "SKIP",
+      "detail": "SKIP G2J G2I upgrade: original preceding source checkout unavailable"
+    },
+    {
+      "name": "test_v81e_g2k_upgrade.py",
+      "status": "SKIP",
+      "detail": "SKIP G2K historical G2J -> G2K upgrade: G2J source checkout not packaged"
+    },
+    {
+      "name": "test_v81e_g2l_schema_upgrade.py",
+      "status": "SKIP",
+      "detail": "SKIP G2L G2K source checkout not available; migration must be rerun with historical source"
+    }
+  ]
+}

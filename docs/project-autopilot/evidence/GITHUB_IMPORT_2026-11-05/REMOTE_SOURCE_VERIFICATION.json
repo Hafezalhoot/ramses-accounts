@@ -1,0 +1,12 @@
+{
+  "remote": "https://github.com/Hafezalhoot/ramses-accounts",
+  "main": "682b8338ef1e24eace67c01c86af5f1133e92dd5",
+  "main_commit_count": 54,
+  "files_byte_matched": 808,
+  "tree_sha": "656b310a1e7a0ddc393273d0917e8e3e32ca3ba6",
+  "original_branches_verified": 6,
+  "bootstrap_readme_preserved": "archive/github-initial-2026-11-05",
+  "fresh_remote_clone": "PASS",
+  "fsck": "PASS",
+  "no_force_push": true
+}
