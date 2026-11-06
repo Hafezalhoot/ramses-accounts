@@ -134,6 +134,12 @@ def run():
         assert ok(reviewer.get('/api/service-fees/balances'))['items'] == []
         assert maker.get('/api/service-fees/queue').status_code == 403
         assert maker.get('/api/service-fees/balances').status_code == 403
+        # S15 reconciliation is owner-only and must not record any cash movement.
+        assert maker.get('/api/service-fees/payables-reconciliation').status_code == 403
+        assert reviewer.get('/api/service-fees/payables-reconciliation').status_code == 403
+        empty_recon = ok(owner.get('/api/service-fees/payables-reconciliation'))
+        assert empty_recon['matched'] and empty_recon['liability_piasters'] == 0
+        assert empty_recon['certified'] is False
         # Reject one person's first occurrence only, approve that person's second.
         rejected = decide(proposals[0], 'reject')
         approved = decide(proposals[2])
@@ -142,6 +148,9 @@ def run():
         assert len(queue()) == 2
         assert ok(reviewer.get('/api/service-fees/balances'))['items'] == [{'person_id': 1, 'person_name': 'Synthetic doctor A', 'amount_piasters': 5000}]
         assert service_fees.has_active_approvals(c, 1)
+        reconciled = ok(owner.get('/api/service-fees/payables-reconciliation'))
+        assert reconciled['matched'] and reconciled['liability_piasters'] == 5000
+        assert reconciled['gl_balance_piasters'] == 5000 and reconciled['certified'] is False
         assert c.execute('SELECT COUNT(*) FROM fund_movements').fetchone()[0] == 0
         journal = approved['journal_id']
         assert tuple(c.execute('SELECT SUM(debit_piasters),SUM(credit_piasters) FROM gl_lines WHERE journal_id=?', (journal,)).fetchone()) == (5000, 5000)
@@ -153,6 +162,9 @@ def run():
         assert ok(owner.post(f'/api/service-fees/decisions/{approved["id"]}/reverse', headers=tokens[1][1], json=reverse))['replayed']
         assert reversed_row['journal_id'] != journal and not service_fees.has_active_approvals(c, 1)
         assert ok(reviewer.get('/api/service-fees/balances'))['items'] == []
+        reversed_recon = ok(owner.get('/api/service-fees/payables-reconciliation'))
+        assert reversed_recon['matched'] and reversed_recon['liability_piasters'] == 0
+        assert reversed_recon['gl_balance_piasters'] == 0
         assert len(queue()) == 2, 'Reversal must suppress regenerated proposal'
         assert c.execute('SELECT COUNT(*) FROM fund_movements').fetchone()[0] == 0
         for table, row_id in (('service_fee_decisions', approved['id']), ('service_fee_reversals', reversed_row['id'])):
