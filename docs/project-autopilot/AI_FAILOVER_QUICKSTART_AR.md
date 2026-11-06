@@ -1,68 +1,10 @@
-## Active owner policy — 2026-11-06
+# استكمال رمسيس بأي مساعد — البداية الحالية
 
-The owner approved Public visibility after full-history/content audit and attested that published evidence is synthetic. GitHub Actions is now authorized for isolated TEST-ONLY CI. Use `docs/project-autopilot/PUBLIC_CI_AI_WORKFLOW_AR.md`. Historical no-Actions/private-repo instructions below are superseded by this explicit policy. No production deployment or real hospital data. Any legitimately authorized assistant may complete implementation, read CI, and perform a permitted SHA-checked merge; no particular AI reviewer is required.
+اقرأ AGENTS.md ثم PUBLIC_CI_AI_WORKFLOW_AR.md. السياسة الحالية بعد موافقة المالك6 نوفمبر2026: Public وGitHub Actions بصلاحيات محدودة، ثم Rulesets بعد نجاح CI الفعلي. تعليمات no-Actions القديمة محفوظة في تاريخ Git.
 
-# استلام مشروع حسابات رمسيس بين ChatGPT وCodex وClaude
+1. راجع main وPRs الحالية وSHA الحقيقي. اعمل على فرع مستقل.
+2. افتح PR وانتظر `ramses-core-ci` و`ramses-security` على رأسه الحالي. راجع الفرق والأعداد؛ BLOCKED التاريخي وSKIP ليست PASS.
+3. حدّث الفرع إذا تقدم main وأعد الفحص. من main موثوق ونظيف شغّل `python3.13 scripts/qa_checked_merge.py --pr N`، ثم `--merge` عند وجود تفويض الدمج ونجاح الشروط. لا حاجة لموافقة موديل معين، ولا bypass أو force-push.
+4. للأرشيف التاريخي الأصلي استعمل qa_fallback.py مع --v80-archive؛ لا ترفع الأرشيف أو logs أو DB إلى GitHub. Mac Local QA احتياطي وجدوله متوقف حاليًا.
 
-**حالة التنفيذ: مسار بديل جديد داخل PR #6، ولم يُدمج أو يُختبر بالكامل على جهاز ثانٍ بعد. المشروع TEST ONLY / PRODUCTION NO-GO.**
-
-**تحديث قرار الملكية 6 نوفمبر:** المستخدم وافق على تحويل المستودع إلى Public مؤقتًا بعد فحص تسريب الأسرار والتاريخ والصور والمرفقات، ثم إعادته إلى Private لاحقًا. الرجوع إلى Private لا يسحب أي نسخ أو Forks عامة. لم يتم تغيير Visibility من داخل ChatGPT بسبب غياب إجراء إدارة المستودع. اقرأ فصل النشر الآمن في [الوثيقة الكاملة](AI_FAILOVER_AND_MERGE_AR.md) قبل التنفيذ.
-
-
-
-هدفنا أن أي مساعد لديه أدوات GitHub وجهاز تشغيل مصرح به يقدر يكمل المشروع والاختبارات والدمج دون انتظار مساعد AI آخر أو استخدام GitHub Actions.
-
-## قاعدة البداية لأي مساعد
-
-- المستودع الخاص: `Hafezalhoot/ramses-accounts`. اقرأ `AGENTS.md` و`CLAUDE.md` و`CURRENT_RELEASE.md` وخارطة الطريق والـPRs المفتوحة قبل أي تعديل.
-- افحص `main` وSHA الحالي و`git status`. اشتغل على فرع مستقل لكل ميزة، ولا تستخدم `force push` أو تغيّر بيانات مستشفى حقيقية.
-- رفع التعديلات إلى PR لا يعني أنها جاهزة للدمج. اقرأ نتيجة `ramses/mac-local-qa` لنفس الـCommit.
-- عند انتهاء ليمت أي مساعد، يستطيع الثاني قراءة PR وسجل Git والتقرير واستكمال نفس المسار بدون ذاكرة المساعد السابق.
-
-## الاختبار الطبيعي: Mac Local QA
-
-لو الـMac الأساسي يعمل، الأداة المثبتة عليه تختبر التحديثات المقبولة دوريًا. اتأكد من نتيجة الاختبارات الخاصة بأحدث SHA وتعليقات الـPR؛ لا تعتمد على نجاح قديم.
-
-## البديل إذا الـMac لا يعمل
-
-بعد **دمج PR #6 إلى main واختبار الأداة عمليًا**، من جهاز Mac أو Linux موثوق لديه Git وDocker وPython 3.13 و`gh` متصل بحساب مصرح به، ومن نسخة نظيفة وحديثة من `main`:
-
-```bash
-gh auth status
-docker info
-git checkout main
-git pull --ff-only
-python3.13 tests/test_qa_fallback.py
-python3.13 scripts/qa_fallback.py --pr PR_NUMBER \
-  --v80-archive "/absolute/path/to/original-v8-source.zip"
-```
-
-راجع التقرير داخل `../ramses-qa-fallback-reports/`. عند التأكد من نتيجة التشغيل، يمكن إعادة الأمر مع `--publish` لرفع النتيجة الحقيقية إلى GitHub. استخدم رقم الـPR الفعلي ومكان الأرشيف التاريخي V8.0 الأصلي على جهازك؛ لا ترفع الأرشيف أو قاعدة بيانات المستشفى إلى GitHub.
-
-التشغيل داخل Docker بدون شبكة، وبدون GitHub Token أو Docker socket، وبصلاحيات محدودة. لا يُحتسب `BLOCKED` أو `FAIL` أو `TIMEOUT` كنجاح. حالة `SKIP` المقبولة تظهر منفصلة. لا تستخدم أداة الـMac والبديل لنشر نتيجة لنفس الـCommit في نفس الوقت.
-
-## دمج التعديل بواسطة أي مساعد مصرح له
-
-بعد نجاح الاختبارات ومراجعة الفرق وتهيئة الـPR من Draft إلى Ready، ومن نسخة موثوقة من `main`:
-
-```bash
-python3.13 scripts/qa_checked_merge.py --pr PR_NUMBER
-python3.13 scripts/qa_checked_merge.py --pr PR_NUMBER --merge
-```
-
-السطر الأول **فحص فقط**. السطر الثاني ينفذ الدمج بوسيلة GitHub API مع تقييد SHA، ويرفض الدمج لو الاختبار قديم أو الفرع متعارض أو غير محدث بـ`main` أو الـPR ما زال Draft. لا تحتاج موافقة AI ثانٍ؛ تحتاج فقط تصريح GitHub مناسب ومراجعة فعلية للتعديل. لا يقوم السكربت بدمج تلقائي أو نشر إنتاجي.
-
-## GitHub Free الخاص وحدود الحماية
-
-في 6 نوفمبر 2026، طلب GitHub لقائمة Rulesets للمستودع الخاص أعاد `403: Upgrade to GitHub Pro or make this repository public`، والفرع `main` حاليًا غير محمي. **قبل أي تحويل إلى Public، يجب اجتياز فحص النشر**؛ السكربت فحص اختياري لا يفرضه GitHub، والمساعد الذي يملك صلاحية Push قد يقدر يتجاوز الإجراءات. يُفضَّل GitHub Pro إذا أردنا قواعد إلزامية، بعد اختبار المسار البديل ومن غير فرض موافقة AI معيّن.
-
-حاليًا تُقبل PRs المنشأة بالحساب `Hafezalhoot` داخل المستودع نفسه. إن كان مساعد خارجي يستخدم حساب Bot مستقلًا، يجب إضافة الحساب الموثوق صراحةً لقوائم السماح في Mac QA والبديل بعد موافقتك؛ لا نقبل PRs من Forks عشوائيًا.
-
-## ما الذي ما زال يحتاج اختبارًا حقيقيًا؟
-
-1. بناء Docker الخاص بالبديل على جهاز مستقل، وتشغيل Chromium والمجموعة الكاملة مع أرشيف V8.0 الأصلي.
-2. رفع نتيجة fallback فعلية على PR تجريبي والتحقق من رقم SHA وعدم تكرار أو تزوير الحالة.
-3. اختبار فحص الدمج على PR تجريبي ثم التأكد من التنفيذ بعد تحويله إلى Ready.
-4. إعداد حماية GitHub الإلزامية فقط إذا أصبحت الميزة متاحة وبعد وجود مسار استعادة.
-
-**بوابة المرحلة:** قبل دمج PR #6 نراجع الكود وننتظر نجاح Mac QA الأساسي على أحدث SHA (مع اختبارات الوحدة الحالية). بعد دمج الأدوات في `main` نختبر تشغيل الـfallback الكامل والنشر والدمج على PR تجريبي، وقبل الاعتماد عليه كبديل فعلي أو فرض قواعد فرع إلزامية. لا توجد موافقة لنقل تشغيل المستشفى إلى الإنتاج.
+التفاصيل والحدود في AI_FAILOVER_AND_MERGE_AR.md. النشر العام لا ينشر تطبيق المستشفى ولا يعتمد التشغيل الإنتاجي.

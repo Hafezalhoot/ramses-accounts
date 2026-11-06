@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed Ramses main merge helper (no GitHub Rulesets or Actions required)."""
+"""Exact-SHA merge helper requiring current Actions checks and strict server rules."""
 from __future__ import annotations
 
 import argparse

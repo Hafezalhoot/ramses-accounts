@@ -1,3 +1,5 @@
+# QA dependency recipe; runtime content ID is pinned per job.
+# Base/apt/transitive ranges can refresh on rebuild; this is not a reproducible-image promise.
 # Trusted image built from the reviewed main branch; PR content is mounted only at runtime.
 FROM python:3.13-slim-bookworm
 RUN apt-get update \
