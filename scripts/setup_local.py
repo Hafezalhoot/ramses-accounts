@@ -15,7 +15,7 @@ for name in ("data", "backups", "secrets"):
 text = ("RAMSES_ADMIN_USER=owner\n"
         + "RAMSES_ADMIN_PASSWORD=" + password + "\n"
         + "RAMSES_ENVIRONMENT=staging\n"
-        + "# GOOGLE_SHEET_ID=1BIjVrtYUlt8lOtaarZPyz4Cci0XIp5eWIJwOCfUfTTk\n"
+        + "# GOOGLE_SHEET_ID=<STAGING_SHEET_ID>\n"
         + "# GOOGLE_SERVICE_ACCOUNT_JSON=/secrets/service-account.json\n")
 fd = os.open(TARGET, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
 with os.fdopen(fd, "w", encoding="utf-8") as fh:

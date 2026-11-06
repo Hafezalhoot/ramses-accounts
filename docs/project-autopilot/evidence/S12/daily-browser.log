@@ -1,7 +1,0 @@
-/Users/hafez/Documents/ChatGPT/نظام حسابات اولي خاص بالمستشفي/ramses-working-repo/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
-  from starlette.testclient import TestClient as TestClient  # noqa
-Database initialized: /var/folders/71/0slq498x0mn0vtw7ygz_gn2r0000gp/T/ramses-s11-fh9jcr81/synthetic.sqlite3
-Historical rows: 0 (quarantined, not posted)
-PASS Chromium S11 375px: daily missing/review details, non-certificate notice, RTL, loaded Cairo, no overflow/errors
-PASS Chromium S11 1440px: daily missing/review details, non-certificate notice, RTL, loaded Cairo, no overflow/errors
-PASS S11 daily exceptions: missing/review/unknown/upcoming, scoped report, no certification or writes

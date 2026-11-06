@@ -1,2 +1,0 @@
-PASS real HTTPS Chrome 375: cashier login, invoice/receipt links, three RTL print views, local Cairo, no overflow/JS errors
-PASS real HTTPS Chrome 1440: cashier login, invoice/receipt links, three RTL print views, local Cairo, no overflow/JS errors
