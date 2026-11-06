@@ -76,3 +76,18 @@ Authorized merge after matching SHA success, review of code and base compatibili
 GitHub's live API returned **HTTP 403** for the private repository rulesets list: **"Upgrade to GitHub Pro or make this repository public to enable this feature."** The `main` branch was **unprotected** when inspected. Do **not** make the hospital repository public. The checked merge helper cannot enforce policy against direct push by an account with write access; private-repo branch protection needs an eligible GitHub subscription. No GitHub protections were enabled or changed in this turn.
 
 See [Arabic Quickstart](AI_FAILOVER_QUICKSTART_AR.md) and [Implementation Plan](../superpowers/plans/2026-11-06-ai-failover-qa.md). The new fallback and checked-merge scripts are in **draft PR #6**, pending real Docker/PR integration and review. TEST ONLY / PRODUCTION NO-GO.
+
+## Owner decision: temporary public visibility during development (2026-11-06)
+
+The owner has explicitly requested **temporary Public visibility** to use GitHub Free rulesets during development and then return to Private. This supersedes the earlier blanket "never make public" recommendation. The visibility change itself has NOT been executed from ChatGPT; the connected GitHub app has no repository visibility mutation action.
+
+**Irreversibility warning:** returning to Private later cannot recall clones, downloaded commit history, detached public forks or other copies; do not imply that Public can be undone for confidentiality.
+
+**Publication gate before owner changes visibility:** 
+- On a trusted full clone: `git fetch --all --tags`, then run `gitleaks git --redact --log-opts="--all"` and inspect findings locally (do not upload secret values or unredacted reports).
+- Inspect all Git branches and historical commits, issues/PR comments, screenshots/PDFs and any test-fixture files for credentials, real patient/staff details, bank details, sensitive hospital documents, internal URLs or commercially confidential information. A scan limited to today's main tree is not enough.
+- If leaks are found, **rotate/revoke real credentials first** and keep this repository Private; history rewriting may still not eliminate all accessible copies. Consider a clean-history Public development mirror if the original history is not publishable.
+- Owner may switch visibility from repository GitHub Settings → General → Danger Zone → Change repository visibility → Public. Verify `visibility=public`, that GitHub Actions are still disabled, and then configure supported rulesets carefully (no AI-vendor bottleneck; preserve a verified QA recovery path).
+- Before the eventual Private switch, document that public forks persist, that public-repo rulesets may become unavailable on GitHub Free, and choose a private-safe fallback for merges/tests.
+
+**Preliminary read-only inspection in ChatGPT (not certification):** current main tree: 808 tracked files, including 74 PDF/image assets and 107 data/report files; no obvious committed `.env`, database, ZIP backup, key or secret-file paths at 12 branch tips. Selected text files showed no obvious credential-token patterns, but complete history, screenshots, PDF and Issue/PR content have NOT been fully scanned. Keep `Private` until preflight succeeds.
