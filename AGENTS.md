@@ -47,3 +47,11 @@ SQLite databases, encrypted backups, Git bundles or delivery ZIPs. Use only synt
 data in previews/tests. Source transfer does not deploy an app or transfer a database.
 The project remains TEST ONLY / PRODUCTION NO-GO until the financial gaps, real
 restore drills, hospital UAT and formal approvals documented in the roadmap are met.
+
+## Any AI can finish the work
+
+See [AI failover and merge protocol](docs/project-autopilot/AI_FAILOVER_AND_MERGE_AR.md).
+ChatGPT, Codex, Claude or a new assistant may continue implementation, run QA via the
+Mac watcher or a trusted alternate machine, and merge an authorized, verified PR
+without requiring another AI. Quotas/sessions must not be dependencies. No direct
+production changes or unverified green status; GitHub Actions remain disabled.
