@@ -59,6 +59,26 @@ def run():
         assert not qa_fallback.audit_results(tsv, tests, min_scripts=2)['ok']
         write([['test_one.py', 'PASS', 1, 'ok']])
         assert not qa_fallback.audit_results(tsv, tests, min_scripts=2)['ok']
+    with tempfile.TemporaryDirectory() as folder:
+        root = Path(folder) / 'trusted'
+        clone = Path(folder) / 'clone'
+        (root / 'scripts').mkdir(parents=True)
+        (clone / 'scripts').mkdir(parents=True)
+        for name in ('ci_smoke.py', 'qa_g2t_full.py'):
+            (root / 'scripts' / name).write_text('# trusted original')
+            (clone / 'scripts' / name).write_text('# PR-modified driver')
+        qa_fallback.pin_test_drivers(root, clone)
+        assert all((clone / 'scripts' / n).read_text() == '# trusted original'
+                   for n in ('ci_smoke.py', 'qa_g2t_full.py'))
+        (clone / 'scripts' / 'qa_g2t_full.py').unlink()
+        (clone / 'scripts' / 'qa_g2t_full.py').symlink_to('/tmp/external-test-driver')
+        try:
+            qa_fallback.pin_test_drivers(root, clone)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('Symlink to host file accepted as QA driver')
+
     print('PASS portable QA: PR trust, no-host-secrets Docker, strict report audit')
 
 
