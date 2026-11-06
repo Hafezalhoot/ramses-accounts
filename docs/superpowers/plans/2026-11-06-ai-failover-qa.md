@@ -63,3 +63,15 @@
 ### Evidence / current limit
 
 Local isolated code-level checks: `tests/test_qa_fallback.py` PASS; Python `py_compile` PASS; CLI help displayed. The exact uploaded source and config were read back from GitHub. This **does not** prove a real Docker image builds, complete QA runs, or ruleset/merge works. The existing Mac watcher reported historic PASS on other PRs but not this new fallback. PR #6 remains DRAFT / NOT MERGED; Ramses is still TEST ONLY / PRODUCTION NO-GO.
+
+
+### Task 4: Verified merge with private GitHub Free limitation
+
+**Files:** `scripts/qa_checked_merge.py`, `tests/test_qa_checked_merge.py`, `docs/project-autopilot/AI_FAILOVER_QUICKSTART_AR.md`.
+
+- [x] RED test on missing checked-merge module, then GREEN after implementation, Python 3.13 syntax check.
+- [x] Reject wrong PR author, Draft PR, mergeability failure, SHA mismatch, missing/blocked QA, and stale main base in synthetic tests.
+- [x] Require explicit `--merge`; GitHub merge API is SHA constrained to reject a moved head.
+- [x] Confirm actual private GitHub API responds 403 requiring Pro for rulesets, while main remains unprotected.
+- [ ] Test the actual precheck and an authorized, non-production merge on a real disposable PR once the fallback QA has passed.
+- [ ] Reassess paid private-repo GitHub branch protection with the owner if desired. Never make the repo public.
