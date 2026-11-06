@@ -1,0 +1,44 @@
+title = "Ramses audited history; new commits remain fully scanned"
+[extend]
+useDefault = true
+
+# These exact immutable commit/path pairs were reviewed before owner-approved
+# publication on2026-11-06: source SHA256 manifests, synthetic temp-DB test values
+# and one prose match. No blanket tests/ or detector exemption. New SHA is scanned.
+[[allowlists]]
+description = "Audited historical generic-detector contexts only"
+condition = "AND"
+commits = ["0e87a3bb17ded678f33c764b3dcfde260cb9116f", "38b2720e175f4f8b4895074355d47d0b3ade64bd", "3e9669229b5ecc3da954416c1a541ff8642ea71c", "4933339571bbc5fe88b82423a329d7f7a873b9a4", "5211e6a690ea15868b2f1748a55de5e35c2e3c0e", "5bac57ad508d23d6ee7d860b7627eca27e41e690", "72ac4cc64c479c46ca0364d8449ddf90bcaf1552", "809a5e73d16671ea10af22962a2e09aaddd509f4", "8605349df8adacc68d54aa5710c25be180ef2e77", "885e80e261a41c74eb08d583b3390678d96f44b7", "8feca982026c5466aafd6b58a2fc8101d5577532", "95c6c7018f7e1adececb13900f1bf9fc9b56d218", "981f7adeff554707e3aa91792882b915f2631122", "b3cdcd28aaaa12b6981d8a91d986ac1623111470", "d26d77afdc139e444a0d55c30e2d423f2cec36a4"]
+paths = [
+  '''^BUILD_MANIFEST_S5\.json$''',
+  '''^BUILD_MANIFEST_S6\.json$''',
+  '''^BUILD_MANIFEST_V81E_G0\.json$''',
+  '''^BUILD_MANIFEST_V81E_G1_G2A\.json$''',
+  '''^BUILD_MANIFEST_V81E_G2E\.json$''',
+  '''^BUILD_MANIFEST_V81E_G2F\.json$''',
+  '''^BUILD_MANIFEST_V81E_G2G\.json$''',
+  '''^BUILD_MANIFEST_V81E_G2H\.json$''',
+  '''^BUILD_MANIFEST_V81E_G2L\.json$''',
+  '''^BUILD_MANIFEST_V81E_G2R\.json$''',
+  '''^BUILD_MANIFEST_V81E_PHASE2\.json$''',
+  '''^RAMSES_G2T_MASTER_EXECUTION_PLAN_2026\-10\-31_AR\.md$''',
+  '''^tests/test_payroll_corrections\.py$''',
+  '''^tests/test_s2_cashier_24h_acceptance\.py$''',
+  '''^tests/test_s6_backup_financial_integrity\.py$''',
+  '''^tests/test_shift_schedule_handoff_v81c\.py$''',
+  '''^tests/test_shifts\.py$''',
+  '''^tests/test_v81e_g0_regressions\.py$''',
+  '''^tests/test_v81e_g2c_cash_clearance\.py$''',
+  '''^tests/test_v81e_g2g_invoice_credit\.py$''',
+  '''^tests/test_v81e_p5_corrections_intake\.py$''',
+  '''^tests/test_v82_g2q_security\.py$''',
+  '''^tests/test_v82_g3a_clinician_identity\.py$''',
+  '''^tests/test_v82_g3b_upgrade\.py$''',
+  '''^tests/test_v82_g3d_inventory_returns\.py$''',
+  '''^tests/test_v82_g3d_upgrade\.py$''',
+  '''^tests/test_v82_g3f_return_quarantine\.py$''',
+  '''^tests/test_v82_g3h_purchasing\.py$''',
+  '''^tests/test_v82_g3j_supplier_payment_requests\.py$''',
+  '''^tests/test_v82_g3k_supplier_bank_settlement\.py$''',
+  '''^tests/test_v82_g3l_supplier_control\.py$'''
+]

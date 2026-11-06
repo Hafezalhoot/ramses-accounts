@@ -1,0 +1,2 @@
+# Explicit same-repository PR author allowlist. Owner approval required to add identities.
+Hafezalhoot
